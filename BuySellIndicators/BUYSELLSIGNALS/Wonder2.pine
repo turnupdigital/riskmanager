@@ -1,0 +1,80 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © coderboring
+
+//@version=5
+indicator("Wonder2", overlay = true)
+
+// Automatically show the bullish(buy) / bearish(sell) signals
+// Automatically show the price trend
+
+wtpLength = input(10   ,"WTP Length") 
+sensitivity = input(0    ,"Sensitivity")
+scale     = input(1    ,"Scale    ")
+distance  = input(100  ,"Distance ")
+
+wtpClose_org     = (open + high + low + close) / 4
+var wtpOpen_org  = float(na) 
+wtpOpen_org      := (nz(wtpOpen_org[1]) + wtpClose_org[1]) / 2
+wtpHigh_org_temp = math.max(wtpOpen_org, wtpClose_org)
+wtpHigh_org      = math.max(high, wtpHigh_org_temp)
+wtpLow_org_temp  = math.min(wtpOpen_org, wtpClose_org)
+wtpLow_org       = math.min(low, wtpLow_org_temp)
+
+wtpOpen = ta.sma(wtpOpen_org, wtpLength) * 100 / distance
+
+popen = plot(wtpOpen_org, "wtp Open org", color.gray)
+
+wtpHigh =  ta.sma(wtpHigh_org, wtpLength) * 100 / distance
+wtpLow  =  ta.sma(wtpLow_org, wtpLength) * 100 / distance 
+
+wtpClose = ta.sma(wtpClose_org, wtpLength) * 100 / distance
+pclose = plot(wtpClose, "wtp Close", color.gray)
+
+fill(popen, pclose, wtpOpen_org > wtpClose ? color.new(color.green, 75) : color.new(color.red, 75) )
+
+flag_green = wtpClose > wtpOpen
+flag_red = wtpClose < wtpOpen
+flag_green_1 = wtpClose > wtpOpen and wtpClose[1] <= wtpOpen[1]
+
+flag_red_1 = wtpClose < wtpOpen and wtpClose[1] >= wtpOpen[1]
+
+var bull_pre_1 = float(na) 
+var bull_pre_2 = float(na) 
+var bull_pre_3 = float(na) 
+
+bull_pre_1 := flag_green_1 ? close : bull_pre_1[1]
+bull_pre_2 := flag_green_1 ? bull_pre_1[1] : bull_pre_2[1]
+bull_pre_3 := flag_green_1 ? bull_pre_2[1] : bull_pre_3[1]
+bull = flag_green ? close > bull_pre_2 * (1+sensitivity/(1000*scale)) : 0
+
+var bearish_pre_1 = float(na)
+var bearish_pre_2 = float(na)
+var bearish_pre_3 = float(na)
+
+bearish_pre_1 := flag_red_1 ? close : bearish_pre_1[1]
+bearish_pre_2 := flag_red_1 ? bearish_pre_1[1] : bearish_pre_2[1]
+bearish_pre_3 := flag_red_1 ? bearish_pre_2[1] : bearish_pre_3[1]
+bearish   = flag_red   ? close < bearish_pre_2 * (1-sensitivity/(1000*scale)) : 0
+
+isAbove =  bull and not bull[1] ? bull : 0
+isBelow =  bearish and not bearish[1] ? bearish : 0
+
+// Clear plots for external system integration
+buySignal = isAbove ? 1 : 0
+sellSignal = isBelow ? 1 : 0
+bullishTrend = flag_green ? 1 : 0
+bearishTrend = flag_red ? 1 : 0
+trendStrength = math.abs(wtpClose - wtpOpen)
+
+// Human-readable plots for TradingView picker
+plot(buySignal, "Buy Signal", color.green, linewidth=2)
+plot(sellSignal, "Sell Signal", color.red, linewidth=2)
+plot(bullishTrend, "Bullish Trend", color.lime, linewidth=1)
+plot(bearishTrend, "Bearish Trend", color.orange, linewidth=1)
+plot(trendStrength, "Trend Strength", color.blue, linewidth=1)
+plot(wtpClose, "WTP Close", color.gray, linewidth=1)
+plot(wtpOpen, "WTP Open", color.silver, linewidth=1)
+
+// Keep original visual signals
+plotshape(isAbove, "Buy Shape", shape.triangleup, location.belowbar, color.green, size = size.small)
+plotshape(isBelow, "Sell Shape", shape.triangledown, location.abovebar, color.red, size = size.small)

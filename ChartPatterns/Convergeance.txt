@@ -1,0 +1,95 @@
+Introduction to Converging Chart Patterns
+We discussed identification and classification of different chart patterns and chart pattern extensions in our previous posts.
+
+Chart Patterns 101 : Algorithmic Way
+Flag and Pennant Chart Patterns
+In this installment, we shift our focus towards the practical trading strategies applicable to a select group of these patterns. Acknowledging that a universal trading rule cannot apply to all patterns, we narrow our examination to those of the converging variety.
+
+We will specifically address the following converging patterns:
+
+Rising Wedge (Converging Type)
+Falling Wedge (Converging Type)
+Converging Triangle
+Rising Triangle (Converging Type)
+Falling Triangle (Converging Type)
+This selection will guide our discussion on how to approach these patterns from a trading perspective.
+
+Historical Bias and General Perception
+Each pattern we've discussed carries a historical sentiment that is widely regarded as a guideline for trading. Before we delve into our specific trading strategies, it's crucial to understand these historical sentiments and the general market interpretations associated with them.
+
+The Dynamics of Contracting Wedge Patterns
+Contracting Wedge patterns are typically indicative of the Elliott Wave Structure's diagonal waves, potentially marking either the beginning or conclusion of these waves. A contracting wedge within a leading diagonal may experience a brief retracement before the trend resumes. Conversely, if found in an ending diagonal, it could signal the termination of wave 5 or C, possibly hinting at a significant trend reversal.
+
+The prevailing view suggests that these patterns usually precede a short-term directional shift: Rising Wedges are seen as bearish signals, while Falling Wedges are interpreted as bullish. It's essential to consider the trend prior to the formation of these patterns, as it significantly aids in determining their context within the Elliott Wave cycles, specifically identifying them as part of waves 1, A, 5, or C.
+
+For an in-depth exploration, refer to our detailed analysis in Decoding Wedge Patterns
+
+🎯 Rising Wedge (Converging Type)
+The Rising Wedge pattern, historically viewed with a bearish bias, suggests that a downward trend is more likely upon a breakout below its lower trend line. This perception positions the pattern as a signal for traders to consider bearish positions once the price breaks through this critical support.
+
+snapshot
+
+🎯 Falling Wedge (Converging Type)
+The Falling Wedge pattern is traditionally seen through a bullish lens, indicating potential upward momentum when the price surpasses its upper trend line. This established viewpoint suggests initiating long positions as a strategic response to such a breakout, aligning with the pattern's optimistic forecast.
+snapshot
+
+Contracting Triangle Patterns
+Contracting Triangles, encompassing Converging, Ascending, and Descending Triangles, are particularly noteworthy when they appear as part of the Elliott Wave's B or 2 waves. These patterns typically signal a continuation of the pre-existing trend that preceded the triangle's formation. This principle also underpins the Pennant Pattern, which emerges following an impulse wave, indicating a pause before the trend's resumption.
+
+
+snapshot
+
+Alternate Way of Looking into Converging Pattern
+Main issue with historical perception are:
+
+There is no clear back testing data to prove whether the general perception is correct or more profitable.
+Elliott Waves concepts are very much subjective and can be often difficult for beginners and misleading even for experts.
+So, the alternative way is to treat all the converging patterns equally and devise a method to trade using a universal way. This allows us to back test our thesis and be definitive about the profitability of these patterns.
+
+Here are our simple steps to devise and test a converging pattern based strategy.
+
+Consider all converging patterns as bidirectional. Meaning, they can be traded on either side. Thus chose to trade based on the breakout. If the price beaks up, then trade long and if the price breaks down, then trade short.
+For each direction, define criteria for entry, stop, target prices and also an invalidation price at which the trade is ignored even without entry.
+Backtest and Forward test the strategy and collect data with respect to win ratio, risk reward and profit factor to understand the profitability of patterns and the methodology.
+Now, let's break it further down.
+
+Defining The Pattern Trade Conditions
+Measure the ending distance between the trend line pairs and set breakout points above and beyond the convergence zone.
+
+🎯 Entry Points - These can be formed on either side of the convergence zone. Adding a small buffer on top of the convergence zone is ideal for setting the entry points of converging patterns.
+
+Formula for Entry can be:
+
+Long Entry Price = Top + (Top - Bottom) X Entry Ratio
+Short Entry Price = Bottom  - (Top-Bottom) X Entry Ratio
+Whereas Top refers to the upper side of the convergence zone and bottom refers to the lower side of the convergence zone. Entry Ratio is the buffer ratio to apply on top of the convergence zone to get entry points.
+
+🎯 Stop Price - Long entry can act as stop for short orders and the short entry can act as stop price for long orders. However, this is not mandatory and different logic for stops can be applied for both sides.
+
+Formula for Stop Can be
+
+Long Stop Price = Bottom - (Top - Bottom) X Stop Ratio
+Short Stop Price = Top + (Top - Bottom) X Stop Ratio
+🎯 Target Price - It is always good to set targets based on desired risk reward ratio. That means, the target should always depend on the distance between entry and stop price.
+
+The general formula for Target can be:
+
+Target Price = Entry + (Entry-Stop) X Risk Reward
+🎯 Invalidation Price - Invalidation price is a level where the trade direction for a particular pattern needs to be ignored or invalidated. This price need to be beyond stop price. In general, trade is closed when a pattern hits invalidation price.
+
+Formula for Invalidation price is the same as that of Stop Price, but Invalidation Ratio is more than that of Stop Ratio
+
+Long Invalidation Price = Bottom - (Top - Bottom) X Invalidation Ratio
+Short Invalidation Price = Top + (Top - Bottom) X Invalidation Ratio
+snapshot
+
+Back Test and Forward Test and Measure the Profit Factor
+It is important to perform sufficient testing to understand the profitability of the strategy before using them on the live trades. Use multiple timeframes and symbols to perform a series of back tests and forward tests, and collect as much data as possible on the historical outcomes of the strategy.
+
+Profit Factor of the strategy can be calculated by using a simple formula
+
+Profit Factor = (Wins/Losses) X Risk Reward
+Use Filters and Different Combinations
+Filters will help us in filtering out noise and trade only the selective patterns. The filters can include a simple logic such as trade long only if price is above 200 SMA and trade short only if price is below 200 SMA. Or it can be as complex as looking into the divergence signals or other complex variables.
+
+Example filters can be found in our documentation section - Filters Trendoscope Documentation
