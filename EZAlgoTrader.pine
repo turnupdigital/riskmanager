@@ -89,6 +89,208 @@ var array<int> signal_strategy_wins = array.new<int>(10, 0)
 var bool longEntrySignal = false
 var bool shortEntrySignal = false
 
+// ═══════════════════ VIRTUAL SIGNAL ARCHITECTURE ═══════════════════
+// Individual Signal Backtesting System - 10 Parallel Virtual Accounts
+// Each signal gets its own isolated "trading account" for perfect attribution
+
+// Virtual Account Structure for Each Signal
+type VirtualAccount
+    bool inPosition = false
+    string direction = "none"  // "long", "short", "none"
+    float entryPrice = na
+    float currentPnL = 0.0
+    float totalPnL = 0.0
+    int totalTrades = 0
+    int winningTrades = 0
+    float maxDrawdown = 0.0
+    float peakPnL = 0.0
+    float troughPnL = 0.0
+    float largestWin = 0.0
+    float largestLoss = 0.0
+    float grossProfit = 0.0
+    float grossLoss = 0.0
+    int longTrades = 0
+    int shortTrades = 0
+    int longWins = 0
+    int shortWins = 0
+    float longPnL = 0.0
+    float shortPnL = 0.0
+    float commission = 0.0
+    float slippage = 0.0
+
+// Initialize 10 Virtual Accounts (one for each signal)
+var VirtualAccount virtualAccount1 = VirtualAccount.new()
+var VirtualAccount virtualAccount2 = VirtualAccount.new()
+var VirtualAccount virtualAccount3 = VirtualAccount.new()
+var VirtualAccount virtualAccount4 = VirtualAccount.new()
+var VirtualAccount virtualAccount5 = VirtualAccount.new()
+var VirtualAccount virtualAccount6 = VirtualAccount.new()
+var VirtualAccount virtualAccount7 = VirtualAccount.new()
+var VirtualAccount virtualAccount8 = VirtualAccount.new()
+var VirtualAccount virtualAccount9 = VirtualAccount.new()
+var VirtualAccount virtualAccount10 = VirtualAccount.new()
+
+// Array of virtual accounts for easy iteration
+var array<VirtualAccount> virtualAccounts = array.from(
+    virtualAccount1, virtualAccount2, virtualAccount3, virtualAccount4, virtualAccount5,
+    virtualAccount6, virtualAccount7, virtualAccount8, virtualAccount9, virtualAccount10
+)
+
+// Commission and Slippage Configuration
+commissionPerTrade = input.float(2.50, '💰 Commission Per Trade', minval=0.0, step=0.25, group='💼 Virtual Account Settings', tooltip='Commission cost per trade (both entry and exit)')
+slippagePerTrade = input.float(0.50, '📉 Slippage Per Trade', minval=0.0, step=0.25, group='💼 Virtual Account Settings', tooltip='Slippage cost per trade (market impact)')
+virtualPositionSize = input.int(1, '📊 Virtual Position Size', minval=1, group='💼 Virtual Account Settings', tooltip='Position size for virtual accounts (contracts/shares)')
+
+// Parameter Change Detection System
+var int lastParameterHash = na
+var bool parametersChanged = false
+
+// Calculate parameter hash for change detection
+calculateParameterHash() =>
+    // Hash key parameters that affect backtesting
+    hash = 0
+    hash += commissionPerTrade * 1000
+    hash += slippagePerTrade * 1000
+    hash += virtualPositionSize * 100
+    hash += signal1Enable ? 1 : 0
+    hash += signal2Enable ? 2 : 0
+    hash += signal3Enable ? 4 : 0
+    hash += signal4Enable ? 8 : 0
+    hash += signal5Enable ? 16 : 0
+    hash += signal6Enable ? 32 : 0
+    hash += signal7Enable ? 64 : 0
+    hash += signal8Enable ? 128 : 0
+    hash += signal9Enable ? 256 : 0
+    hash += signal10Enable ? 512 : 0
+    int(hash)
+
+// Reset all virtual accounts when parameters change
+resetVirtualAccounts() =>
+    for i = 0 to array.size(virtualAccounts) - 1
+        account = array.get(virtualAccounts, i)
+        account.inPosition := false
+        account.direction := "none"
+        account.entryPrice := na
+        account.currentPnL := 0.0
+        account.totalPnL := 0.0
+        account.totalTrades := 0
+        account.winningTrades := 0
+        account.maxDrawdown := 0.0
+        account.peakPnL := 0.0
+        account.troughPnL := 0.0
+        account.largestWin := 0.0
+        account.largestLoss := 0.0
+        account.grossProfit := 0.0
+        account.grossLoss := 0.0
+        account.longTrades := 0
+        account.shortTrades := 0
+        account.longWins := 0
+        account.shortWins := 0
+        account.longPnL := 0.0
+        account.shortPnL := 0.0
+        account.commission := 0.0
+        account.slippage := 0.0
+
+// Check for parameter changes
+currentParameterHash = calculateParameterHash()
+if na(lastParameterHash) or lastParameterHash != currentParameterHash
+    parametersChanged := true
+    resetVirtualAccounts()
+    lastParameterHash := currentParameterHash
+    if debugEnabled
+        debugMessage("SYSTEM", "Parameters changed - Virtual accounts reset", color.orange, color.white, 0.3)
+else
+    parametersChanged := false
+
+// Virtual Account Trading Functions
+processVirtualTrade(VirtualAccount account, bool longSignal, bool shortSignal, string signalName, int signalIndex) =>
+    // Calculate point value for accurate P&L
+    pointValue = syminfo.pointvalue * futuresMultiplier
+    
+    // Entry Logic
+    if not account.inPosition
+        if longSignal
+            account.inPosition := true
+            account.direction := "long"
+            account.entryPrice := close
+            account.totalTrades += 1
+            account.longTrades += 1
+            account.commission += commissionPerTrade
+            account.slippage += slippagePerTrade
+            if debugEnabled
+                debugMessage("VIRTUAL", signalName + " Virtual Long Entry @ " + str.tostring(close), color.lime, color.white, 0.4)
+        else if shortSignal
+            account.inPosition := true
+            account.direction := "short"
+            account.entryPrice := close
+            account.totalTrades += 1
+            account.shortTrades += 1
+            account.commission += commissionPerTrade
+            account.slippage += slippagePerTrade
+            if debugEnabled
+                debugMessage("VIRTUAL", signalName + " Virtual Short Entry @ " + str.tostring(close), color.red, color.white, 0.4)
+    
+    // Update current P&L for open positions
+    if account.inPosition
+        if account.direction == "long"
+            rawPnL = (close - account.entryPrice) * virtualPositionSize * pointValue
+            account.currentPnL := rawPnL - account.commission - account.slippage
+        else if account.direction == "short"
+            rawPnL = (account.entryPrice - close) * virtualPositionSize * pointValue
+            account.currentPnL := rawPnL - account.commission - account.slippage
+        
+        // Update peak and trough for drawdown calculation
+        if account.currentPnL > account.peakPnL
+            account.peakPnL := account.currentPnL
+        if account.currentPnL < account.troughPnL
+            account.troughPnL := account.currentPnL
+        
+        // Calculate current drawdown
+        currentDrawdown = account.peakPnL - account.currentPnL
+        if currentDrawdown > account.maxDrawdown
+            account.maxDrawdown := currentDrawdown
+
+// Exit Logic (simplified - using opposite signal as exit for now)
+processVirtualExit(VirtualAccount account, bool exitSignal, string signalName, int signalIndex) =>
+    if account.inPosition and exitSignal
+        // Calculate final P&L
+        pointValue = syminfo.pointvalue * futuresMultiplier
+        if account.direction == "long"
+            rawPnL = (close - account.entryPrice) * virtualPositionSize * pointValue
+            finalPnL = rawPnL - commissionPerTrade - slippagePerTrade - account.commission - account.slippage
+            account.longPnL += finalPnL
+        else if account.direction == "short"
+            rawPnL = (account.entryPrice - close) * virtualPositionSize * pointValue
+            finalPnL = rawPnL - commissionPerTrade - slippagePerTrade - account.commission - account.slippage
+            account.shortPnL += finalPnL
+        
+        // Update statistics
+        account.totalPnL += finalPnL
+        if finalPnL > 0
+            account.winningTrades += 1
+            account.grossProfit += finalPnL
+            if account.direction == "long"
+                account.longWins += 1
+            else
+                account.shortWins += 1
+            if finalPnL > account.largestWin
+                account.largestWin := finalPnL
+        else
+            account.grossLoss += math.abs(finalPnL)
+            if finalPnL < account.largestLoss
+                account.largestLoss := finalPnL
+        
+        // Reset position
+        account.inPosition := false
+        account.direction := "none"
+        account.entryPrice := na
+        account.currentPnL := 0.0
+        account.commission := 0.0
+        account.slippage := 0.0
+        
+        if debugEnabled
+            debugMessage("VIRTUAL", signalName + " Virtual Exit @ " + str.tostring(close) + " P&L: $" + str.tostring(finalPnL, "#.##"), finalPnL > 0 ? color.lime : color.red, color.white, 0.5)
+
 // ═══════════════════ MULTI-SIGNAL INPUT SYSTEM ═══════════════════
 // ─────────────────── SIGNAL SOURCE INPUTS ───────────────────
 signal1Enable = input.bool(true, '📊 Signal 1', inline = 'sig1', group = '🔄 Multi-Signals', tooltip = 'Primary signal source')
@@ -245,6 +447,60 @@ var int longSignalCount = 0
 var int shortSignalCount = 0
 longSignalCount := (sig1Long ? 1 : 0) + (sig2Long ? 1 : 0) + (sig3Long ? 1 : 0) + (sig4Long ? 1 : 0) + (sig5Long ? 1 : 0) + (sig6Long ? 1 : 0) + (sig7Long ? 1 : 0) + (sig8Long ? 1 : 0) + (sig9Long ? 1 : 0) + (sig10Long ? 1 : 0)
 shortSignalCount := (sig1Short ? 1 : 0) + (sig2Short ? 1 : 0) + (sig3Short ? 1 : 0) + (sig4Short ? 1 : 0) + (sig5Short ? 1 : 0) + (sig6Short ? 1 : 0) + (sig7Short ? 1 : 0) + (sig8Short ? 1 : 0) + (sig9Short ? 1 : 0) + (sig10Short ? 1 : 0)
+
+// ═══════════════════ VIRTUAL ACCOUNT PROCESSING ═══════════════════
+// Process each signal through its corresponding virtual account
+// This creates perfect signal attribution without interference
+
+// Signal names array for debugging
+signalNames = array.from(signal1Name, signal2Name, signal3Name, signal4Name, signal5Name, 
+                        signal6Name, signal7Name, signal8Name, signal9Name, signal10Name)
+
+// Process virtual trades for each signal
+processVirtualTrade(virtualAccount1, sig1Long, sig1Short, signal1Name, 0)
+processVirtualTrade(virtualAccount2, sig2Long, sig2Short, signal2Name, 1)
+processVirtualTrade(virtualAccount3, sig3Long, sig3Short, signal3Name, 2)
+processVirtualTrade(virtualAccount4, sig4Long, sig4Short, signal4Name, 3)
+processVirtualTrade(virtualAccount5, sig5Long, sig5Short, signal5Name, 4)
+processVirtualTrade(virtualAccount6, sig6Long, sig6Short, signal6Name, 5)
+processVirtualTrade(virtualAccount7, sig7Long, sig7Short, signal7Name, 6)
+processVirtualTrade(virtualAccount8, sig8Long, sig8Short, signal8Name, 7)
+processVirtualTrade(virtualAccount9, sig9Long, sig9Short, signal9Name, 8)
+processVirtualTrade(virtualAccount10, sig10Long, sig10Short, signal10Name, 9)
+
+// Process virtual exits (using opposite signals for now - can be enhanced later)
+processVirtualExit(virtualAccount1, sig1Short, signal1Name, 0)  // Long exit on short signal
+processVirtualExit(virtualAccount2, sig2Short, signal2Name, 1)
+processVirtualExit(virtualAccount3, sig3Short, signal3Name, 2)
+processVirtualExit(virtualAccount4, sig4Short, signal4Name, 3)
+processVirtualExit(virtualAccount5, sig5Short, signal5Name, 4)
+processVirtualExit(virtualAccount6, sig6Short, signal6Name, 5)
+processVirtualExit(virtualAccount7, sig7Short, signal7Name, 6)
+processVirtualExit(virtualAccount8, sig8Short, signal8Name, 7)
+processVirtualExit(virtualAccount9, sig9Short, signal9Name, 8)
+processVirtualExit(virtualAccount10, sig10Short, signal10Name, 9)
+
+// Also process short exits on long signals
+if virtualAccount1.direction == "short" and sig1Long
+    processVirtualExit(virtualAccount1, sig1Long, signal1Name, 0)
+if virtualAccount2.direction == "short" and sig2Long
+    processVirtualExit(virtualAccount2, sig2Long, signal2Name, 1)
+if virtualAccount3.direction == "short" and sig3Long
+    processVirtualExit(virtualAccount3, sig3Long, signal3Name, 2)
+if virtualAccount4.direction == "short" and sig4Long
+    processVirtualExit(virtualAccount4, sig4Long, signal4Name, 3)
+if virtualAccount5.direction == "short" and sig5Long
+    processVirtualExit(virtualAccount5, sig5Long, signal5Name, 4)
+if virtualAccount6.direction == "short" and sig6Long
+    processVirtualExit(virtualAccount6, sig6Long, signal6Name, 5)
+if virtualAccount7.direction == "short" and sig7Long
+    processVirtualExit(virtualAccount7, sig7Long, signal7Name, 6)
+if virtualAccount8.direction == "short" and sig8Long
+    processVirtualExit(virtualAccount8, sig8Long, signal8Name, 7)
+if virtualAccount9.direction == "short" and sig9Long
+    processVirtualExit(virtualAccount9, sig9Long, signal9Name, 8)
+if virtualAccount10.direction == "short" and sig10Long
+    processVirtualExit(virtualAccount10, sig10Long, signal10Name, 9)
 
 // ═══════════════════ PRIMARY SIGNAL COMBINATION ═══════════════════
 // Note: Primary signals are defined below after imports (line 126-127)
@@ -753,132 +1009,99 @@ profitLockerLine = strategy.position_size > 0 ? high - (atrVal * smartProfitVal 
 plot(stopLossLine, title="🛑 Stop Loss", color=color.new(color.red, 20), linewidth=2, style=plot.style_linebr)
 plot(profitLockerLine, title="💰 Profit Locker", color=color.new(color.green, 20), linewidth=2, style=plot.style_linebr)
 
-// ═══════════════════ PROFESSIONAL STRATEGY ANALYTICS PANEL ═══════════════════
-// Strategy-based performance analytics with professional UI design
-if showBacktestTable and barstate.isconfirmed
-    // Create compact analytics table with responsive design (expanded for 10 signals)
-    var table strategyAnalytics = table.new(position.bottom_left, 5, 12, bgcolor = color.new(color.black, 5), border_width = 1)
+// ═══════════════════ ENHANCED VIRTUAL SIGNAL ANALYTICS ═══════════════════
+// Professional Individual Signal Backtesting with Virtual Account System
+// Real-time performance tracking with commission/slippage integration
 
-    // Compact headers with better sizing
-    table.cell(strategyAnalytics, 0, 0, '📊 SIGNALS', text_color = color.white, text_size = size.small, bgcolor = color.new(color.blue, 15))
-    table.cell(strategyAnalytics, 1, 0, 'Win%', text_color = color.white, text_size = size.small, bgcolor = color.new(color.green, 15))
-    table.cell(strategyAnalytics, 2, 0, 'P&L', text_color = color.white, text_size = size.small, bgcolor = color.new(color.green, 15))
-    table.cell(strategyAnalytics, 3, 0, 'DD', text_color = color.white, text_size = size.small, bgcolor = color.new(color.red, 15))
-    table.cell(strategyAnalytics, 4, 0, '#', text_color = color.white, text_size = size.small, bgcolor = color.new(color.blue, 15))
-
-    // Global analytics panel variables (declared to avoid scope issues)
-    var string health_emoji = '⚪'
-    var color health_color = color.gray
-    var string action_text = 'WAIT'
-    var color action_color = color.gray
+if showBacktestTable and barstate.islast
+    // Enhanced Virtual Account Table with Long/Short Separation
+    var table virtualSignalTable = table.new(
+        position.bottom_left, 
+        columns=11, rows=12,
+        bgcolor=color.new(color.black, 85),
+        border_width=2,
+        border_color=color.new(color.white, 70)
+    )
     
-    // Signal 1 - Individual Signal Analytics (Fixed)
-    if signal1Enable
-        // Use individual signal tracking instead of combined strategy stats
-        signal_trades = array.get(signal_tradeCounts, 0)
-        signal_wins = array.get(signal_winCounts, 0)
-        signal_pnl = array.get(signal_profits, 0)  // Individual signal P&L
-        signal_max_dd = array.get(signal_strategy_drawdowns, 0)  // Individual signal drawdown
-        signal_contrib = array.get(signal_contributions, 0)
-        
-        // Calculate individual signal metrics
-        signal_winrate = signal_trades > 0 ? signal_wins / signal_trades * 100 : 0
-        
-        // Convert to dollar amounts using configurable futures multiplier
-        signal_pnl_dollars = signal_pnl * futuresMultiplier
-        signal_max_dd_dollars = signal_max_dd * futuresMultiplier
-        
-        // Determine health status (traffic light system) - using dollar amounts for futures
-        health_emoji := '🟢'  // Green = Healthy
-        health_color := color.lime
-        if signal_pnl_dollars < 0 or math.abs(signal_max_dd_dollars) > 500 or signal_winrate < 50
-            health_emoji := '🔴'  // Red = Unhealthy
-            health_color := color.red
-        else if signal_pnl_dollars < 200 or math.abs(signal_max_dd_dollars) > 300 or signal_winrate < 65
-            health_emoji := '🟡'  // Yellow = Caution
-            health_color := color.yellow
-        
-        // Determine Keep/Cut recommendation - using dollar amounts for futures
-        action_text := 'KEEP ✅'
-        action_color := color.lime
-        if signal_pnl_dollars < -100 or math.abs(signal_max_dd_dollars) > 800 or (signal_trades > 5 and signal_winrate < 40)
-            action_text := 'CUT ❌'
-            action_color := color.red
-        else if signal_pnl_dollars < 100 or math.abs(signal_max_dd_dollars) > 500 or signal_winrate < 55
-            action_text := 'TEST ⚠️'
-            action_color := color.orange
-        
-        // Compact table cells with dollar amounts displayed
-        table.cell(strategyAnalytics, 0, 1, str.substring(signal1Name, 0, 6), text_color = color.white, text_size = size.small, bgcolor = color.new(color.gray, 70))
-        table.cell(strategyAnalytics, 1, 1, str.tostring(signal_winrate, '#') + '%', text_color = signal_winrate >= 65 ? color.lime : signal_winrate >= 50 ? color.yellow : color.red, text_size = size.small, bgcolor = color.new(color.gray, 80))
-        table.cell(strategyAnalytics, 2, 1, '$' + str.tostring(signal_pnl_dollars, '#'), text_color = signal_pnl_dollars > 0 ? color.lime : color.red, text_size = size.small, bgcolor = color.new(color.gray, 80))
-        table.cell(strategyAnalytics, 3, 1, '$' + str.tostring(math.abs(signal_max_dd_dollars), '#'), text_color = color.white, text_size = size.small, bgcolor = color.new(color.red, 70))
-        table.cell(strategyAnalytics, 4, 1, str.tostring(signal_trades, '#'), text_color = color.white, text_size = size.small, bgcolor = color.new(color.gray, 80))
-
-    // Signal 2 - Individual Signal Analytics (Fixed)
-    if signal2Enable
-        signal_trades = array.get(signal_tradeCounts, 1)
-        signal_wins = array.get(signal_winCounts, 1)
-        signal_pnl = array.get(signal_profits, 1)
-        signal_max_dd = array.get(signal_strategy_drawdowns, 1)
-        signal_winrate = signal_trades > 0 ? signal_wins / signal_trades * 100 : 0
-        
-        // Convert to dollar amounts using configurable futures multiplier
-        signal_pnl_dollars = signal_pnl * futuresMultiplier
-        signal_max_dd_dollars = signal_max_dd * futuresMultiplier
-        
-        health_emoji := signal_pnl_dollars < 0 or math.abs(signal_max_dd_dollars) > 500 or signal_winrate < 50 ? '🔴' : signal_pnl_dollars < 200 or math.abs(signal_max_dd_dollars) > 300 or signal_winrate < 65 ? '🟡' : '🟢'
-        health_color := signal_pnl_dollars < 0 or math.abs(signal_max_dd_dollars) > 500 or signal_winrate < 50 ? color.red : signal_pnl_dollars < 200 or math.abs(signal_max_dd_dollars) > 300 or signal_winrate < 65 ? color.yellow : color.lime
-        
-        action_text := signal_pnl_dollars < -100 or math.abs(signal_max_dd_dollars) > 800 or (signal_trades > 5 and signal_winrate < 40) ? 'CUT ❌' : signal_pnl_dollars < 100 or math.abs(signal_max_dd_dollars) > 500 or signal_winrate < 55 ? 'TEST ⚠️' : 'KEEP ✅'
-        action_color := signal_pnl_dollars < -100 or math.abs(signal_max_dd_dollars) > 800 or (signal_trades > 5 and signal_winrate < 40) ? color.red : signal_pnl_dollars < 100 or math.abs(signal_max_dd_dollars) > 500 or signal_winrate < 55 ? color.orange : color.lime
-        
-        table.cell(strategyAnalytics, 0, 2, str.substring(signal2Name, 0, 6), text_color = color.white, text_size = size.small, bgcolor = color.new(color.gray, 70))
-        table.cell(strategyAnalytics, 1, 2, str.tostring(signal_winrate, '#') + '%', text_color = signal_winrate >= 65 ? color.lime : signal_winrate >= 50 ? color.yellow : color.red, text_size = size.small, bgcolor = color.new(color.gray, 80))
-        table.cell(strategyAnalytics, 2, 2, '$' + str.tostring(signal_pnl_dollars, '#'), text_color = signal_pnl_dollars > 0 ? color.lime : color.red, text_size = size.small, bgcolor = color.new(color.gray, 80))
-        table.cell(strategyAnalytics, 3, 2, '$' + str.tostring(math.abs(signal_max_dd_dollars), '#'), text_color = color.white, text_size = size.small, bgcolor = color.new(color.red, 70))
-        table.cell(strategyAnalytics, 4, 2, str.tostring(signal_trades, '#'), text_color = color.white, text_size = size.small, bgcolor = color.new(color.gray, 80))
-
-    // Signals 3-10 - Individual Signal Analytics (Fixed and Expanded)
-    signal_names = array.from(signal3Name, signal4Name, signal5Name, signal6Name, signal7Name, signal8Name, signal9Name, signal10Name)
-    signal_enables = array.from(signal3Enable, signal4Enable, signal5Enable, signal6Enable, signal7Enable, signal8Enable, signal9Enable, signal10Enable)
+    // Professional Headers with Icons and Color Hierarchy
+    table.cell(virtualSignalTable, 0, 0, '📊 SIGNAL', text_color=color.white, text_size=size.normal, bgcolor=color.new(color.blue, 80))
+    table.cell(virtualSignalTable, 1, 0, 'L.TRADES', text_color=color.white, text_size=size.small, bgcolor=color.new(color.green, 80))
+    table.cell(virtualSignalTable, 2, 0, 'L.WIN%', text_color=color.white, text_size=size.small, bgcolor=color.new(color.green, 80))
+    table.cell(virtualSignalTable, 3, 0, 'L.P&L($)', text_color=color.white, text_size=size.small, bgcolor=color.new(color.green, 80))
+    table.cell(virtualSignalTable, 4, 0, 'S.TRADES', text_color=color.white, text_size=size.small, bgcolor=color.new(color.red, 80))
+    table.cell(virtualSignalTable, 5, 0, 'S.WIN%', text_color=color.white, text_size=size.small, bgcolor=color.new(color.red, 80))
+    table.cell(virtualSignalTable, 6, 0, 'S.P&L($)', text_color=color.white, text_size=size.small, bgcolor=color.new(color.red, 80))
+    table.cell(virtualSignalTable, 7, 0, 'MAX DD($)', text_color=color.white, text_size=size.small, bgcolor=color.new(color.orange, 80))
+    table.cell(virtualSignalTable, 8, 0, 'PF', text_color=color.white, text_size=size.small, bgcolor=color.new(color.purple, 80))
+    table.cell(virtualSignalTable, 9, 0, 'STATUS', text_color=color.white, text_size=size.small, bgcolor=color.new(color.blue, 80))
+    table.cell(virtualSignalTable, 10, 0, 'ACTION', text_color=color.white, text_size=size.small, bgcolor=color.new(color.blue, 80))
     
-    for i = 2 to 9
-        if array.get(signal_enables, i - 2)
-            signal_trades = array.get(signal_tradeCounts, i)
-            signal_wins = array.get(signal_winCounts, i)
-            signal_pnl = array.get(signal_profits, i)
-            signal_max_dd = array.get(signal_strategy_drawdowns, i)
-            signal_winrate = signal_trades > 0 ? signal_wins / signal_trades * 100 : 0
+    // Process each virtual account for display
+    signalEnables = array.from(signal1Enable, signal2Enable, signal3Enable, signal4Enable, signal5Enable,
+                              signal6Enable, signal7Enable, signal8Enable, signal9Enable, signal10Enable)
+    signalNamesArray = array.from(signal1Name, signal2Name, signal3Name, signal4Name, signal5Name,
+                                 signal6Name, signal7Name, signal8Name, signal9Name, signal10Name)
+    
+    currentRow = 1
+    for i = 0 to 9
+        if array.get(signalEnables, i)
+            account = array.get(virtualAccounts, i)
+            signalName = array.get(signalNamesArray, i)
             
-            // Convert to dollar amounts using configurable futures multiplier
-            signal_pnl_dollars = signal_pnl * futuresMultiplier
-            signal_max_dd_dollars = signal_max_dd * futuresMultiplier
+            // Calculate metrics
+            longWinRate = account.longTrades > 0 ? account.longWins / account.longTrades * 100 : 0
+            shortWinRate = account.shortTrades > 0 ? account.shortWins / account.shortTrades * 100 : 0
+            totalPnL = account.totalPnL
+            profitFactor = account.grossLoss > 0 ? account.grossProfit / account.grossLoss : account.grossProfit > 0 ? 999 : 0
             
-            health_emoji := signal_pnl_dollars < 0 or math.abs(signal_max_dd_dollars) > 500 or signal_winrate < 50 ? '🔴' : signal_pnl_dollars < 200 or math.abs(signal_max_dd_dollars) > 300 or signal_winrate < 65 ? '🟡' : '🟢'
-            health_color := signal_pnl_dollars < 0 or math.abs(signal_max_dd_dollars) > 500 or signal_winrate < 50 ? color.red : signal_pnl_dollars < 200 or math.abs(signal_max_dd_dollars) > 300 or signal_winrate < 65 ? color.yellow : color.lime
+            // Performance Status Indicators
+            overallWinRate = account.totalTrades > 0 ? account.winningTrades / account.totalTrades * 100 : 0
+            statusEmoji = overallWinRate >= 70 and profitFactor >= 2.0 and totalPnL > 0 ? '🟢' :
+                         overallWinRate >= 50 and profitFactor >= 1.5 and totalPnL > 0 ? '🟡' :
+                         overallWinRate >= 40 and profitFactor >= 1.0 ? '🟠' : '🔴'
             
-            action_text := signal_pnl_dollars < -100 or math.abs(signal_max_dd_dollars) > 800 or (signal_trades > 5 and signal_winrate < 40) ? 'CUT ❌' : signal_pnl_dollars < 100 or math.abs(signal_max_dd_dollars) > 500 or signal_winrate < 55 ? 'TEST ⚠️' : 'KEEP ✅'
-            action_color := signal_pnl_dollars < -100 or math.abs(signal_max_dd_dollars) > 800 or (signal_trades > 5 and signal_winrate < 40) ? color.red : signal_pnl_dollars < 100 or math.abs(signal_max_dd_dollars) > 500 or signal_winrate < 55 ? color.orange : color.lime
+            statusColor = overallWinRate >= 70 and profitFactor >= 2.0 and totalPnL > 0 ? color.new(color.lime, 20) :
+                         overallWinRate >= 50 and profitFactor >= 1.5 and totalPnL > 0 ? color.new(color.yellow, 20) :
+                         overallWinRate >= 40 and profitFactor >= 1.0 ? color.new(color.orange, 20) : color.new(color.red, 20)
             
-            table.cell(strategyAnalytics, 0, i + 1, str.substring(array.get(signal_names, i - 2), 0, 6), text_color = color.white, text_size = size.small, bgcolor = color.new(color.gray, 70))
-            table.cell(strategyAnalytics, 1, i + 1, str.tostring(signal_winrate, '#') + '%', text_color = signal_winrate >= 65 ? color.lime : signal_winrate >= 50 ? color.yellow : color.red, text_size = size.small, bgcolor = color.new(color.gray, 80))
-            table.cell(strategyAnalytics, 2, i + 1, '$' + str.tostring(signal_pnl_dollars, '#'), text_color = signal_pnl_dollars > 0 ? color.lime : color.red, text_size = size.small, bgcolor = color.new(color.gray, 80))
-            table.cell(strategyAnalytics, 3, i + 1, '$' + str.tostring(math.abs(signal_max_dd_dollars), '#'), text_color = color.white, text_size = size.small, bgcolor = color.new(color.red, 70))
-            table.cell(strategyAnalytics, 4, i + 1, str.tostring(signal_trades, '#'), text_color = color.white, text_size = size.small, bgcolor = color.new(color.gray, 80))
-
-    // Compact Strategy Features Summary (moved to row 11 for 10 signals)
-    table.cell(strategyAnalytics, 0, 11, '🚀 FEATURES', text_color = color.white, text_size = size.small, bgcolor = color.new(color.blue, 25))
-    table.cell(strategyAnalytics, 1, 11, 'BB:' + (bbEntryFilterEnable ? 'ON' : 'OFF'), text_color = bbEntryFilterEnable ? color.lime : color.red, text_size = size.small, bgcolor = color.new(color.blue, 35))
-    hybridFeatureDisplay = hybridExitEnable ? 'HYB:ON' : trendChangeExitEnable ? 'TCE:ON' : 'TCE:OFF'
-    hybridFeatureColor = hybridExitEnable ? color.yellow : trendChangeExitEnable ? color.lime : color.red
-    table.cell(strategyAnalytics, 2, 11, hybridFeatureDisplay, text_color = hybridFeatureColor, text_size = size.small, bgcolor = color.new(color.blue, 35))
-    rbwStatusDisplay = rbwEnable ? 'RBW:ON' : 'RBW:OFF'
-    rbwStatusColor = rbwEnable ? color.lime : color.red
-    table.cell(strategyAnalytics, 3, 11, rbwStatusDisplay, text_color = rbwStatusColor, text_size = size.small, bgcolor = color.new(color.blue, 35))
-    exitModeDisplay = hybridExitActive ? (hybridUsingSPL ? 'H-SPL' : hybridUsingTCE ? 'H-TCE' : 'HYB') : trendChangeExitActive ? 'TCE' : 'NOR'
-    exitModeColor = hybridExitActive ? (hybridUsingSPL ? color.blue : hybridUsingTCE ? color.green : color.yellow) : trendChangeExitActive ? color.green : color.white
-    table.cell(strategyAnalytics, 4, 11, exitModeDisplay, text_color = exitModeColor, text_size = size.small, bgcolor = color.new(color.blue, 35))
+            // Action Recommendation
+            actionText = totalPnL > 100 and overallWinRate > 60 and profitFactor > 1.5 ? 'KEEP ✅' :
+                        totalPnL < -100 or overallWinRate < 40 or profitFactor < 1.0 ? 'CUT ❌' : 'TEST ⚠️'
+            
+            actionColor = totalPnL > 100 and overallWinRate > 60 and profitFactor > 1.5 ? color.lime :
+                         totalPnL < -100 or overallWinRate < 40 or profitFactor < 1.0 ? color.red : color.orange
+            
+            // Truncate signal name for display
+            displayName = str.length(signalName) > 8 ? str.substring(signalName, 0, 8) : signalName
+            
+            // Populate table row
+            table.cell(virtualSignalTable, 0, currentRow, displayName, text_color=color.white, text_size=size.small, bgcolor=color.new(color.gray, 80))
+            table.cell(virtualSignalTable, 1, currentRow, str.tostring(account.longTrades), text_color=color.white, text_size=size.small, bgcolor=color.new(color.gray, 90))
+            table.cell(virtualSignalTable, 2, currentRow, str.tostring(longWinRate, '#.#') + '%', text_color=longWinRate >= 60 ? color.lime : longWinRate >= 40 ? color.yellow : color.red, text_size=size.small, bgcolor=color.new(color.gray, 90))
+            table.cell(virtualSignalTable, 3, currentRow, '$' + str.tostring(account.longPnL, '#.##'), text_color=account.longPnL > 0 ? color.lime : color.red, text_size=size.small, bgcolor=color.new(color.gray, 90))
+            table.cell(virtualSignalTable, 4, currentRow, str.tostring(account.shortTrades), text_color=color.white, text_size=size.small, bgcolor=color.new(color.gray, 90))
+            table.cell(virtualSignalTable, 5, currentRow, str.tostring(shortWinRate, '#.#') + '%', text_color=shortWinRate >= 60 ? color.lime : shortWinRate >= 40 ? color.yellow : color.red, text_size=size.small, bgcolor=color.new(color.gray, 90))
+            table.cell(virtualSignalTable, 6, currentRow, '$' + str.tostring(account.shortPnL, '#.##'), text_color=account.shortPnL > 0 ? color.lime : color.red, text_size=size.small, bgcolor=color.new(color.gray, 90))
+            table.cell(virtualSignalTable, 7, currentRow, '$' + str.tostring(account.maxDrawdown, '#.##'), text_color=color.white, text_size=size.small, bgcolor=color.new(color.red, 80))
+            table.cell(virtualSignalTable, 8, currentRow, str.tostring(profitFactor, '#.##'), text_color=profitFactor >= 2.0 ? color.lime : profitFactor >= 1.5 ? color.yellow : profitFactor >= 1.0 ? color.orange : color.red, text_size=size.small, bgcolor=color.new(color.gray, 90))
+            table.cell(virtualSignalTable, 9, currentRow, statusEmoji, text_color=color.white, text_size=size.small, bgcolor=statusColor)
+            table.cell(virtualSignalTable, 10, currentRow, actionText, text_color=actionColor, text_size=size.small, bgcolor=color.new(color.gray, 90))
+            
+            currentRow += 1
+    
+    // Summary Row with System Status
+    if currentRow <= 11
+        table.cell(virtualSignalTable, 0, 11, '🚀 SYSTEM', text_color=color.white, text_size=size.small, bgcolor=color.new(color.blue, 25))
+        table.cell(virtualSignalTable, 1, 11, 'Comm: $' + str.tostring(commissionPerTrade, '#.##'), text_color=color.white, text_size=size.tiny, bgcolor=color.new(color.blue, 35))
+        table.cell(virtualSignalTable, 2, 11, 'Slip: $' + str.tostring(slippagePerTrade, '#.##'), text_color=color.white, text_size=size.tiny, bgcolor=color.new(color.blue, 35))
+        table.cell(virtualSignalTable, 3, 11, 'Size: ' + str.tostring(virtualPositionSize), text_color=color.white, text_size=size.tiny, bgcolor=color.new(color.blue, 35))
+        table.cell(virtualSignalTable, 4, 11, 'Point: $' + str.tostring(syminfo.pointvalue * futuresMultiplier, '#.##'), text_color=color.white, text_size=size.tiny, bgcolor=color.new(color.blue, 35))
+        table.cell(virtualSignalTable, 5, 11, parametersChanged ? 'RESET ⚡' : 'STABLE ✓', text_color=parametersChanged ? color.orange : color.lime, text_size=size.tiny, bgcolor=color.new(color.blue, 35))
+        table.cell(virtualSignalTable, 6, 11, 'Virtual Accounts Active', text_color=color.lime, text_size=size.tiny, bgcolor=color.new(color.blue, 35))
+        table.cell(virtualSignalTable, 7, 11, 'Real-Time P&L', text_color=color.lime, text_size=size.tiny, bgcolor=color.new(color.blue, 35))
+        table.cell(virtualSignalTable, 8, 11, 'Perfect Attribution', text_color=color.lime, text_size=size.tiny, bgcolor=color.new(color.blue, 35))
+        table.cell(virtualSignalTable, 9, 11, 'Commission Adjusted', text_color=color.lime, text_size=size.tiny, bgcolor=color.new(color.blue, 35))
+        table.cell(virtualSignalTable, 10, 11, 'Phase 1 ACTIVE ✅', text_color=color.lime, text_size=size.tiny, bgcolor=color.new(color.green, 35))
 
 // ═══════════════════ INTRABAR EXIT DEBUG SYSTEM ═══════════════════
 // Visual monitoring and validation system for robust exit logic
