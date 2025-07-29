@@ -105,7 +105,142 @@ type SignalData
 
 ---
 
-## 🔧 **IMPLEMENTATION PHASES**
+## 🎨 **ADVANCED STYLING ARCHITECTURE** *(NEW - StyleLibrary Integration)*
+
+### **Professional Visual Enhancement System** 📊 *Priority: MEDIUM*
+
+Based on `StyleLibrary.md` analysis, we can implement **professional-grade styling** that rivals commercial trading platforms:
+
+#### **1. StyleLibrary Integration** 
+```pine
+import StyleLibrary as sty
+
+// Professional styling constants
+HEADER_SIZE = sty.sizeNumeric(sty.sizeEnum.large, sty.sizeNumericType.new(20, 14, 16, 20, 24, 0, 16))
+DATA_SIZE = sty.sizeNumeric(sty.sizeEnum.normal, sty.sizeNumericType.new(8, 10, 12, 16, 20, 0, 12))
+LABEL_SIZE = sty.sizeNumeric(sty.sizeEnum.small, sty.sizeNumericType.new(7, 9, 11, 15, 19, 0, 11))
+```
+
+#### **2. Dynamic Visual Status System** 🎯
+**Signal Performance Indicators**:
+- **🟢 Excellent**: Win rate >70%, PF >2.0, positive P&L
+- **🟡 Good**: Win rate 50-70%, PF 1.5-2.0, positive P&L  
+- **🟠 Warning**: Win rate 40-50%, PF 1.0-1.5, break-even
+- **🔴 Poor**: Win rate <40%, PF <1.0, negative P&L
+- **⚫ Disabled**: Signal not active
+
+#### **3. Enhanced Table Architecture** 📋
+```pine
+// Multi-level table system with professional styling
+var table virtualAccountTable = table.new(
+    position.top_right, 
+    columns=11, rows=12,
+    bgcolor=color.new(color.black, 85),
+    border_width=2,
+    border_color=color.new(color.white, 70)
+)
+
+// Professional header formatting with StyleLibrary
+if barstate.islast
+    // Bold headers with custom sizing
+    table.cell(virtualAccountTable, 0, 0, "📊 SIGNAL", 
+               text_color=color.white, bgcolor=color.new(color.blue, 80),
+               text_size=HEADER_SIZE)
+    sty.textFormat(virtualAccountTable, 0, 0, true, false) // Bold header
+```
+
+#### **4. Advanced Label System** 🏷️
+**Dynamic Signal Attribution Labels**:
+```pine
+// Professional signal labels with tooltips
+createSignalLabel(signalName, signalStrength, position) =>
+    labelColor = signalStrength > 0.8 ? color.lime : 
+                 signalStrength > 0.6 ? color.yellow : 
+                 signalStrength > 0.4 ? color.orange : color.red
+    
+    label.new(
+        bar_index, high + (2 * ta.atr(14)),
+        text=signalName + " (" + str.tostring(signalStrength, "#.##") + ")",
+        style=sty.labelStyle("Diamond"),
+        color=labelColor,
+        textcolor=color.white,
+        size=sty.sizeStyle("Normal"),
+        tooltip="Signal Strength: " + str.tostring(signalStrength*100, "#.#") + "%\n" +
+                "Historical Win Rate: " + str.tostring(historicalWinRate, "#.#") + "%\n" +
+                "Last 10 Trades P&L: $" + str.tostring(recent10TradesProfit, "#.##")
+    )
+```
+
+#### **5. Color-Coded Performance Hierarchy** 🌈
+```pine
+// Professional color scheme for performance tiers
+getPerformanceColor(winRate, profitFactor, totalPnL) =>
+    if winRate >= 70 and profitFactor >= 2.0 and totalPnL > 0
+        color.new(color.lime, 20)      // Excellent - Bright Green
+    else if winRate >= 50 and profitFactor >= 1.5 and totalPnL > 0
+        color.new(color.yellow, 20)    // Good - Yellow
+    else if winRate >= 40 and profitFactor >= 1.0
+        color.new(color.orange, 20)    // Warning - Orange
+    else
+        color.new(color.red, 20)       // Poor - Red
+```
+
+#### **6. Bar Coloring for Trade Attribution** 🎨
+```pine
+// Color bars based on which signal(s) triggered the trade
+barcolor(
+    longEntrySignal and primarySignalName == "LuxAlgo" ? color.new(color.lime, 70) :
+    longEntrySignal and primarySignalName == "UTBot" ? color.new(color.blue, 70) :
+    shortEntrySignal and primarySignalName == "LuxAlgo" ? color.new(color.red, 70) :
+    shortEntrySignal and primarySignalName == "UTBot" ? color.new(color.purple, 70) : na
+)
+```
+
+#### **7. Professional Debug Visualization** 🔍
+```pine
+// Enhanced debug labels with professional styling
+createDebugLabel(message, severity) =>
+    debugColor = severity == "ERROR" ? color.red :
+                 severity == "WARN" ? color.orange :
+                 severity == "INFO" ? color.blue : color.gray
+    
+    if debugLevel != "OFF"
+        label.new(
+            bar_index, low - (ta.atr(14) * 0.5),
+            text="🔍 " + severity + ": " + message,
+            style=sty.labelStyle("Label Lower Right"),
+            color=debugColor,
+            textcolor=color.white,
+            size=sty.sizeStyle("Small"),
+            tooltip="Debug Info - Click to expand details"
+        )
+```
+
+#### **8. Enhanced Table Text Formatting** ✨
+```pine
+// Professional table cell formatting
+formatTableCell(table_id, col, row, text, isHeader, isPositive, isNegative) =>
+    cellColor = isHeader ? color.new(color.navy, 80) :
+                isPositive ? color.new(color.green, 90) :
+                isNegative ? color.new(color.red, 90) : 
+                color.new(color.gray, 95)
+    
+    textColor = isHeader ? color.white :
+                isPositive ? color.lime :
+                isNegative ? color.red : color.white
+    
+    table.cell(table_id, col, row, text,
+               bgcolor=cellColor, text_color=textColor,
+               text_size=isHeader ? HEADER_SIZE : DATA_SIZE)
+    
+    // Apply bold formatting for headers
+    if isHeader
+        sty.textFormat(table_id, col, row, true, false)
+```
+
+---
+
+## 🔧 **TECHNICAL IMPLEMENTATION PHASES**
 
 ### **Phase 1: Virtual Signal Architecture** ⚡ *Priority: CRITICAL*
 
