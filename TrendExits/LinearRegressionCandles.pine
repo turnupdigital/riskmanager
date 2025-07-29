@@ -1,0 +1,46 @@
+//@version=6
+indicator(title = 'Humble LinReg Candles', shorttitle = 'LinReg Candles', format = format.price, precision = 4, overlay = true)
+
+signal_length = input.int(title = 'Signal Smoothing', minval = 1, maxval = 200, defval = 11)
+sma_signal = input(title = 'Simple MA (Signal Line)', defval = true)
+
+lin_reg = input(title = 'Lin Reg', defval = true)
+linreg_length = input.int(title = 'Linear Regression Length', minval = 1, maxval = 200, defval = 11)
+
+bopen = lin_reg ? ta.linreg(open, linreg_length, 0) : open
+bhigh = lin_reg ? ta.linreg(high, linreg_length, 0) : high
+blow = lin_reg ? ta.linreg(low, linreg_length, 0) : low
+bclose = lin_reg ? ta.linreg(close, linreg_length, 0) : close
+
+r = bopen < bclose
+
+signal = sma_signal ? ta.sma(bclose, signal_length) : ta.ema(bclose, signal_length)
+
+// Bull Flip and Bear Flip Detection
+bull_flip = r and not r[1]  // Current candle is green (bullish) and previous was red (bearish)
+bear_flip = not r and r[1]  // Current candle is red (bearish) and previous was green (bullish)
+
+// Plot Bull Flip and Bear Flip points
+plotshape(bull_flip, title="Bull Flip", location=location.belowbar, color=color.green, style=shape.triangleup, size=size.small, text="BULL")
+plotshape(bear_flip, title="Bear Flip", location=location.abovebar, color=color.red, style=shape.triangledown, size=size.small, text="BEAR")
+
+// Export Bull Flip and Bear Flip as plot outputs for other strategies
+plot(bull_flip ? 1 : 0, title="Bull Flip Signal", color=color.new(color.green, 100), display=display.data_window)
+plot(bear_flip ? 1 : 0, title="Bear Flip Signal", color=color.new(color.red, 100), display=display.data_window)
+
+// Bull MA and Bear MA Detection (LinReg Candle crosses above/below EMA)
+bull_ma = bclose > signal and bclose[1] <= signal[1]  // LinReg candle crosses above EMA (long signal)
+bear_ma = bclose < signal and bclose[1] >= signal[1]  // LinReg candle crosses below EMA (short signal)
+
+// Plot Bull MA and Bear MA points
+plotshape(bull_ma, title="Bull MA", location=location.belowbar, color=color.blue, style=shape.circle, size=size.small, text="BULL MA")
+plotshape(bear_ma, title="Bear MA", location=location.abovebar, color=color.orange, style=shape.circle, size=size.small, text="BEAR MA")
+
+// Export Bull MA and Bear MA as plot outputs for other strategies
+plot(bull_ma ? 1 : 0, title="Bull MA Signal", color=color.new(color.blue, 100), display=display.data_window)
+plot(bear_ma ? 1 : 0, title="Bear MA Signal", color=color.new(color.orange, 100), display=display.data_window)
+
+plotcandle(r ? bopen : na, r ? bhigh : na, r ? blow : na, r ? bclose : na, title = 'LinReg Candles', color = color.green, wickcolor = color.green, bordercolor = color.green, editable = true)
+plotcandle(r ? na : bopen, r ? na : bhigh, r ? na : blow, r ? na : bclose, title = 'LinReg Candles', color = color.red, wickcolor = color.red, bordercolor = color.red, editable = true)
+
+plot(signal, color = color.new(color.white, 0))

@@ -1,8 +1,6 @@
-// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
-// © jdehorty
 //@version=6
 
-// A non-repainting implementation of Nadaraya–Watson Regression using a Rational Quadratic Kernel. 
+// A non-repainting implemenation of Nadaraya–Watson Regression using a Rational Quadratic Kernel. 
 
 indicator('Nadaraya-Watson: Rational Quadratic Kernel (Non-Repainting)', overlay = true, timeframe = '')
 
