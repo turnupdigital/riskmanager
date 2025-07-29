@@ -215,6 +215,127 @@ if array.get(_isLive, i)  // Signal has open position
 
 ---
 
+## 📊 **OPTIMIZED TABLE ARCHITECTURE**
+
+*Based on TradingView tables.md best practices for maximum performance*
+
+### **Global Table Declaration Strategy:**
+```pine
+// Declare all tables with var at global scope for optimal performance
+var table performanceTable = table.new(position.bottom_right, 9, 11,
+                                      bgcolor=color.new(color.black, 5),
+                                      frame_width=2, frame_color=color.white)
+
+var table debugTable = table.new(position.top_right, 6, 11,
+                                bgcolor=color.new(color.black, 10),
+                                frame_width=1, frame_color=color.gray)
+
+var table validationTable = table.new(position.bottom_left, 5, 12,
+                                     bgcolor=color.new(color.navy, 10),
+                                     frame_width=1, frame_color=color.blue)
+```
+
+### **Performance-Optimized Updates:**
+```pine
+// CRITICAL: Only update tables on barstate.islast for performance
+updateAllTables() =>
+    if barstate.islast
+        if showBacktestTable
+            updatePerformanceTable()
+        if debugLevel != "OFF"
+            updateDebugTables()
+        if validationMode
+            updateValidationTable()
+
+// Single call per bar instead of multiple updates
+updateAllTables()
+```
+
+### **Enhanced Visual Design:**
+```pine
+// Professional table formatting with visual hierarchy
+createTableHeaders() =>
+    if barstate.islast
+        // Performance table headers with icons
+        table.cell(performanceTable, 0, 0, "📊 SIGNAL", 
+                  bgcolor=color.new(color.blue, 20), text_color=color.white, text_size=size.normal)
+        table.cell(performanceTable, 1, 0, "📈 L.TRADES", 
+                  bgcolor=color.new(color.green, 20), text_color=color.white, text_size=size.normal)
+        table.cell(performanceTable, 2, 0, "✅ L.WIN%", 
+                  bgcolor=color.new(color.green, 20), text_color=color.white, text_size=size.normal)
+        table.cell(performanceTable, 3, 0, "💰 L.P&L($)", 
+                  bgcolor=color.new(color.green, 20), text_color=color.white, text_size=size.normal)
+        table.cell(performanceTable, 4, 0, "📉 S.TRADES", 
+                  bgcolor=color.new(color.red, 20), text_color=color.white, text_size=size.normal)
+        table.cell(performanceTable, 5, 0, "✅ S.WIN%", 
+                  bgcolor=color.new(color.red, 20), text_color=color.white, text_size=size.normal)
+        table.cell(performanceTable, 6, 0, "💰 S.P&L($)", 
+                  bgcolor=color.new(color.red, 20), text_color=color.white, text_size=size.normal)
+        table.cell(performanceTable, 7, 0, "⚠️ MAX DD($)", 
+                  bgcolor=color.new(color.orange, 20), text_color=color.white, text_size=size.normal)
+        table.cell(performanceTable, 8, 0, "🎯 ACTION", 
+                  bgcolor=color.new(color.purple, 20), text_color=color.white, text_size=size.normal)
+
+// Color-coded performance cells
+updatePerformanceRow(signalIndex, row) =>
+    if barstate.islast and getSignalEnabled(signalIndex)
+        signalData = array.get(signals, signalIndex)
+        
+        // Long side metrics
+        longTrades = signalData.longTrades
+        longWinRate = longTrades > 0 ? (signalData.longWins / longTrades) * 100 : 0
+        longPnL = signalData.longProfits * syminfo.pointvalue
+        
+        // Short side metrics  
+        shortTrades = signalData.shortTrades
+        shortWinRate = shortTrades > 0 ? (signalData.shortWins / shortTrades) * 100 : 0
+        shortPnL = signalData.shortProfits * syminfo.pointvalue
+        
+        // Combined metrics
+        maxDD = math.max(signalData.longMaxDD, signalData.shortMaxDD) * syminfo.pointvalue
+        totalPnL = longPnL + shortPnL
+        
+        // Action recommendation
+        action = getSignalRecommendation(totalPnL, longWinRate, shortWinRate, maxDD, longTrades + shortTrades)
+        
+        // Populate row with color coding
+        table.cell(performanceTable, 0, row, str.substring(signalNames[signalIndex], 0, 8), text_size=size.small)
+        table.cell(performanceTable, 1, row, str.tostring(longTrades), text_size=size.small)
+        table.cell(performanceTable, 2, row, str.tostring(longWinRate, "#.1") + "%", 
+                  text_color=longWinRate >= 60 ? color.lime : longWinRate >= 45 ? color.yellow : color.red, text_size=size.small)
+        table.cell(performanceTable, 3, row, "$" + str.tostring(longPnL, "#"), 
+                  text_color=longPnL > 0 ? color.lime : color.red, text_size=size.small)
+        table.cell(performanceTable, 4, row, str.tostring(shortTrades), text_size=size.small)
+        table.cell(performanceTable, 5, row, str.tostring(shortWinRate, "#.1") + "%", 
+                  text_color=shortWinRate >= 60 ? color.lime : shortWinRate >= 45 ? color.yellow : color.red, text_size=size.small)
+        table.cell(performanceTable, 6, row, "$" + str.tostring(shortPnL, "#"), 
+                  text_color=shortPnL > 0 ? color.lime : color.red, text_size=size.small)
+        table.cell(performanceTable, 7, row, "$" + str.tostring(maxDD, "#"), text_color=color.red, text_size=size.small)
+        table.cell(performanceTable, 8, row, action, 
+                  text_color=getActionColor(action), text_size=size.small)
+```
+
+### **Dynamic Table Optimization:**
+```pine
+// Optimize table size based on enabled signals
+calculateOptimalTableSize() =>
+    enabledCount = 0
+    for i = 0 to 9
+        if getSignalEnabled(i)
+            enabledCount += 1
+    math.max(3, enabledCount + 1)  // Header + enabled signals
+
+// Memory-efficient table management
+if debugLevel == "OFF"
+    if not na(debugTable)
+        table.clear(debugTable)
+if not showBacktestTable  
+    if not na(performanceTable)
+        table.clear(performanceTable)
+```
+
+---
+
 ### **Phase 5: Parameter Change Detection & Array Reset** 🔄 *Priority: HIGH*
 
 **Critical Issue from Analysis**: Arrays don't reset when parameters change

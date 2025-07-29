@@ -336,6 +336,158 @@ updateDebugTables() =>
 
 ---
 
+## 📊 **OPTIMIZED TABLE ARCHITECTURE** 
+
+*Based on TradingView tables.md best practices*
+
+### **Global Table Declaration Strategy:**
+```pine
+// Declare all debug tables with var at global scope for optimal performance
+var table virtualAccountTable = table.new(position.top_right, 6, 11, 
+                                         bgcolor=color.new(color.black, 10),
+                                         frame_width=1, frame_color=color.gray)
+
+var table pnlValidationTable = table.new(position.bottom_left, 5, 12,
+                                        bgcolor=color.new(color.navy, 10),
+                                        frame_width=1, frame_color=color.blue)
+
+var table parameterChangeTable = table.new(position.top_left, 4, 8,
+                                          bgcolor=color.new(color.maroon, 10),
+                                          frame_width=1, frame_color=color.red)
+
+var table performanceTable = table.new(position.bottom_right, 9, 11,
+                                      bgcolor=color.new(color.black, 5),
+                                      frame_width=2, frame_color=color.white)
+
+var table drawdownTable = table.new(position.middle_left, 4, 6,
+                                   bgcolor=color.new(color.orange, 10),
+                                   frame_width=1, frame_color=color.yellow)
+```
+
+### **Optimized Update Strategy:**
+```pine
+// CRITICAL: Only update tables on last bar for performance
+updateAllDebugTables() =>
+    if barstate.islast
+        if debugVirtualAccounts
+            updateVirtualAccountTable()
+        if debugPnL  
+            updatePnLValidationTable()
+            updateDrawdownTable()
+        if debugParameterChanges
+            updateParameterChangeTable()
+        if showBacktestTable
+            updatePerformanceTable()
+
+// Call once per bar instead of multiple times
+if debugLevel != "OFF"
+    updateAllDebugTables()
+```
+
+### **Enhanced Visual Formatting:**
+```pine
+// Professional table headers with visual hierarchy
+createTableHeaders() =>
+    if barstate.islast
+        // Virtual Account Table Headers
+        table.cell(virtualAccountTable, 0, 0, "🔧 SIGNAL", 
+                  bgcolor=color.new(color.blue, 20), text_color=color.white, text_size=size.normal)
+        table.cell(virtualAccountTable, 1, 0, "STATUS", 
+                  bgcolor=color.new(color.blue, 20), text_color=color.white, text_size=size.normal)
+        table.cell(virtualAccountTable, 2, 0, "POSITION", 
+                  bgcolor=color.new(color.blue, 20), text_color=color.white, text_size=size.normal)
+        table.cell(virtualAccountTable, 3, 0, "DIRECTION", 
+                  bgcolor=color.new(color.blue, 20), text_color=color.white, text_size=size.normal)
+        table.cell(virtualAccountTable, 4, 0, "ENTRY $", 
+                  bgcolor=color.new(color.blue, 20), text_color=color.white, text_size=size.normal)
+        table.cell(virtualAccountTable, 5, 0, "UNREALIZED P&L", 
+                  bgcolor=color.new(color.blue, 20), text_color=color.white, text_size=size.normal)
+
+// Color-coded status indicators
+updateVirtualAccountRow(signalIndex, row) =>
+    if barstate.islast
+        signalEnabled = getSignalEnabled(signalIndex)
+        isLive = array.get(_isLive, signalIndex)
+        isLong = array.get(_isLong, signalIndex)
+        entryPrice = array.get(_entryPx, signalIndex)
+        unrealizedPnL = calculateUnrealizedPnL(signalIndex)
+        
+        // Signal name with truncation for space
+        signalName = str.substring(signalNames[signalIndex], 0, 8)
+        table.cell(virtualAccountTable, 0, row, signalName, text_size=size.small)
+        
+        // Status with emoji indicators
+        statusText = signalEnabled ? "✅ ON" : "❌ OFF"
+        statusColor = signalEnabled ? color.new(color.green, 70) : color.new(color.red, 70)
+        table.cell(virtualAccountTable, 1, row, statusText, bgcolor=statusColor, text_size=size.small)
+        
+        // Position with clear indicators  
+        positionText = isLive ? "🟢 LIVE" : "⚫ FLAT"
+        positionColor = isLive ? color.new(color.lime, 70) : color.new(color.gray, 70)
+        table.cell(virtualAccountTable, 2, row, positionText, bgcolor=positionColor, text_size=size.small)
+        
+        // Direction with arrows
+        directionText = isLong ? "📈 LONG" : "📉 SHORT"
+        table.cell(virtualAccountTable, 3, row, directionText, text_size=size.small)
+        
+        // Entry price with proper formatting
+        entryText = na(entryPrice) ? "---" : "$" + str.tostring(entryPrice, "#.##")
+        table.cell(virtualAccountTable, 4, row, entryText, text_size=size.small)
+        
+        // P&L with color coding
+        pnlText = "$" + str.tostring(unrealizedPnL, "#.##")
+        pnlColor = unrealizedPnL > 0 ? color.new(color.lime, 70) : 
+                   unrealizedPnL < 0 ? color.new(color.red, 70) : color.new(color.gray, 70)
+        table.cell(virtualAccountTable, 5, row, pnlText, bgcolor=pnlColor, text_size=size.small)
+```
+
+### **Dynamic Table Sizing Optimization:**
+```pine
+// Calculate optimal table dimensions based on enabled signals
+calculateOptimalTableSize() =>
+    enabledCount = 0
+    for i = 0 to 9
+        if getSignalEnabled(i)
+            enabledCount += 1
+    
+    // Minimum 3 rows (header + 2 signals), maximum 11 rows (header + 10 signals)
+    optimalRows = math.max(3, enabledCount + 1)
+    optimalRows
+
+// Update table size dynamically (only on parameter changes)
+var int currentTableRows = 11
+newOptimalRows = calculateOptimalTableSize()
+if newOptimalRows != currentTableRows
+    // Recreate table with optimal size
+    virtualAccountTable := table.new(position.top_right, 6, newOptimalRows,
+                                   bgcolor=color.new(color.black, 10))
+    currentTableRows := newOptimalRows
+```
+
+### **Memory-Efficient Table Management:**
+```pine
+// Clear tables when debug is turned off to save memory
+if debugLevel == "OFF"
+    if not na(virtualAccountTable)
+        table.clear(virtualAccountTable)
+    if not na(pnlValidationTable)  
+        table.clear(pnlValidationTable)
+    if not na(parameterChangeTable)
+        table.clear(parameterChangeTable)
+
+// Selective table updates based on debug categories
+updateSelectiveTables() =>
+    if barstate.islast
+        if debugVirtualAccounts and virtualAccountTable != na
+            updateVirtualAccountTable()
+        if debugPnL and pnlValidationTable != na
+            updatePnLValidationTable()
+        if debugParameterChanges and parameterChangeTable != na
+            updateParameterChangeTable()
+```
+
+---
+
 ## 🚀 **DEBUG IMPLEMENTATION TIMELINE**
 
 ### **Week 1: Core Debug Infrastructure**
