@@ -131,10 +131,7 @@ var VirtualAccount virtualAccount9 = VirtualAccount.new()
 var VirtualAccount virtualAccount10 = VirtualAccount.new()
 
 // Array of virtual accounts for easy iteration
-var array<VirtualAccount> virtualAccounts = array.from(
-    virtualAccount1, virtualAccount2, virtualAccount3, virtualAccount4, virtualAccount5,
-    virtualAccount6, virtualAccount7, virtualAccount8, virtualAccount9, virtualAccount10
-)
+var array<VirtualAccount> virtualAccounts = array.from(virtualAccount1, virtualAccount2, virtualAccount3, virtualAccount4, virtualAccount5, virtualAccount6, virtualAccount7, virtualAccount8, virtualAccount9, virtualAccount10)
 
 // Commission and Slippage Configuration
 commissionPerTrade = input.float(2.50, '💰 Commission Per Trade', minval=0.0, step=0.25, group='💼 Virtual Account Settings', tooltip='Commission cost per trade (both entry and exit)')
@@ -453,8 +450,7 @@ shortSignalCount := (sig1Short ? 1 : 0) + (sig2Short ? 1 : 0) + (sig3Short ? 1 :
 // This creates perfect signal attribution without interference
 
 // Signal names array for debugging
-signalNames = array.from(signal1Name, signal2Name, signal3Name, signal4Name, signal5Name, 
-                        signal6Name, signal7Name, signal8Name, signal9Name, signal10Name)
+signalNames = array.from(signal1Name, signal2Name, signal3Name, signal4Name, signal5Name, signal6Name, signal7Name, signal8Name, signal9Name, signal10Name)
 
 // Process virtual trades for each signal
 processVirtualTrade(virtualAccount1, sig1Long, sig1Short, signal1Name, 0)
@@ -1037,10 +1033,8 @@ if showBacktestTable and barstate.islast
     table.cell(virtualSignalTable, 10, 0, 'ACTION', text_color=color.white, text_size=size.small, bgcolor=color.new(color.blue, 80))
     
     // Process each virtual account for display
-    signalEnables = array.from(signal1Enable, signal2Enable, signal3Enable, signal4Enable, signal5Enable,
-                              signal6Enable, signal7Enable, signal8Enable, signal9Enable, signal10Enable)
-    signalNamesArray = array.from(signal1Name, signal2Name, signal3Name, signal4Name, signal5Name,
-                                 signal6Name, signal7Name, signal8Name, signal9Name, signal10Name)
+    signalEnables = array.from(signal1Enable, signal2Enable, signal3Enable, signal4Enable, signal5Enable, signal6Enable, signal7Enable, signal8Enable, signal9Enable, signal10Enable)
+    signalNamesArray = array.from(signal1Name, signal2Name, signal3Name, signal4Name, signal5Name, signal6Name, signal7Name, signal8Name, signal9Name, signal10Name)
     
     currentRow = 1
     for i = 0 to 9
@@ -1056,20 +1050,14 @@ if showBacktestTable and barstate.islast
             
             // Performance Status Indicators
             overallWinRate = account.totalTrades > 0 ? account.winningTrades / account.totalTrades * 100 : 0
-            statusEmoji = overallWinRate >= 70 and profitFactor >= 2.0 and totalPnL > 0 ? '🟢' :
-                         overallWinRate >= 50 and profitFactor >= 1.5 and totalPnL > 0 ? '🟡' :
-                         overallWinRate >= 40 and profitFactor >= 1.0 ? '🟠' : '🔴'
+            statusEmoji = overallWinRate >= 70 and profitFactor >= 2.0 and totalPnL > 0 ? '🟢' : overallWinRate >= 50 and profitFactor >= 1.5 and totalPnL > 0 ? '🟡' : overallWinRate >= 40 and profitFactor >= 1.0 ? '🟠' : '🔴'
             
-            statusColor = overallWinRate >= 70 and profitFactor >= 2.0 and totalPnL > 0 ? color.new(color.lime, 20) :
-                         overallWinRate >= 50 and profitFactor >= 1.5 and totalPnL > 0 ? color.new(color.yellow, 20) :
-                         overallWinRate >= 40 and profitFactor >= 1.0 ? color.new(color.orange, 20) : color.new(color.red, 20)
+            statusColor = overallWinRate >= 70 and profitFactor >= 2.0 and totalPnL > 0 ? color.new(color.lime, 20) : overallWinRate >= 50 and profitFactor >= 1.5 and totalPnL > 0 ? color.new(color.yellow, 20) : overallWinRate >= 40 and profitFactor >= 1.0 ? color.new(color.orange, 20) : color.new(color.red, 20)
             
             // Action Recommendation
-            actionText = totalPnL > 100 and overallWinRate > 60 and profitFactor > 1.5 ? 'KEEP ✅' :
-                        totalPnL < -100 or overallWinRate < 40 or profitFactor < 1.0 ? 'CUT ❌' : 'TEST ⚠️'
+            actionText = totalPnL > 100 and overallWinRate > 60 and profitFactor > 1.5 ? 'KEEP ✅' : totalPnL < -100 or overallWinRate < 40 or profitFactor < 1.0 ? 'CUT ❌' : 'TEST ⚠️'
             
-            actionColor = totalPnL > 100 and overallWinRate > 60 and profitFactor > 1.5 ? color.lime :
-                         totalPnL < -100 or overallWinRate < 40 or profitFactor < 1.0 ? color.red : color.orange
+            actionColor = totalPnL > 100 and overallWinRate > 60 and profitFactor > 1.5 ? color.lime : totalPnL < -100 or overallWinRate < 40 or profitFactor < 1.0 ? color.red : color.orange
             
             // Truncate signal name for display
             displayName = str.length(signalName) > 8 ? str.substring(signalName, 0, 8) : signalName
