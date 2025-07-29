@@ -1011,13 +1011,7 @@ plot(profitLockerLine, title="💰 Profit Locker", color=color.new(color.green, 
 
 if showBacktestTable and barstate.islast
     // Enhanced Virtual Account Table with Long/Short Separation
-    var table virtualSignalTable = table.new(
-        position.bottom_left, 
-        columns=11, rows=12,
-        bgcolor=color.new(color.black, 85),
-        border_width=2,
-        border_color=color.new(color.white, 70)
-    )
+    var table virtualSignalTable = table.new(position.bottom_left, columns=11, rows=12, bgcolor=color.new(color.black, 85), border_width=2, border_color=color.new(color.white, 70))
     
     // Professional Headers with Icons and Color Hierarchy
     table.cell(virtualSignalTable, 0, 0, '📊 SIGNAL', text_color=color.white, text_size=size.normal, bgcolor=color.new(color.blue, 80))
