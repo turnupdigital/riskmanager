@@ -142,24 +142,15 @@ virtualPositionSize = input.int(1, '📊 Virtual Position Size', minval=1, group
 var int lastParameterHash = na
 var bool parametersChanged = false
 
-// Calculate parameter hash for change detection
+// Calculate parameter hash for change detection (will be called after inputs are declared)
 calculateParameterHash() =>
     // Hash key parameters that affect backtesting
-    hash = 0
-    hash += commissionPerTrade * 1000
-    hash += slippagePerTrade * 1000
-    hash += virtualPositionSize * 100
-    hash += signal1Enable ? 1 : 0
-    hash += signal2Enable ? 2 : 0
-    hash += signal3Enable ? 4 : 0
-    hash += signal4Enable ? 8 : 0
-    hash += signal5Enable ? 16 : 0
-    hash += signal6Enable ? 32 : 0
-    hash += signal7Enable ? 64 : 0
-    hash += signal8Enable ? 128 : 0
-    hash += signal9Enable ? 256 : 0
-    hash += signal10Enable ? 512 : 0
-    int(hash)
+    hashFloat = 0.0
+    hashFloat += commissionPerTrade * 1000
+    hashFloat += slippagePerTrade * 1000
+    hashFloat += virtualPositionSize * 100
+    // Signal enables will be added later after they're declared
+    int(hashFloat)
 
 // Reset all virtual accounts when parameters change
 resetVirtualAccounts() =>
@@ -187,17 +178,6 @@ resetVirtualAccounts() =>
         account.shortPnL := 0.0
         account.commission := 0.0
         account.slippage := 0.0
-
-// Check for parameter changes
-currentParameterHash = calculateParameterHash()
-if na(lastParameterHash) or lastParameterHash != currentParameterHash
-    parametersChanged := true
-    resetVirtualAccounts()
-    lastParameterHash := currentParameterHash
-    if debugEnabled
-        debugMessage("SYSTEM", "Parameters changed - Virtual accounts reset", color.orange, color.white, 0.3)
-else
-    parametersChanged := false
 
 // Virtual Account Trading Functions
 processVirtualTrade(VirtualAccount account, bool longSignal, bool shortSignal, string signalName, int signalIndex) =>
@@ -252,13 +232,14 @@ processVirtualExit(VirtualAccount account, bool exitSignal, string signalName, i
     if account.inPosition and exitSignal
         // Calculate final P&L
         pointValue = syminfo.pointvalue * futuresMultiplier
+        finalPnL = 0.0  // Declare at function scope
         if account.direction == "long"
             rawPnL = (close - account.entryPrice) * virtualPositionSize * pointValue
-            finalPnL = rawPnL - commissionPerTrade - slippagePerTrade - account.commission - account.slippage
+            finalPnL := rawPnL - commissionPerTrade - slippagePerTrade - account.commission - account.slippage
             account.longPnL += finalPnL
         else if account.direction == "short"
             rawPnL = (account.entryPrice - close) * virtualPositionSize * pointValue
-            finalPnL = rawPnL - commissionPerTrade - slippagePerTrade - account.commission - account.slippage
+            finalPnL := rawPnL - commissionPerTrade - slippagePerTrade - account.commission - account.slippage
             account.shortPnL += finalPnL
         
         // Update statistics
@@ -444,6 +425,36 @@ var int longSignalCount = 0
 var int shortSignalCount = 0
 longSignalCount := (sig1Long ? 1 : 0) + (sig2Long ? 1 : 0) + (sig3Long ? 1 : 0) + (sig4Long ? 1 : 0) + (sig5Long ? 1 : 0) + (sig6Long ? 1 : 0) + (sig7Long ? 1 : 0) + (sig8Long ? 1 : 0) + (sig9Long ? 1 : 0) + (sig10Long ? 1 : 0)
 shortSignalCount := (sig1Short ? 1 : 0) + (sig2Short ? 1 : 0) + (sig3Short ? 1 : 0) + (sig4Short ? 1 : 0) + (sig5Short ? 1 : 0) + (sig6Short ? 1 : 0) + (sig7Short ? 1 : 0) + (sig8Short ? 1 : 0) + (sig9Short ? 1 : 0) + (sig10Short ? 1 : 0)
+
+// ═══════════════════ PARAMETER CHANGE DETECTION ═══════════════════
+// Enhanced hash calculation with all signal enables
+calculateParameterHashWithSignals() =>
+    hashFloat = 0.0
+    hashFloat += commissionPerTrade * 1000
+    hashFloat += slippagePerTrade * 1000
+    hashFloat += virtualPositionSize * 100
+    hashFloat += signal1Enable ? 1 : 0
+    hashFloat += signal2Enable ? 2 : 0
+    hashFloat += signal3Enable ? 4 : 0
+    hashFloat += signal4Enable ? 8 : 0
+    hashFloat += signal5Enable ? 16 : 0
+    hashFloat += signal6Enable ? 32 : 0
+    hashFloat += signal7Enable ? 64 : 0
+    hashFloat += signal8Enable ? 128 : 0
+    hashFloat += signal9Enable ? 256 : 0
+    hashFloat += signal10Enable ? 512 : 0
+    int(hashFloat)
+
+// Check for parameter changes
+currentParameterHash = calculateParameterHashWithSignals()
+if na(lastParameterHash) or lastParameterHash != currentParameterHash
+    parametersChanged := true
+    resetVirtualAccounts()
+    lastParameterHash := currentParameterHash
+    if debugEnabled
+        debugMessage("SYSTEM", "Parameters changed - Virtual accounts reset", color.orange, color.white, 0.3)
+else
+    parametersChanged := false
 
 // ═══════════════════ VIRTUAL ACCOUNT PROCESSING ═══════════════════
 // Process each signal through its corresponding virtual account
@@ -691,18 +702,23 @@ var float rbwRef = na
 var float rbwStdDev = na
 var float rbwATR = na
 
+// Extract ta functions to avoid compilation warnings
+rbwSMA = ta.sma(rbwSource, rbwLength)
+rbwStdDev_calc = ta.stdev(rbwSource, rbwLength)
+rbwATR_calc = rbwUseTR ? ta.atr(rbwLength) : ta.rma(high - low, rbwLength)
+
 if rbwEnable
     // Bollinger Bands
     if rbwBandType == "BB"
-        rbwMiddle := ta.sma(rbwSource, rbwLength)
-        rbwStdDev := ta.stdev(rbwSource, rbwLength)
+        rbwMiddle := rbwSMA
+        rbwStdDev := rbwStdDev_calc
         rbwUpper := rbwMiddle + rbwStdDev * rbwMultiplier
         rbwLower := rbwMiddle - rbwStdDev * rbwMultiplier
     
     // Keltner Channels  
     else if rbwBandType == "KC"
-        rbwMiddle := ta.sma(rbwSource, rbwLength)
-        rbwATR := rbwUseTR ? ta.atr(rbwLength) : ta.rma(high - low, rbwLength)
+        rbwMiddle := rbwSMA
+        rbwATR := rbwATR_calc
         rbwUpper := rbwMiddle + rbwATR * rbwMultiplier
         rbwLower := rbwMiddle - rbwATR * rbwMultiplier
     
@@ -721,8 +737,9 @@ if rbwEnable
             
             // Calculate reference bands for signal (use extracted TA functions)
             rbwBBMiddle := ta.sma(rbwRelativeBandwidth, 100)
-            rbwBBUpper := rbwBBMiddle + ta.stdev(rbwRelativeBandwidth, 100) * 1.0
-            rbwBBLower := rbwBBMiddle - ta.stdev(rbwRelativeBandwidth, 100) * 1.0
+            rbwBBStdDev := ta.stdev(rbwRelativeBandwidth, 100)
+            rbwBBUpper := rbwBBMiddle + rbwBBStdDev * 1.0
+            rbwBBLower := rbwBBMiddle - rbwBBStdDev * 1.0
             
             rbwRef := rbwRefBand == "Middle" ? rbwBBMiddle : rbwRefBand == "Upper" ? rbwBBUpper : rbwBBLower
             rbwSignal := rbwRelativeBandwidth > rbwRef ? 2 : 0
