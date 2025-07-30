@@ -12,7 +12,9 @@
 // Optimized performance and visual hierarchy system
 
 // Style Configuration
-debugLevel = input.string("Basic", "Debug Level", options=["Off", "Basic", "Detailed", "Full"], group="🔧 Debug Settings")
+debugLevel = input.string("Basic", "Debug Level", 
+    options=["Off", "Basic", "Detailed", "Full"], 
+    group="🔧 Debug Settings")
 
 // Visual Settings
 trendModeColor = input(#089981, 'Trend Mode Color', group = 'Strategy Mode Colors')
@@ -21,7 +23,9 @@ hybridModeColor = input(#2157f3, 'Hybrid Mode Color', group = 'Strategy Mode Col
 flatModeColor = input(#808080, 'Flat/No Position Color', group = 'Strategy Mode Colors')
 modeBackgroundIntensity = input.int(60, 'Background Transparency', minval=50, maxval=95, group = 'Strategy Mode Colors')
 
-tablePosition = input.string("Top Right", "Status Table Position", options=["Top Right", "Top Left", "Bottom Right", "Bottom Left"], group="🎨 Visual Settings")
+tablePosition = input.string("Top Right", "Status Table Position", 
+    options=["Top Right", "Top Left", "Bottom Right", "Bottom Left"], 
+    group="🎨 Visual Settings")
 
 compactMode = input.bool(false, "Compact Mode (Mobile)", group="🎨 Visual Settings")
 
@@ -31,30 +35,31 @@ rangeMultiplier = input.float(1.5, 'Background Range Multiplier', minval=0.5, ma
 
 // ═══════════════════ ENHANCED LABEL POOL SYSTEM ═══════════════════
 var int MAX_LABELS = 450
-var int MAX_SIGNALS = 10  // Maximum number of signals for table sizing
 var label[] labelPool = array.new<label>()
 var int labelPoolIndex = 0
 var int labelsCreatedThisBar = 0
 var int lastProcessedBar = na
 
-// Reset counter on new bar (global scope)
-currentBar = bar_index
-if currentBar != lastProcessedBar
-    labelsCreatedThisBar := 0
-    lastProcessedBar := currentBar
-
-// Smart label recycling with production safety kill-switch
+// Smart label recycling (prevents same-bar overwrites)
 getPooledLabel() =>
-    // PRODUCTION SAFETY: Kill-switch for object pool when not in debug mode
-    if debugLevel == "Off"
-        na  // Disable label pool entirely in production mode
-    else if array.size(labelPool) < MAX_LABELS and labelsCreatedThisBar < 10
+    currentBar = bar_index
+    
+    // Reset counter on new bar
+    if currentBar != lastProcessedBar
+        labelsCreatedThisBar := 0
+        lastProcessedBar := currentBar
+    
+    if array.size(labelPool) < MAX_LABELS and labelsCreatedThisBar < 10
         // Create new label if pool not full and not too many this bar
-        newLabel = label.new(bar_index, close, "", style=label.style_none, color=color.new(color.white, 100))
+        newLabel = label.new(bar_index, close, "", 
+            style=label.style_none, 
+            color=color.new(color.white, 100))
         array.push(labelPool, newLabel)
+        labelsCreatedThisBar += 1
         newLabel
     else if barstate.isconfirmed
         // Only recycle on confirmed bars to prevent overwrites
+        labelPoolIndex := (labelPoolIndex + 1) % array.size(labelPool)
         array.get(labelPool, labelPoolIndex)
     else
         // Return existing label without advancing pointer
@@ -63,13 +68,11 @@ getPooledLabel() =>
         else
             na
 
-// EMERGENCY FIX: Global variable updates moved to global scope
-
 // Professional label update function
-updateLabel(labelId, x, y, txt, style, bgColor, textColor, size) =>
+updateLabel(labelId, x, y, text, style, bgColor, textColor, size) =>
     if not na(labelId)
         label.set_xy(labelId, x, y)
-        label.set_text(labelId, txt)
+        label.set_text(labelId, text)
         label.set_style(labelId, style)
         label.set_color(labelId, bgColor)
         label.set_textcolor(labelId, textColor)
@@ -151,7 +154,7 @@ if barstate.isfirst
     array.push(lastLabelBar, na)
 
 getSmartLabelY(baseY, isAbove, priority) =>
-    currentBarLocal = bar_index
+    currentBar = bar_index
     atrPadding = ta.atr(14) * 0.15  // Increased for better spacing
     
     priorityIndex = switch priority
@@ -164,17 +167,17 @@ getSmartLabelY(baseY, isAbove, priority) =>
     lastY = array.get(lastLabelY, priorityIndex)
     lastBar = array.get(lastLabelBar, priorityIndex)
     
-    minPadding = atrPadding * (priority == "critical" ? 3.0 : priority == "important" ? 2.0 : 1.5)
+    minPadding = atrPadding * (priority == "critical" ? 3.0 : 
+                               priority == "important" ? 2.0 : 1.5)
     
-    newY = float(na)
-    if currentBarLocal == lastBar and not na(lastY)
+    if currentBar == lastBar and not na(lastY)
         offset = isAbove ? minPadding : -minPadding
-        newY := lastY + offset
+        newY = lastY + offset
     else
-        newY := baseY
+        newY = baseY
     
     array.set(lastLabelY, priorityIndex, newY)
-    array.set(lastLabelBar, priorityIndex, currentBarLocal)
+    array.set(lastLabelBar, priorityIndex, currentBar)
     newY
 
 // ═══════════════════ LEGACY DEBUG COMPATIBILITY ═══════════════════
@@ -190,16 +193,16 @@ shouldRenderDebug = showDebugLabels and
                    shouldRenderCritical
 
 // Enhanced debug function with performance optimization
-// EMERGENCY FIX: Global scope label pool updates for debug messages
-if shouldRenderDebug
-    if array.size(labelPool) < MAX_LABELS and labelsCreatedThisBar < 10
-        labelsCreatedThisBar += 1
-    else if barstate.isconfirmed
-        labelPoolIndex := (labelPoolIndex + 1) % array.size(labelPool)
-        na  // Proper code block completion
-
-// Simplified debug system - no function calls to avoid Pine Script consistency issues
-// Debug information will be displayed through the existing table and panel systems
+debugMessage(string type, string message, color bgColor, color txtColor, float yOffset) =>
+    if shouldRenderDebug
+        labelId = getPooledLabel()
+        if not na(labelId)
+            debugColor = getSemanticColor("info", "background")
+            textColor = getContrastSafeTextColor(debugColor)
+            yPos = getSmartLabelY(high + (high - low) * yOffset, true, "debug")
+            
+            updateLabel(labelId, bar_index, yPos, type + ": " + message,
+                label.style_label_down, debugColor, textColor, size.small)
 
 // ─────────────────── POSITION SIZE CONTROL (declared early for strategy function) ───────────────────
 positionQty = input.int(1, 'Contracts per Signal', minval = 1, maxval = 1000, group = '💼 Position Size', inline='pos1', tooltip = 'Set the number of contracts/shares to trade per signal')
@@ -383,7 +386,8 @@ processVirtualTrade(VirtualAccount account, bool longSignal, bool shortSignal, s
             account.longTrades += 1
             account.commission += commissionPerTrade
             account.slippage += slippagePerTrade
-            // Debug info available in virtual signal table
+            if debugEnabled
+                debugMessage("VIRTUAL", signalName + " Virtual Long Entry @ " + str.tostring(close), color.lime, color.white, 0.4)
         else if shortSignal
             account.inPosition := true
             account.direction := "short"
@@ -392,7 +396,8 @@ processVirtualTrade(VirtualAccount account, bool longSignal, bool shortSignal, s
             account.shortTrades += 1
             account.commission += commissionPerTrade
             account.slippage += slippagePerTrade
-            // Debug info available in virtual signal table
+            if debugEnabled
+                debugMessage("VIRTUAL", signalName + " Virtual Short Entry @ " + str.tostring(close), color.red, color.white, 0.4)
     
     // Update current P&L for open positions
     if account.inPosition
@@ -453,7 +458,8 @@ processVirtualExit(VirtualAccount account, bool exitSignal, string signalName, i
         account.commission := 0.0
         account.slippage := 0.0
         
-        // Debug info available in virtual signal table
+        if debugEnabled
+            debugMessage("VIRTUAL", signalName + " Virtual Exit @ " + str.tostring(close) + " P&L: $" + str.tostring(finalPnL, "#.##"), finalPnL > 0 ? color.lime : color.red, color.white, 0.5)
 
 // ═══════════════════ MULTI-SIGNAL INPUT SYSTEM ═══════════════════
 // ─────────────────── SIGNAL SOURCE INPUTS ───────────────────
@@ -647,7 +653,8 @@ if na(lastParameterHash) or lastParameterHash != currentParameterHash
     parametersChanged := true
     resetVirtualAccounts()
     lastParameterHash := currentParameterHash
-    // Parameters changed - info available in table status row
+    if debugEnabled
+        debugMessage("SYSTEM", "Parameters changed - Virtual accounts reset", color.orange, color.white, 0.3)
 else
     parametersChanged := false
 
@@ -773,7 +780,8 @@ if shouldUseSPL
     if bbExitTriggered
         smartDistance := smartDistance * bbExitTightness
         smartOffset := smartDistance * math.max(smartProfitOffset, 0.01)
-        // BB tight mode info available in master panel (trailExitSent check removed)
+        if not trailExitSent  // Only show message once
+            debugMessage("INFO", "⚡ BB TIGHT MODE: Smart Profit Locker tightened to " + str.tostring(smartDistance, "#.##") + " pts (" + str.tostring(bbExitTightness * 100) + "% of normal)", color.orange, color.white, 0.05)
     else
         smartOffset := smartDistance * math.max(smartProfitOffset, 0.01)
     
@@ -787,13 +795,16 @@ if shouldUseSPL
         strategy.exit('Smart-Long', from_entry='Long', trail_points=math.max(smartDistance, 0.01), trail_offset=math.max(smartOffset, 0.01), comment='Smart Profit Locker')
         if not trailExitSent
             trailExitSent := true
-            // SPL activation info available in master panel
+            debugMessage("INFO", "🎯 Smart Profit Locker activated - Distance: " + str.tostring(smartDistance, "#.##") + " pts", color.green, color.white, 0.05)
     else if strategy.position_size < 0  // Short position
         strategy.exit('Smart-Short', from_entry='Short', trail_points=math.max(smartDistance, 0.01), trail_offset=math.max(smartOffset, 0.01), comment='Smart Profit Locker')
         if not trailExitSent
             trailExitSent := true
-            // SPL activation info available in master panel
+            debugMessage("INFO", "🎯 Smart Profit Locker activated - Distance: " + str.tostring(smartDistance, "#.##") + " pts", color.green, color.white, 0.05)
 
+// OLD TREND CHANGE EXIT SYSTEM - REMOVED
+// This old system was interfering with the new Advanced Trend Exit System
+// All trend change exit logic is now handled by the Advanced Trend Exit System below
 
 // RBW DIRECTIONAL FILTER
 // Compact multi-column panel for volatility-based directional bias
@@ -819,6 +830,11 @@ rbwRefBand = input.string("Middle", "Reference", group='📊 Relative Bandwidth 
 rbwATRLength = input.int(20, "ATR Len", group='📊 Relative Bandwidth Filter', inline='rbw5')
 rbwBBType = input.string("sma", "BB Type", group='📊 Relative Bandwidth Filter', options=["sma", "ema", "hma", "rma", "wma", "vwma", "linreg", "median"], inline='rbw5')
 
+// OLD TREND SIGNAL SYSTEM - REPLACED BY ADVANCED TREND EXIT SYSTEM
+// This section is kept for compatibility with existing exit logic but will be phased out
+
+// Trend logic simplified: ALL enabled filters must agree (no more voting system)
+
 // BOLLINGER BAND RISK MANAGEMENT
 // Critical risk management: Never take signals outside Bollinger Bands
 
@@ -843,8 +859,9 @@ if bbExitEnable and strategy.position_size != 0
     
     if longAtUpperBB or shortAtLowerBB
         bbExitTriggered := true
-        var string exitType = longAtUpperBB ? "Long at Upper BB" : "Short at Lower BB"
-        // Debug info available in panels
+        if debugEnabled
+            exitType = longAtUpperBB ? "Long at Upper BB" : "Short at Lower BB"
+            debugMessage("INFO", "⚡ BB EXIT TRIGGER: " + exitType + " - Switching to tight Smart Profit Locker", color.green, color.white, 0.05)
 else
     bbExitTriggered := false
 
@@ -928,9 +945,11 @@ if bbEntryFilterEnable
     bbShortFilterOK := close >= bbLower  // Allow short entries only when price is NOT below lower band
     
     // Debug output for BB entry filter
-    // Debug info available in panels
-    // Long filter debug: above upper BB - Gap/spike protection active
-    // Short filter debug: below lower BB - Gap/spike protection active
+    if debugEnabled
+        if not bbLongFilterOK
+            debugMessage("WARN", "🚫 BB ENTRY FILTER: Long signal blocked - Price $" + str.tostring(close, "#.##") + " above upper BB $" + str.tostring(bbUpper, "#.##") + " - Gap/spike protection active", color.orange, color.white, 0.15)
+        if not bbShortFilterOK
+            debugMessage("WARN", "🚫 BB ENTRY FILTER: Short signal blocked - Price $" + str.tostring(close, "#.##") + " below lower BB $" + str.tostring(bbLower, "#.##") + " - Gap/spike protection active", color.orange, color.white, 0.15)
 else
     // When disabled, allow all entries
     bbLongFilterOK := true
@@ -1059,8 +1078,8 @@ else
 longDirectionalBias = rbwEnable ? (rbwSignal == 2) : true    // RBW bullish or disabled (permissive)  
 shortDirectionalBias = rbwEnable ? (rbwSignal == 0) : true   // RBW bearish or disabled (permissive)
 
-// PRODUCTION SAFETY: Test mode override disabled by default for live trading safety
-testModeOverride = input.bool(false, "🧪 Test Mode Override", group="🛠️ Debug System", tooltip="⚠️ DANGER: Overrides ALL filters! Only enable for testing. NEVER use in live trading.")
+// TEMPORARY TEST OVERRIDE (recommended by AI analysis) - Set to false after confirming signals work
+testModeOverride = input.bool(true, "🧪 Test Mode Override", group="🛠️ Debug System", tooltip="Temporarily override all filters to allow trades for testing")
 if testModeOverride
     longDirectionalBias := true
     shortDirectionalBias := true
@@ -1069,14 +1088,23 @@ if testModeOverride
 // Advanced exit system to "let winners run" in strong trending conditions
 
 // Define final entry signals with directional bias and Bollinger Band Filter applied
-sigCountLong = (sig1Long ? 1 : 0) + (sig2Long ? 1 : 0) + (sig3Long ? 1 : 0) + (sig4Long ? 1 : 0) + (sig5Long ? 1 : 0) + (sig6Long ? 1 : 0) + (sig7Long ? 1 : 0) + (sig8Long ? 1 : 0) + (sig9Long ? 1 : 0) + (sig10Long ? 1 : 0)
-sigCountShort = (sig1Short ? 1 : 0) + (sig2Short ? 1 : 0) + (sig3Short ? 1 : 0) + (sig4Short ? 1 : 0) + (sig5Short ? 1 : 0) + (sig6Short ? 1 : 0) + (sig7Short ? 1 : 0) + (sig8Short ? 1 : 0) + (sig9Short ? 1 : 0) + (sig10Short ? 1 : 0)
-longEntrySignal := sigCountLong > 0 and longDirectionalBias and bbLongFilterOK
-shortEntrySignal := sigCountShort > 0 and shortDirectionalBias and bbShortFilterOK
+longEntrySignal := primaryLongSig and longDirectionalBias and bbLongFilterOK
+shortEntrySignal := primaryShortSig and shortDirectionalBias and bbShortFilterOK
 
 // Debug: Track what's blocking strategy entries vs virtual accounts
-// Debug info available in panels
-// Blocking reasons tracked: LONG_BIAS_BLOCK, SHORT_BIAS_BLOCK, BB_LONG_BLOCK, BB_SHORT_BLOCK
+if debugEnabled and (primaryLongSig or primaryShortSig)
+    blockingReasons = ""
+    if not longDirectionalBias and primaryLongSig
+        blockingReasons += "LONG_BIAS_BLOCK "
+    if not shortDirectionalBias and primaryShortSig  
+        blockingReasons += "SHORT_BIAS_BLOCK "
+    if not bbLongFilterOK and primaryLongSig
+        blockingReasons += "BB_LONG_BLOCK "
+    if not bbShortFilterOK and primaryShortSig
+        blockingReasons += "BB_SHORT_BLOCK "
+    
+    if blockingReasons != ""
+        debugMessage("FILTER", "🚫 STRATEGY BLOCKED: " + blockingReasons, color.orange, color.white, 0.6)
 
 // Add re-entry signals to entry logic
 if reEntrySignal and exitDirection == 1  // Re-entering long
@@ -1084,13 +1112,37 @@ if reEntrySignal and exitDirection == 1  // Re-entering long
 else if reEntrySignal and exitDirection == -1  // Re-entering short  
     shortEntrySignal := true
 
-// Advanced Trend Exit System (logic only - no visual indicators)
+// Visual indicators for Advanced Trend Exit System
+plotchar(inTrendExitMode, title='🎯 Trend Exit Mode', char='🎯', location=location.top, color=color.new(color.blue, 0), size=size.small)
+plotchar(inProfitMode, title='💰 Profit Mode', char='💰', location=location.top, color=color.new(color.green, 0), size=size.small)
+plotchar(waitingForReEntry, title='⏳ Waiting Re-Entry', char='⏳', location=location.top, color=color.new(color.orange, 0), size=size.small)
+plotchar(colorChangeExit, title='🔄 Color Change Exit', char='🔄', location=location.top, color=color.new(color.red, 0), size=size.small)
+plotchar(reEntrySignal, title='🚀 Re-Entry Signal', char='🚀', location=location.top, color=color.new(color.purple, 0), size=size.small)
 
-// Linear Regression Candle signals (logic only - no visual plots)
+// Plot Linear Regression Candle signals for visibility
+plotchar(lrcBullColor, title='🟢 LRC Bull Color', char='🟢', location=location.bottom, color=color.new(color.lime, 0), size=size.tiny)
+plotchar(lrcBearColor, title='🔴 LRC Bear Color', char='🔴', location=location.bottom, color=color.new(color.red, 0), size=size.tiny)
+plotchar(lrcBullMA, title='📈 LRC Bull MA', char='📈', location=location.bottom, color=color.new(color.blue, 0), size=size.tiny)
+plotchar(lrcBearMA, title='📉 LRC Bear MA', char='📉', location=location.bottom, color=color.new(color.maroon, 0), size=size.tiny)
 
-// ═══════════════════ ENTRY DEBUG TRACKING (Logic Only) ═══════════════════
-// Signal chain tracking for development purposes (no visual plots)
-// All diagnostic visual elements removed for clean chart appearance
+// ═══════════════════ COMPREHENSIVE ENTRY DEBUG PLOTS (STEP 1) ═══════════════════
+// Diagnostic plots to identify why trades show in backtest but not on chart
+
+// RAW SIGNAL DETECTION
+plotchar(primaryLongSig, title="1️⃣ Primary Long Signal", char='🔵', location=location.bottom, color=color.new(color.blue, 0), size=size.small)
+plotchar(primaryShortSig, title="1️⃣ Primary Short Signal", char='🔴', location=location.bottom, color=color.new(color.red, 0), size=size.small)
+
+// DIRECTIONAL BIAS FILTERS
+plotchar(longDirectionalBias, title="2️⃣ Long Bias OK", char='📈', location=location.bottom, color=color.new(color.green, 0), size=size.small)
+plotchar(shortDirectionalBias, title="2️⃣ Short Bias OK", char='📉', location=location.bottom, color=color.new(color.maroon, 0), size=size.small)
+
+// BOLLINGER BAND FILTERS
+plotchar(bbLongFilterOK, title="3️⃣ BB Long Filter OK", char='🟢', location=location.bottom, color=color.new(color.lime, 0), size=size.small)
+plotchar(bbShortFilterOK, title="3️⃣ BB Short Filter OK", char='🟠', location=location.bottom, color=color.new(color.orange, 0), size=size.small)
+
+// FINAL FILTERED SIGNALS
+plotchar(longEntrySignal, title="4️⃣ FINAL Long Entry", char='⬆️', location=location.bottom, color=color.new(color.white, 0), size=size.large)
+plotchar(shortEntrySignal, title="4️⃣ FINAL Short Entry", char='⬇️', location=location.bottom, color=color.new(color.yellow, 0), size=size.large)
 
 // ENTRY PERMISSION STATUS - Moved to after entry logic calculation
 
@@ -1104,56 +1156,90 @@ plotchar(strategy.position_size < 0, title="📊 Short Position", char='📊', l
 plotchar(currentPositionSize >= pyramidLimit, title="⚠️ PYRAMID LIMIT", char='⚠️', location=location.top, color=color.new(color.purple, 0), size=size.small)
 
 // Debug warnings when Bollinger Band filter blocks trades (critical risk management)
-// Debug info available in panels
-// Long signal debug: above upper BB - Gap/spike protection active
-// Short signal debug: below lower BB - Gap/spike protection active
+if debugEnabled and bbEntryFilterEnable
+    if primaryLongSig and longDirectionalBias and not bbLongFilterOK
+        debugMessage("WARN", "🚫 BB FILTER BLOCKED LONG: Price " + str.tostring(close, "#.##") + " above upper BB " + str.tostring(bbUpper, "#.##") + " - Gap/spike protection active", color.orange, color.white, 0.15)
+    if primaryShortSig and shortDirectionalBias and not bbShortFilterOK
+        debugMessage("WARN", "🚫 BB FILTER BLOCKED SHORT: Price " + str.tostring(close, "#.##") + " below lower BB " + str.tostring(bbLower, "#.##") + " - Gap/spike protection active", color.orange, color.white, 0.15)
 
 // Enhanced debug logging for all directional bias filters and systems  
-// Debug info available in panels
-// Debug entry signals: Long/Short signals, bias filters, BB filters, and final entry signals
+if debugEnabled
+    // Debug entry signals
+    if primaryLongSig or primaryShortSig
+        entryMsg = 'ENTRY SIGNALS: Long=' + str.tostring(primaryLongSig) + ' Short=' + str.tostring(primaryShortSig)
+        entryMsg += ' | LongBias=' + str.tostring(longDirectionalBias) + ' ShortBias=' + str.tostring(shortDirectionalBias)
+        entryMsg += ' | BBFilter: L=' + str.tostring(bbLongFilterOK) + ' S=' + str.tostring(bbShortFilterOK)
+        entryMsg += ' | Final: L=' + str.tostring(longEntrySignal) + ' S=' + str.tostring(shortEntrySignal)
+        debugMessage("INFO", entryMsg, color.blue, color.white, 0.05)
     
-// Show hybrid exit system status
-// Fluid Hybrid Auto-Detection Status
-if autoHybridMode
-    hybridMode = shouldUseTrendMode ? "TREND" : "SPL"
-
-// TREND-RIDING OVERLAY LOGIC
-// Advanced exit system to "let winners run" in strong trending conditions
-
-// Debug Advanced Trend Exit System
-if useAdvancedTrendExit
-    trendExitMsg = 'ADVANCED TREND EXIT:'
-    trendExitMsg := trendExitMsg + ' Mode=' + (inTrendExitMode ? 'ACTIVE' : 'OFF')
-    trendExitMsg := trendExitMsg + ' Phase=' + (not inTrendExitMode ? 'NONE' : inProfitMode ? 'PROFIT' : 'PROTECTION')
-    trendExitMsg := trendExitMsg + ' Exit=' + exitMode
-    if waitingForReEntry
-        trendExitMsg := trendExitMsg + ' | WAITING_RE-ENTRY (Dir=' + str.tostring(exitDirection) + ')'
-    // Debug info available in panels
+    // Debug Advanced Trend Exit System
+    if useAdvancedTrendExit
+        trendExitMsg = 'ADVANCED TREND EXIT:'
+        trendExitMsg += ' Mode=' + (inTrendExitMode ? 'ACTIVE' : 'OFF')
+        trendExitMsg += ' Phase=' + (not inTrendExitMode ? 'NONE' : inProfitMode ? 'PROFIT' : 'PROTECTION')
+        trendExitMsg += ' Exit=' + exitMode
+        if waitingForReEntry
+            trendExitMsg += ' | WAITING_RE-ENTRY (Dir=' + str.tostring(exitDirection) + ')'
+        debugMessage("INFO", trendExitMsg, color.purple, color.white, 0.05)
         
-    // Debug LRC signals
-    if lrcBullColor or lrcBearColor or lrcBullMA or lrcBearMA
-        lrcMsg = 'LRC SIGNALS:'
-        lrcMsg := lrcMsg + ' BullColor=' + str.tostring(lrcBullColor)
-        lrcMsg := lrcMsg + ' BearColor=' + str.tostring(lrcBearColor) 
-        lrcMsg := lrcMsg + ' BullMA=' + str.tostring(lrcBullMA)
-        lrcMsg := lrcMsg + ' BearMA=' + str.tostring(lrcBearMA)
-        // Debug info available in panels
+        // Debug LRC signals
+        if lrcBullColor or lrcBearColor or lrcBullMA or lrcBearMA
+            lrcMsg = 'LRC SIGNALS:'
+            lrcMsg += ' BullColor=' + str.tostring(lrcBullColor)
+            lrcMsg += ' BearColor=' + str.tostring(lrcBearColor) 
+            lrcMsg += ' BullMA=' + str.tostring(lrcBullMA)
+            lrcMsg += ' BearMA=' + str.tostring(lrcBearMA)
+            debugMessage("INFO", lrcMsg, color.yellow, color.black, 0.05)
         
-    // Debug trend confirmation
-    if trendEnabledCount > 0
-        confirmMsg = 'TREND CONFIRMATION:'
-        confirmMsg := confirmMsg + ' Enabled=' + str.tostring(trendEnabledCount)
-        confirmMsg := confirmMsg + ' Bull=' + str.tostring(bullishTrendCount) + '/' + str.tostring(trendEnabledCount)
-        confirmMsg := confirmMsg + ' Bear=' + str.tostring(bearishTrendCount) + '/' + str.tostring(trendEnabledCount)
-        confirmMsg := confirmMsg + ' ConfirmLong=' + str.tostring(trendConfirmsLong)
-        confirmMsg := confirmMsg + ' ConfirmShort=' + str.tostring(trendConfirmsShort)
-        confirmMsg += ' ConfirmLong=' + str.tostring(trendConfirmsLong)
-        confirmMsg += ' ConfirmShort=' + str.tostring(trendConfirmsShort)
-    // Debug mode status indicators
-    debugModeActive = true
+        // Debug trend confirmation
+        if trendEnabledCount > 0
+            confirmMsg = 'TREND CONFIRMATION:'
+            confirmMsg += ' Enabled=' + str.tostring(trendEnabledCount)
+            confirmMsg += ' Bull=' + str.tostring(bullishTrendCount) + '/' + str.tostring(trendEnabledCount)
+            confirmMsg += ' Bear=' + str.tostring(bearishTrendCount) + '/' + str.tostring(trendEnabledCount)
+            confirmMsg += ' ConfirmLong=' + str.tostring(trendConfirmsLong)
+            confirmMsg += ' ConfirmShort=' + str.tostring(trendConfirmsShort)
+            debugMessage("INFO", confirmMsg, color.orange, color.white, 0.05)
+    
+    // Show new signal-based trend system status
+    trendStatusMsg = 'SIGNAL TREND STATUS:'
+    trendStatusMsg += ' Majority=' + (trendsAgree ? 'BULL' : 'BEAR')
+    trendStatusMsg += ' Enabled=' + str.tostring(trendEnabledCount)
+    trendStatusMsg += ' RBW=' + (rbwEnable ? (rbwSignal == 2 ? 'BULL' : rbwSignal == 0 ? 'BEAR' : 'NEUT') : 'OFF')
+    trendStatusMsg += ' BB=' + (bbEntryFilterEnable ? ('L:' + (bbLongFilterOK ? 'OK' : 'BLOCK') + ' S:' + (bbShortFilterOK ? 'OK' : 'BLOCK')) : 'OFF')
+    debugMessage("INFO", trendStatusMsg, color.green, color.white, 0.05)
+    
+    // Show simplified bias status (RBW only now)
+    consensusMsg = 'BIAS STATUS: RBW-Only Filter | RBW=' + (rbwEnable ? (rbwSignal == 2 ? 'BULL' : rbwSignal == 0 ? 'BEAR' : 'NEUT') : 'OFF')
+    consensusMsg += ' | Final: Long=' + (longDirectionalBias ? 'ALLOW' : 'BLOCK') + ' Short=' + (shortDirectionalBias ? 'ALLOW' : 'BLOCK')
+    debugMessage("INFO", consensusMsg, color.green, color.white, 0.05)
+    
+    // Show trend change exit system status
+    if trendChangeExitEnable
+        trendChangeMsg = 'TREND CHANGE EXIT: Status=' + (trendChangeExitEnable ? 'ENABLED' : 'DISABLED')
+        trendChangeMsg += ' | Active=' + (trendChangeExitActive ? 'YES' : 'NO')  
+        if trendChangeDetected
+            trendChangeMsg += ' | CHANGE DETECTED: ' + trendChangeDetails
+        debugMessage("INFO", trendChangeMsg, color.purple, color.white, 0.05)
+    
+    // Show hybrid exit system status
+    // Fluid Hybrid Auto-Detection Status
+    if autoHybridMode
+        hybridMode = shouldUseTrendMode ? "TREND" : "SPL"
+        debugMessage("HYBRID", "🔄 Auto-Hybrid Active: " + hybridMode + " mode (Pos: " + str.tostring(currentPositionSize) + "/" + str.tostring(hybridSwitchThreshold) + ")", color.purple, color.white, 0.1)
+    else if smartProfitEnable and trendExitEnable and strategy.position_size == 0
+        debugMessage("HYBRID", "💤 Auto-Hybrid Ready: Both SPL + Trend Exit enabled, waiting for position", color.gray, color.white, 0.1)
+    else if smartProfitEnable or trendExitEnable
+        singleMode = smartProfitEnable ? "SPL-ONLY" : "TREND-ONLY"
+        debugMessage("HYBRID", "⚙️ Single-System Mode: " + singleMode, color.blue, color.white, 0.1)
 
 // Debug logging for exit systems (trend-riding system removed)
-// Debug info available in panels
+if debugEnabled and strategy.position_size != 0
+    systemMsg = 'EXIT SYSTEMS:'
+    systemMsg += ' SPL=' + (shouldUseSPL ? 'ON' : 'OFF')
+    systemMsg += ' TCE=' + (trendChangeExitActive ? 'ON' : 'OFF')
+    // REMOVED: HYB debug - stand-alone hybrid system removed
+    debugMessage("INFO", systemMsg, color.blue, color.white, 0.25)
 
 // Enhanced visual indicators for exit systems  
 plotchar(shouldUseSPL, title='Smart Profit Locker', char='🔒', location=location.top, color=color.blue, size=size.small)
@@ -1201,111 +1287,69 @@ plot(profitLockerLine, title="💰 Profit Locker", color=color.new(color.green, 
 // Professional Individual Signal Backtesting with Virtual Account System
 // Real-time performance tracking with commission/slippage integration
 
-// ─── 1 · ONE-TIME TABLE CREATION ──────────────────────────────────────────
-var table virtualSignalTable = na
-f_tablePos() =>
-    switch tablePosition
-        "Top Right" => position.top_right
-        "Top Left" => position.top_left
-        "Bottom Right" => position.bottom_right
-        => position.bottom_left
-
-if barstate.isfirst or tablePosition != tablePosition[1]
-    // delete an old instance if we moved it
-    if not na(virtualSignalTable)
-        table.delete(virtualSignalTable)
-    virtualSignalTable := table.new(f_tablePos(), 7, 12,
-                         bgcolor = color.new(color.black, 85),
-                         border_width = 2, border_color = color.new(color.white, 70))
-
-// ─── 2 · TINY WRAPPER TO RE-USE CELLS ────────────────────────────────────
-updateCell(tbl, col, row, txt, txtCol, bgCol) =>
-    // If only the text changes, touching other props is wasted work
-    table.cell_set_text(tbl, col, row, txt)
-    table.cell_set_text_color(tbl, col, row, txtCol)
-    table.cell_set_bgcolor(tbl, col, row, bgCol)
-
-// User-defined type for table row data (to avoid nested collections)
-type TableRowData
-    string signalName
-    string trades
-    string winRate
-    string totalPnL
-    string maxDD
-    string profitFactor
-    string statusEmoji
-    color statusColor
-
-// ─── 3 · REFRESH LOGIC  (run only once per bar)───────────────────────────
 if showBacktestTable and barstate.islast
-    // a) prepare the header once (it never changes, so we do it only on first bar)
-    if barstate.isfirst
-        updateCell(virtualSignalTable, 0, 0, '📊 SIGNAL', color.white, color.new(color.blue,80))
-        updateCell(virtualSignalTable, 1, 0, 'TRADES', color.white, color.new(color.blue,80))
-        updateCell(virtualSignalTable, 2, 0, 'WIN%', color.white, color.new(color.blue,80))
-        updateCell(virtualSignalTable, 3, 0, 'TOTAL P&L($)', color.white, color.new(color.blue,80))
-        updateCell(virtualSignalTable, 4, 0, 'MAX DD($)', color.white, color.new(color.blue,80))
-        updateCell(virtualSignalTable, 5, 0, 'PF', color.white, color.new(color.blue,80))
-        updateCell(virtualSignalTable, 6, 0, 'STATUS', color.white, color.new(color.blue,80))
-
-    // b) build the data rows first
-    rows = array.new<TableRowData>()
+    // Simplified Virtual Account Table - Combined P&L (No Long/Short Separation)
+    var table virtualSignalTable = table.new(position.bottom_left, columns=7, rows=12, bgcolor=color.new(color.black, 85), border_width=2, border_color=color.new(color.white, 70))
+    
+    // Simplified Headers - Combined Results for Comparative Analysis
+    table.cell(virtualSignalTable, 0, 0, '📊 SIGNAL', text_color=color.white, text_size=size.normal, bgcolor=color.new(color.blue, 80))
+    table.cell(virtualSignalTable, 1, 0, 'TRADES', text_color=color.white, text_size=size.small, bgcolor=color.new(color.blue, 80))
+    table.cell(virtualSignalTable, 2, 0, 'WIN%', text_color=color.white, text_size=size.small, bgcolor=color.new(color.green, 80))
+    table.cell(virtualSignalTable, 3, 0, 'TOTAL P&L($)', text_color=color.white, text_size=size.small, bgcolor=color.new(color.yellow, 80))
+    table.cell(virtualSignalTable, 4, 0, 'MAX DD($)', text_color=color.white, text_size=size.small, bgcolor=color.new(color.orange, 80))
+    table.cell(virtualSignalTable, 5, 0, 'PF', text_color=color.white, text_size=size.small, bgcolor=color.new(color.purple, 80))
+    table.cell(virtualSignalTable, 6, 0, 'STATUS', text_color=color.white, text_size=size.small, bgcolor=color.new(color.blue, 80))
+    
+    // Process each virtual account for display
     signalEnables = array.from(signal1Enable, signal2Enable, signal3Enable, signal4Enable, signal5Enable, signal6Enable, signal7Enable, signal8Enable, signal9Enable, signal10Enable)
     signalNamesArray = array.from(signal1Name, signal2Name, signal3Name, signal4Name, signal5Name, signal6Name, signal7Name, signal8Name, signal9Name, signal10Name)
     
+    currentRow = 1
     for i = 0 to 9
         if array.get(signalEnables, i)
             account = array.get(virtualAccounts, i)
             signalName = array.get(signalNamesArray, i)
             
             // Calculate metrics
+            longWinRate = account.longTrades > 0 ? account.longWins / account.longTrades * 100 : 0
+            shortWinRate = account.shortTrades > 0 ? account.shortWins / account.shortTrades * 100 : 0
             totalPnL = account.totalPnL
             profitFactor = account.grossLoss > 0 ? account.grossProfit / account.grossLoss : account.grossProfit > 0 ? 999 : 0
+            
+            // Performance Status Indicators
             overallWinRate = account.totalTrades > 0 ? account.winningTrades / account.totalTrades * 100 : 0
-            statusColor = overallWinRate >= 70 and profitFactor >= 2.0 and totalPnL > 0 ? color.new(color.lime, 20) : 
-                         overallWinRate >= 50 and profitFactor >= 1.5 and totalPnL > 0 ? color.new(color.yellow, 20) : 
-                         overallWinRate >= 40 and profitFactor >= 1.0 ? color.new(color.orange, 20) : color.new(color.red, 20)
+            statusEmoji = overallWinRate >= 70 and profitFactor >= 2.0 and totalPnL > 0 ? '🟢' : overallWinRate >= 50 and profitFactor >= 1.5 and totalPnL > 0 ? '🟡' : overallWinRate >= 40 and profitFactor >= 1.0 ? '🟠' : '🔴'
             
+            statusColor = overallWinRate >= 70 and profitFactor >= 2.0 and totalPnL > 0 ? color.new(color.lime, 20) : overallWinRate >= 50 and profitFactor >= 1.5 and totalPnL > 0 ? color.new(color.yellow, 20) : overallWinRate >= 40 and profitFactor >= 1.0 ? color.new(color.orange, 20) : color.new(color.red, 20)
+            
+            // Action Recommendation
+            actionText = totalPnL > 100 and overallWinRate > 60 and profitFactor > 1.5 ? 'KEEP ✅' : totalPnL < -100 or overallWinRate < 40 or profitFactor < 1.0 ? 'CUT ❌' : 'TEST ⚠️'
+            
+            actionColor = totalPnL > 100 and overallWinRate > 60 and profitFactor > 1.5 ? color.lime : totalPnL < -100 or overallWinRate < 40 or profitFactor < 1.0 ? color.red : color.orange
+            
+            // Truncate signal name for display
             displayName = str.length(signalName) > 8 ? str.substring(signalName, 0, 8) : signalName
-            statusEmoji = totalPnL > 0 ? '🟢' : '🔴'
             
-            rowData = TableRowData.new(displayName, str.tostring(account.totalTrades), str.tostring(overallWinRate, '#.1')+'%', 
-                                      '$'+str.tostring(totalPnL, '#.##'), '$'+str.tostring(account.maxDrawdown, '#.##'), 
-                                      str.tostring(profitFactor, '#.##'), statusEmoji, statusColor)
-            array.push(rows, rowData)
-
-    // c) paint / update the rows
-    for r = 0 to array.size(rows)-1
-        dat = array.get(rows,r)
-        updateCell(virtualSignalTable, 0,r+1, dat.signalName, color.white, color.new(color.gray,80))
-        updateCell(virtualSignalTable, 1,r+1, dat.trades, color.white, color.new(color.gray,90))
-        winRate = str.tonumber(str.replace(dat.winRate, '%', ''))
-        updateCell(virtualSignalTable, 2,r+1, dat.winRate, winRate>=60?color.lime:winRate>=40?color.yellow:color.red, color.new(color.gray,90))
-        pnl = str.tonumber(str.replace(dat.totalPnL, '$', ''))
-        updateCell(virtualSignalTable, 3,r+1, dat.totalPnL, pnl>0?color.lime:color.red, color.new(color.gray,90))
-        updateCell(virtualSignalTable, 4,r+1, dat.maxDD, color.white, color.new(color.red,80))
-        pf = str.tonumber(dat.profitFactor)
-        updateCell(virtualSignalTable, 5,r+1, dat.profitFactor, pf>=2?color.lime:pf>=1.5?color.yellow:pf>=1?color.orange:color.red, color.new(color.gray,90))
-        updateCell(virtualSignalTable, 6,r+1, dat.statusEmoji, color.white, dat.statusColor)
-    
-    // d) wipe any leftover rows if signals were disabled
-    for emptyRow = array.size(rows)+1 to MAX_SIGNALS
-        updateCell(virtualSignalTable, 0, emptyRow, "", color.white, color.new(color.black,0))
-        updateCell(virtualSignalTable, 1, emptyRow, "", color.white, color.new(color.black,0))
-        updateCell(virtualSignalTable, 2, emptyRow, "", color.white, color.new(color.black,0))
-        updateCell(virtualSignalTable, 3, emptyRow, "", color.white, color.new(color.black,0))
-        updateCell(virtualSignalTable, 4, emptyRow, "", color.white, color.new(color.black,0))
-        updateCell(virtualSignalTable, 5, emptyRow, "", color.white, color.new(color.black,0))
-        updateCell(virtualSignalTable, 6, emptyRow, "", color.white, color.new(color.black,0))
+            // Populate table row - SIMPLIFIED 7-COLUMN FORMAT (Combined P&L)
+            table.cell(virtualSignalTable, 0, currentRow, displayName, text_color=color.white, text_size=size.small, bgcolor=color.new(color.gray, 80))
+            table.cell(virtualSignalTable, 1, currentRow, str.tostring(account.totalTrades), text_color=color.white, text_size=size.small, bgcolor=color.new(color.gray, 90))
+            table.cell(virtualSignalTable, 2, currentRow, str.tostring(overallWinRate, '#.#') + '%', text_color=overallWinRate >= 60 ? color.lime : overallWinRate >= 40 ? color.yellow : color.red, text_size=size.small, bgcolor=color.new(color.gray, 90))
+            table.cell(virtualSignalTable, 3, currentRow, '$' + str.tostring(totalPnL, '#.##'), text_color=totalPnL > 0 ? color.lime : color.red, text_size=size.small, bgcolor=color.new(color.gray, 90))
+            table.cell(virtualSignalTable, 4, currentRow, '$' + str.tostring(account.maxDrawdown, '#.##'), text_color=color.white, text_size=size.small, bgcolor=color.new(color.red, 80))
+            table.cell(virtualSignalTable, 5, currentRow, str.tostring(profitFactor, '#.##'), text_color=profitFactor >= 2.0 ? color.lime : profitFactor >= 1.5 ? color.yellow : profitFactor >= 1.0 ? color.orange : color.red, text_size=size.small, bgcolor=color.new(color.gray, 90))
+            table.cell(virtualSignalTable, 6, currentRow, statusEmoji, text_color=color.white, text_size=size.small, bgcolor=statusColor)
+            
+            currentRow += 1
     
     // Summary Row with System Status - SIMPLIFIED 7-COLUMN FORMAT
-    updateCell(virtualSignalTable, 0, 11, '🚀 SYSTEM', color.white, color.new(color.blue, 25))
-    updateCell(virtualSignalTable, 1, 11, 'Comm: $' + str.tostring(commissionPerTrade, '#.##'), color.white, color.new(color.blue, 35))
-    updateCell(virtualSignalTable, 2, 11, 'Slip: $' + str.tostring(slippagePerTrade, '#.##'), color.white, color.new(color.blue, 35))
-    updateCell(virtualSignalTable, 3, 11, 'Size: ' + str.tostring(virtualPositionSize), color.white, color.new(color.blue, 35))
-    updateCell(virtualSignalTable, 4, 11, 'Point: $' + str.tostring(syminfo.pointvalue * futuresMultiplier, '#.##'), color.white, color.new(color.blue, 35))
-    updateCell(virtualSignalTable, 5, 11, parametersChanged ? 'RESET ⚡' : 'STABLE ✓', parametersChanged ? color.orange : color.lime, color.new(color.blue, 35))
-    updateCell(virtualSignalTable, 6, 11, 'COMBINED P&L ✅', color.lime, color.new(color.green, 35))
+    if currentRow <= 11
+        table.cell(virtualSignalTable, 0, 11, '🚀 SYSTEM', text_color=color.white, text_size=size.small, bgcolor=color.new(color.blue, 25))
+        table.cell(virtualSignalTable, 1, 11, 'Comm: $' + str.tostring(commissionPerTrade, '#.##'), text_color=color.white, text_size=size.tiny, bgcolor=color.new(color.blue, 35))
+        table.cell(virtualSignalTable, 2, 11, 'Slip: $' + str.tostring(slippagePerTrade, '#.##'), text_color=color.white, text_size=size.tiny, bgcolor=color.new(color.blue, 35))
+        table.cell(virtualSignalTable, 3, 11, 'Size: ' + str.tostring(virtualPositionSize), text_color=color.white, text_size=size.tiny, bgcolor=color.new(color.blue, 35))
+        table.cell(virtualSignalTable, 4, 11, 'Point: $' + str.tostring(syminfo.pointvalue * futuresMultiplier, '#.##'), text_color=color.white, text_size=size.tiny, bgcolor=color.new(color.blue, 35))
+        table.cell(virtualSignalTable, 5, 11, parametersChanged ? 'RESET ⚡' : 'STABLE ✓', text_color=parametersChanged ? color.orange : color.lime, text_size=size.tiny, bgcolor=color.new(color.blue, 35))
+        table.cell(virtualSignalTable, 6, 11, 'COMBINED P&L ✅', text_color=color.lime, text_size=size.tiny, bgcolor=color.new(color.green, 35))
 
 // ═══════════════════ INTRABAR EXIT DEBUG SYSTEM ═══════════════════
 // Visual monitoring and validation system for robust exit logic
@@ -1314,7 +1358,7 @@ debugOn = input.bool(false, '🔍 Enable Exit Debug Labels', group = '🛠️ De
 
 if debugOn and barstate.isconfirmed
     // Determine which exit method was triggered (if any)
-    var string exitType = 
+    exitType = 
       maExitSent ? 'MA' :
       fixedExitSent ? 'Fixed' :
       trailExitSent ? 'Trail' :
@@ -1329,9 +1373,15 @@ if debugOn and barstate.isconfirmed
       // Removed: customExitSent ? color.teal : - old custom exit system
       color.gray
     
-    // Debug condition removed - label creation disabled for clean chart
+    // Show debug label when an exit is triggered
+    if exitType != 'None'
+        label.new(bar_index, high * 1.02, 'EXIT: ' + exitType + '\nBar: ' + str.tostring(bar_index) + '\nPrice: ' + str.tostring(close, '#.####') + '\nPos: ' + (strategy.position_size > 0 ? 'Long' : strategy.position_size < 0 ? 'Short' : 'Flat'), color=labelColor, textcolor=color.white, style=label.style_label_down, yloc=yloc.abovebar, size=size.small)
     
-    // Debug condition removed - label creation disabled for clean chart
+    // Show position state changes
+    if currentPosition != currentPosition[1]
+        stateColor = currentPosition ? color.green : color.red
+        stateText = currentPosition ? 'ENTRY' : 'EXIT'
+        label.new(bar_index, low * 0.98, stateText + '\nFlags Reset: ' + (currentPosition ? 'YES' : 'NO'), color=stateColor, textcolor=color.white, style=label.style_label_up, yloc=yloc.belowbar, size=size.tiny)
 
 // ──────── STATUS/SETTINGS PANEL (Optional) ────────────
 showStatusPanel = input.bool(false, '⚙️ Status/Settings Panel', group = '🛠️ Debug System', tooltip = 'Show comprehensive status and settings for all enabled features')
@@ -1875,31 +1925,27 @@ plotshape(shortEntrySignal, title = "SELL Signal", style = shape.triangledown, l
 
 // Perfect long entry labels (with professional performance enhancement)
 if longEntrySignal and shouldRenderCritical
-    // EMERGENCY FIX: Update label pool counters in global scope
-    if array.size(labelPool) < MAX_LABELS and labelsCreatedThisBar < 10
-        labelsCreatedThisBar += 1
-    else if barstate.isconfirmed
-        labelPoolIndex := (labelPoolIndex + 1) % array.size(labelPool)
-    
     labelId = getPooledLabel()
     if not na(labelId)
         // PRESERVE EXACT APPEARANCE: color.lime with 20% transparency, size.small, white text
         yPos = getSmartLabelY(low - (atrVal * 0.5), false, "important")
-        updateLabel(labelId, bar_index, yPos, dynamicLongText, label.style_label_up, color.new(color.lime, 20), color.white, size.small)
+        updateLabel(labelId, bar_index, yPos, dynamicLongText,
+            label.style_label_up,  // PRESERVE EXACT STYLE
+            color.new(color.lime, 20),  // PRESERVE EXACT COLOR
+            color.white,  // PRESERVE EXACT TEXT COLOR
+            size.small)  // PRESERVE EXACT SIZE
 
 // Perfect short entry labels (with professional performance enhancement)  
 if shortEntrySignal and shouldRenderCritical
-    // EMERGENCY FIX: Update label pool counters in global scope
-    if array.size(labelPool) < MAX_LABELS and labelsCreatedThisBar < 10
-        labelsCreatedThisBar += 1
-    else if barstate.isconfirmed
-        labelPoolIndex := (labelPoolIndex + 1) % array.size(labelPool)
-    
     labelId = getPooledLabel()
     if not na(labelId)
         // PRESERVE EXACT APPEARANCE: color.red with 20% transparency, size.small, white text
         yPos = getSmartLabelY(high + (atrVal * 0.5), true, "important")
-        updateLabel(labelId, bar_index, yPos, dynamicShortText, label.style_label_down, color.new(color.red, 20), color.white, size.small)
+        updateLabel(labelId, bar_index, yPos, dynamicShortText,
+            label.style_label_down,  // PRESERVE EXACT STYLE
+            color.new(color.red, 20),  // PRESERVE EXACT COLOR
+            color.white,  // PRESERVE EXACT TEXT COLOR
+            size.small)  // PRESERVE EXACT SIZE
 
 // ═══════════════════ VIRTUAL ACCOUNT PROCESSING (PROPERLY POSITIONED) ═══════════════════
 // Process each signal through its corresponding virtual account
@@ -1972,18 +2018,13 @@ var bool entryAllowed = true
 
 // Update entry permission each bar – production: allow adds / reversals while in position
 // Check pyramid limit - prevent entries if we've reached max contracts (uses currentPositionSize from hybrid exit section)
-// DEBOUNCED: Only evaluate on confirmed bars to prevent rapid hybrid mode switching in fast markets
-if barstate.isconfirmed
-    entryAllowed := currentPositionSize < pyramidLimit  // Respect user's pyramid limit
+entryAllowed := currentPositionSize < pyramidLimit  // Respect user's pyramid limit
 
 // EMERGENCY RESET: If strategy thinks it's in position but no open trades exist, force reset
 if strategy.position_size != 0 and strategy.opentrades == 0
     entryAllowed := true  // Force allow entries if phantom position detected
 
-// PHANTOM POSITION DETECTOR & SAFETY-GATED AUTO-FIX
-// Safety gate to prevent accidental position closes in live trading
-phantomAutoCloseEnable = input.bool(true, "🛡️ Auto-Close Phantom Positions", group="🔧 Debug Settings", tooltip="Automatically close phantom positions (strategy.position_size != 0 but no open trades). Disable for extra safety in live trading.")
-
+// PHANTOM POSITION DETECTOR & AUTO-FIX
 var int phantomPositionBars = 0
 var bool phantomDetected = false
 
@@ -1992,8 +2033,8 @@ if strategy.position_size != 0 and strategy.opentrades == 0
     phantomPositionBars := phantomPositionBars + 1
     phantomDetected := true
     
-    // Force close phantom position after 1 bar to reset strategy state (SAFETY GATED)
-    if phantomPositionBars >= 1 and phantomAutoCloseEnable
+    // Force close phantom position after 1 bar to reset strategy state
+    if phantomPositionBars >= 1
         if strategy.position_size > 0
             strategy.close_all("PHANTOM_LONG_RESET")
         else
@@ -2050,58 +2091,67 @@ getModeColor(mode) =>
         "FLAT" => flatModeColor
         => color.gray
 
-// EMERGENCY FIX: Mode background logic moved to global scope
-currentMode := getCurrentStrategyMode()
-n = bar_index
-atr = ta.atr(atrLength) * rangeMultiplier
-
-modeChanged = currentMode != previousMode
-
-if modeChanged
-    // Clean up old box before creating new one
-    if not na(modeBox)
-        box.delete(modeBox)
-        line.delete(modeLine)
+// Update mode background (LuxAlgo-inspired responsive system)
+updateModeBackground() =>
+    currentMode := getCurrentStrategyMode()
+    n = bar_index
+    atr = ta.atr(atrLength) * rangeMultiplier
     
-    // Clean up box history (keep only recent boxes)
-    if array.size(boxHistory) >= MAX_BOXES
-        oldBox = array.shift(boxHistory)
-        if not na(oldBox)
-            box.delete(oldBox)
+    modeChanged = currentMode != previousMode
     
-    if currentMode != "FLAT"
-        // Create new mode background (responsive like LuxAlgo)
-        modeTop := high + atr
-        modeBottom := low - atr
+    if modeChanged
+        // Clean up old box before creating new one
+        if not na(modeBox)
+            box.delete(modeBox)
+            line.delete(modeLine)
         
-        modeBox := box.new(n, modeTop, n, modeBottom, border_color=color.new(getModeColor(currentMode), 0), bgcolor=color.new(getModeColor(currentMode), modeBackgroundIntensity), border_width=1)
+        // Clean up box history (keep only recent boxes)
+        if array.size(boxHistory) >= MAX_BOXES
+            oldBox = array.shift(boxHistory)
+            if not na(oldBox)
+                box.delete(oldBox)
         
-        // Add to history for cleanup tracking
-        array.push(boxHistory, modeBox)
+        if currentMode != "FLAT"
+            // Create new mode background (responsive like LuxAlgo)
+            modeTop := high + atr
+            modeBottom := low - atr
+            
+            modeBox := box.new(n, modeTop, n, modeBottom, 
+                border_color=color.new(getModeColor(currentMode), 0),
+                bgcolor=color.new(getModeColor(currentMode), modeBackgroundIntensity),
+                border_width=1)
+            
+            // Add to history for cleanup tracking
+            array.push(boxHistory, modeBox)
+            
+            // Create center line for reference
+            centerPrice = math.avg(modeTop, modeBottom)
+            modeLine := line.new(n, centerPrice, n, centerPrice, 
+                color=getModeColor(currentMode), 
+                style=line.style_dotted)
+    
+    else if currentMode != "FLAT" and not na(modeBox) and barstate.isconfirmed
+        // Only update on confirmed bars for performance (responsive expansion)
+        newTop = math.max(modeTop, high + atr)
+        newBottom = math.min(modeBottom, low - atr)
         
-        // Create center line for reference
+        // Smooth range expansion (don't shrink too quickly)
+        modeTop := math.max(modeTop * 0.99, newTop)
+        modeBottom := math.min(modeBottom * 1.01, newBottom)
+        
+        // Update box coordinates (responsive like LuxAlgo)
+        box.set_top(modeBox, modeTop)
+        box.set_bottom(modeBox, modeBottom)
+        box.set_right(modeBox, n)
+        
+        // Update center line
         centerPrice = math.avg(modeTop, modeBottom)
-        modeLine := line.new(n, centerPrice, n, centerPrice, color=getModeColor(currentMode), style=line.style_dotted)
+        line.set_xy2(modeLine, n, centerPrice)
+    
+    previousMode := currentMode
 
-else if currentMode != "FLAT" and not na(modeBox) and barstate.isconfirmed
-    // Only update on confirmed bars for performance (responsive expansion)
-    newTop = math.max(modeTop, high + atr)
-    newBottom = math.min(modeBottom, low - atr)
-    
-    // Smooth range expansion (don't shrink too quickly)
-    modeTop := math.max(modeTop * 0.99, newTop)
-    modeBottom := math.min(modeBottom * 1.01, newBottom)
-    
-    // Update box coordinates (responsive like LuxAlgo)
-    box.set_top(modeBox, modeTop)
-    box.set_bottom(modeBox, modeBottom)
-    box.set_right(modeBox, n)
-    
-    // Update center line
-    centerPrice = math.avg(modeTop, modeBottom)
-    line.set_xy2(modeLine, n, centerPrice)
-
-previousMode := currentMode
+// Execute mode background update
+updateModeBackground()
 
 // ═══════════════════ SMART STATUS TABLE MANAGEMENT ═══════════════════
 // Flexible positioning with cleanup prevention
@@ -2121,7 +2171,10 @@ if na(modeStatusTable) or tablePosition != tablePosition[1]
     if not na(modeStatusTable)
         table.delete(modeStatusTable)
     
-    modeStatusTable := table.new(getTablePosition(), 2, 2, bgcolor=color.new(color.gray, 90), border_width=1)
+    modeStatusTable := table.new(
+        getTablePosition(), 2, 2,
+        bgcolor=color.new(color.gray, 90),
+        border_width=1)
 
 // Update compact status (only essential info)
 updateCompactStatus() =>
@@ -2136,29 +2189,30 @@ updateCompactStatus() =>
         cellSize = compactMode ? size.small : size.normal
         textColor = getContrastSafeTextColor(getModeColor(currentMode))
         
-        table.cell(modeStatusTable, 0, 0, statusText, text_color=textColor, text_size=cellSize, bgcolor=color.new(getModeColor(currentMode), 70))
+        table.cell(modeStatusTable, 0, 0, statusText, 
+            text_color=textColor, text_size=cellSize, 
+            bgcolor=color.new(getModeColor(currentMode), 70))
             
-        table.cell(modeStatusTable, 0, 1, exitText, text_color=textColor, text_size=size.small, bgcolor=color.new(getModeColor(currentMode), 50))
+        table.cell(modeStatusTable, 0, 1, exitText, 
+            text_color=textColor, text_size=size.small,
+            bgcolor=color.new(getModeColor(currentMode), 50))
 
 // Execute status update
 updateCompactStatus()
 
-// ═══════════════════ ENTRY STATUS TRACKING (Logic Only) ═══════════════════
-// Entry permission tracking (no visual plots)
+// ═══════════════════ ENTRY STATUS PLOTS (After Entry Logic) ═══════════════════
+// ENTRY PERMISSION STATUS
+plotchar(entryAllowed, title="5️⃣ Entry Allowed", char='✅', location=location.bottom, color=color.new(color.aqua, 0), size=size.large)
 
-// Execution tracking (logic only - no visual plots)
+// EXECUTION STATUS - Shows when trades actually execute
+plotchar(longEntrySignal and entryAllowed, title="🚀 LONG EXECUTION", char='🚀', location=location.belowbar, color=color.new(color.lime, 0), size=size.large)
+plotchar(shortEntrySignal and entryAllowed, title="🚀 SHORT EXECUTION", char='🚀', location=location.abovebar, color=color.new(color.red, 0), size=size.large)
 
 // ═══════════════════ INTELLIGENT BLOCKING STATUS (ENHANCED) ═══════════════════
 // Replace scattered red circles with informative debug labels
 
 // Enhanced blocking labels with reasons (replaces overwhelming red circles)
 if longEntrySignal and not entryAllowed and shouldRenderDebug
-    // EMERGENCY FIX: Update label pool counters in global scope
-    if array.size(labelPool) < MAX_LABELS and labelsCreatedThisBar < 10
-        labelsCreatedThisBar += 1
-    else if barstate.isconfirmed
-        labelPoolIndex := (labelPoolIndex + 1) % array.size(labelPool)
-    
     labelId = getPooledLabel()
     if not na(labelId)
         blockReason = currentPositionSize >= pyramidLimit ? "PYRAMID LIMIT" : 
@@ -2166,15 +2220,13 @@ if longEntrySignal and not entryAllowed and shouldRenderDebug
                      not bbLongFilterOK ? "BB FILTER" : "UNKNOWN"
         
         yPos = getSmartLabelY(low * 0.92, false, "debug")
-        updateLabel(labelId, bar_index, yPos, "🚫 LONG BLOCKED: " + blockReason, label.style_label_up, getSemanticColor("critical", "background"), getContrastSafeTextColor(getSemanticColor("critical", "background")), size.small)
+        updateLabel(labelId, bar_index, yPos, "🚫 LONG BLOCKED: " + blockReason,
+            label.style_label_up, 
+            getSemanticColor("critical", "background"),
+            getContrastSafeTextColor(getSemanticColor("critical", "background")),
+            size.small)
 
 if shortEntrySignal and not entryAllowed and shouldRenderDebug
-    // EMERGENCY FIX: Update label pool counters in global scope
-    if array.size(labelPool) < MAX_LABELS and labelsCreatedThisBar < 10
-        labelsCreatedThisBar += 1
-    else if barstate.isconfirmed
-        labelPoolIndex := (labelPoolIndex + 1) % array.size(labelPool)
-    
     labelId = getPooledLabel()
     if not na(labelId)
         blockReason = currentPositionSize >= pyramidLimit ? "PYRAMID LIMIT" : 
@@ -2182,7 +2234,11 @@ if shortEntrySignal and not entryAllowed and shouldRenderDebug
                      not bbShortFilterOK ? "BB FILTER" : "UNKNOWN"
         
         yPos = getSmartLabelY(high * 1.08, true, "debug")
-        updateLabel(labelId, bar_index, yPos, "🚫 SHORT BLOCKED: " + blockReason, label.style_label_down, getSemanticColor("critical", "background"), getContrastSafeTextColor(getSemanticColor("critical", "background")), size.small)
+        updateLabel(labelId, bar_index, yPos, "🚫 SHORT BLOCKED: " + blockReason,
+            label.style_label_down, 
+            getSemanticColor("critical", "background"),
+            getContrastSafeTextColor(getSemanticColor("critical", "background")),
+            size.small)
 
 // Simplified blocking indicators (only when debug off)
 plotchar(longEntrySignal and not entryAllowed and not showDebugLabels, title="🚫 LONG BLOCKED", char='🚫', location=location.belowbar, color=color.new(color.orange, 0), size=size.normal)
@@ -2191,17 +2247,34 @@ plotchar(shortEntrySignal and not entryAllowed and not showDebugLabels, title="�
 // ═══════════════════ STRATEGY EXECUTION DEBUG (CRITICAL) ═══════════════════
 // Debug the actual strategy.entry() calls vs our visual indicators
 
-// Strategy execution tracking (variables only - no visual plots)
+// Show when strategy.entry() is ACTUALLY CALLED
+plotchar(longEntrySignal and entryAllowed, title="📞 CALLING strategy.entry LONG", char='📞', location=location.belowbar, color=color.new(color.white, 0), size=size.large)
+plotchar(shortEntrySignal and entryAllowed, title="📞 CALLING strategy.entry SHORT", char='📞', location=location.abovebar, color=color.new(color.white, 0), size=size.large)
+
+// Show actual strategy position changes (when fills occur)
 var float lastPositionSize = 0
 positionChanged = strategy.position_size != lastPositionSize
+plotchar(positionChanged and strategy.position_size > lastPositionSize, title="✅ LONG FILL DETECTED", char='✅', location=location.belowbar, color=color.new(color.lime, 0), size=size.huge)
+plotchar(positionChanged and strategy.position_size < lastPositionSize, title="✅ SHORT FILL DETECTED", char='✅', location=location.abovebar, color=color.new(color.red, 0), size=size.huge)
 lastPositionSize := strategy.position_size
 
-// Bar state tracking (variables only - no visual plots)
+// Show backtest vs live mode detection  
+plotchar(barstate.isconfirmed, title="📊 HISTORICAL BAR", char='H', location=location.top, color=color.new(color.gray, 50), size=size.tiny)
+plotchar(barstate.isrealtime, title="🔴 REALTIME BAR", char='R', location=location.top, color=color.new(color.red, 0), size=size.tiny)
+plotchar(not barstate.isconfirmed and not barstate.isrealtime, title="⏳ ELAPSED REALTIME", char='E', location=location.top, color=color.new(color.orange, 0), size=size.tiny)
 
-// Trade completion tracking (variables only - no visual plots)
+// CRITICAL: Compare entry calls vs actual fills by bar type
+plotchar(longEntrySignal and entryAllowed and barstate.isconfirmed, title="🏛️ HISTORICAL LONG CALL", char='🏛️', location=location.belowbar, color=color.new(color.gray, 0), size=size.normal)
+plotchar(longEntrySignal and entryAllowed and barstate.isrealtime, title="⚡ REALTIME LONG CALL", char='⚡', location=location.belowbar, color=color.new(color.yellow, 0), size=size.normal)
+
+// Show strategy.closedtrades count changes (when trades complete)
 var int lastClosedTrades = 0
 newTradeCompleted = strategy.closedtrades > lastClosedTrades
+plotchar(newTradeCompleted, title="🎯 TRADE COMPLETED", char='🎯', location=location.top, color=color.new(color.purple, 0), size=size.normal)
 lastClosedTrades := strategy.closedtrades
+
+// Show position size with numeric display
+plotchar(strategy.position_size != 0, title="📈 POSITION SIZE", char='📈', location=location.top, color=strategy.position_size > 0 ? color.green : color.red, size=size.small)
 
 // ─────────────────── ENTRY PRICE TRACKING ───────────────────
 // Track entry price and signal attribution when position opens
@@ -2278,13 +2351,15 @@ debugEntry() =>
             debugText = "✅ SHORT ENTRY\nPos: " + str.tostring(strategy.position_size) + "→" + str.tostring(strategy.position_size - positionQty) + "\nContracts: " + str.tostring(currentPositionSize) + "/" + str.tostring(pyramidLimit)
             label.new(bar_index, low - (atrVal * 0.5), debugText, color=color.new(color.green, 20), style=label.style_label_up, textcolor=color.white, size=size.small)
 
-// Position status debugging function removed to fix compilation issues
-// Debug info available in panels
-// statusText = "📊 POSITION STATUS\nSize: " + str.tostring(strategy.position_size) + "\nAvgPrice: " + str.tostring(strategy.position_avg_price) + "\nEntryAllowed: " + str.tostring(entryAllowed) + "\nClosedTrades: " + str.tostring(strategy.closedtrades) + "\nOpenTrades: " + str.tostring(strategy.opentrades)
-// label.new(bar_index, close, statusText, color=color.new(color.blue, 20), style=label.style_label_left, textcolor=color.white, size=size.normal)
+// Also add position status debugging
+debugPositionStatus() =>
+    if debugEnable and barstate.islast
+        statusText = "📊 POSITION STATUS\nSize: " + str.tostring(strategy.position_size) + "\nAvgPrice: " + str.tostring(strategy.position_avg_price) + "\nEntryAllowed: " + str.tostring(entryAllowed) + "\nClosedTrades: " + str.tostring(strategy.closedtrades) + "\nOpenTrades: " + str.tostring(strategy.opentrades)
+        label.new(bar_index, close, statusText, color=color.new(color.blue, 20), style=label.style_label_left, textcolor=color.white, size=size.normal)
 
-// Debug functions removed to fix compilation issues
-// Debug info available through tables and panels
+if debugEnable
+    debugEntry()
+    debugPositionStatus()
     
     // Show phantom position reset events
     if phantomDetected and phantomPositionBars == 1
@@ -2295,28 +2370,18 @@ debugEntry() =>
 
 // ─────────────────── EXIT LOGIC ───────────────────
 
-// ENTRY COOL-DOWN SYSTEM (Production Safety)
-var int lastExitBar = na
-COOL_DOWN_BARS = 1  // Minimum bars between exit and next entry
-
-// MA EXIT LOGIC (WITH PRODUCTION COOL-DOWN)
+// MA EXIT LOGIC (UPDATED WITH ENTRY RE-ENABLING)
 if maExitOn and strategy.position_size != 0
     longExitCondition = strategy.position_size > 0 and close < priceMA
     shortExitCondition = strategy.position_size < 0 and close > priceMA
     
     if longExitCondition
         strategy.close("Long", comment="MA Exit", alert_message=longExitMsg)
-        lastExitBar := bar_index
-        // Cool-down: Only re-enable entries after specified bars
-        if barstate.isconfirmed and (na(lastExitBar) or bar_index >= lastExitBar + COOL_DOWN_BARS)
-            entryAllowed := true
+        entryAllowed := true  // Re-enable entries after exit
         
     if shortExitCondition
         strategy.close("Short", comment="MA Exit", alert_message=shortExitMsg)
-        lastExitBar := bar_index
-        // Cool-down: Only re-enable entries after specified bars
-        if barstate.isconfirmed and (na(lastExitBar) or bar_index >= lastExitBar + COOL_DOWN_BARS)
-            entryAllowed := true
+        entryAllowed := true  // Re-enable entries after exit
 
 // FIXED SL/TP LOGIC
 if fixedEnable and strategy.position_size != 0
@@ -2351,21 +2416,9 @@ if trendChangeDetected and trendChangeExitEnable and strategy.position_size != 0
         entryAllowed := true  // Re-enable entries after exit
 
 // ═══════════════════ PROFESSIONAL PERFORMANCE MONITORING ═══════════════════
-// Production-grade object count and memory tracking
+// Optional object count tracking for debugging (only when Full debug enabled)
 
 if showFullDebug and barstate.islast
-    // PRODUCTION SAFETY: Monitor object pool usage and memory
-    labelCount = array.size(labelPool)
-    totalObjects = labelCount + strategy.opentrades + strategy.closedtrades
-    
-    // Memory monitoring - debug warnings removed 
-    
-    // EMERGENCY FIX: Update label pool counters in global scope
-    if array.size(labelPool) < MAX_LABELS and labelsCreatedThisBar < 10
-        labelsCreatedThisBar += 1
-    else if barstate.isconfirmed
-        labelPoolIndex := (labelPoolIndex + 1) % array.size(labelPool)
-    
     labelId = getPooledLabel()
     if not na(labelId)
         objectInfo = "🔧 PERFORMANCE MONITOR\nLabels: " + str.tostring(array.size(labelPool)) + "/" + str.tostring(MAX_LABELS) + 
@@ -2375,7 +2428,11 @@ if showFullDebug and barstate.islast
                      "\nTotal Objects: <500 ✅"
         
         yPos = getSmartLabelY(high * 1.15, true, "debug")
-        updateLabel(labelId, bar_index, yPos, objectInfo, label.style_label_down, getSemanticColor("info", "background"), getContrastSafeTextColor(getSemanticColor("info", "background")), size.tiny)
+        updateLabel(labelId, bar_index, yPos, objectInfo,
+            label.style_label_down, 
+            getSemanticColor("info", "background"),
+            getContrastSafeTextColor(getSemanticColor("info", "background")),
+            size.tiny)
 
 // ═══════════════════ IMPLEMENTATION COMPLETE ═══════════════════
 // Professional Style Guide Successfully Applied:
