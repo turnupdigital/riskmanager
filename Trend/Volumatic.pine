@@ -174,4 +174,11 @@ fill(p1, p2, smoothed_value, hl2, color.new(trend_color, shadow ? 80 : 100), na)
 plotshape(series = trend_cross_up[1] ? smoothed_value[0] : na, title = 'Trend Up', style = shape.labelup, location = location.absolute, color = color.new(up_trend_color, 50), text = '▲', textcolor = chart.fg_color)
 
 plotshape(series = trend_cross_down[1] ? smoothed_value[0] : na, title = 'Trend Down', style = shape.labeldown, location = location.absolute, color = color.new(down_trend_color, 50), text = '▼', textcolor = chart.fg_color)
+
+// NUMERIC PLOT OUTPUTS FOR EZALGOTRADER INTEGRATION
+// These plots allow external strategies to connect to Volumatic signals
+plot(trend_cross_up ? 1 : 0, title="Volumatic Long Signal", color=color.new(color.green, 100), display=display.data_window)
+plot(trend_cross_down ? 1 : 0, title="Volumatic Short Signal", color=color.new(color.red, 100), display=display.data_window)  
+plot(is_trend_up ? 1 : 0, title="Volumatic Trend Up", color=color.new(color.lime, 100), display=display.data_window)
+plot(not is_trend_up ? 1 : 0, title="Volumatic Trend Down", color=color.new(color.orange, 100), display=display.data_window)
 // }

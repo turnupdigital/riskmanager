@@ -24,7 +24,7 @@ positionQty = input.int(1, 'Contracts per Signal', minval = 1, maxval = 1000, gr
 // NOTE: Pyramiding must be set to maximum expected value (Pine Script limitation - can't use input variable)
 // Users control actual limit through position sizing logic rather than strategy parameter
 
-strategy(title = 'EZ Algo Trader (Beta)', overlay = true, default_qty_type = strategy.fixed, default_qty_value = 1, calc_on_order_fills = true, process_orders_on_close = true, calc_on_every_tick = false, pyramiding = 10)
+strategy(title = 'EZ Algo Trader (Beta)', overlay = true, default_qty_type = strategy.fixed, default_qty_value = 1, calc_on_order_fills = true, process_orders_on_close = false, calc_on_every_tick = true, pyramiding = 10)
 // User-controllable quantity
 
 // ═══════════════════ GLOBAL VARIABLE DECLARATIONS ═══════════════════
@@ -75,9 +75,8 @@ var bool colorChangeExit = false
 var bool useAdvancedTrendExit = false
 
 // Missing hybrid exit variables
-var bool hybridExitActive = false
-var bool hybridUsingSPL = false
-var bool hybridUsingTCE = false
+// REMOVED: hybridExitActive - no longer used since stand-alone hybrid system was removed
+// REMOVED: Stand-alone hybrid flags - functionality moved to Advanced Trend Exit's internal hybrid mode
 var bool bbLongFilterOK = true
 var bool bbShortFilterOK = true
 var bool trendChangeExitActive = false
@@ -499,7 +498,7 @@ atrAvg = ta.sma(atrVal, 20)
 maExitOn = input.bool(false, 'Enable MA Exit', group = '📈 MA Exit')
 maLen = input.int(21, 'MA Length', minval = 1, group = '📈 MA Exit')
 maType = input.string('EMA', 'MA Type', options = ['SMA', 'EMA', 'WMA', 'VWMA', 'SMMA'], group = '📈 MA Exit')
-// Intrabar exits removed - exits only trigger once per bar on close
+// INTRABAR EXITS RESTORED - exits now trigger immediately when conditions are met
 
 priceMA = maType == 'SMA' ? ta.sma(close, maLen) : maType == 'EMA' ? ta.ema(close, maLen) : maType == 'WMA' ? ta.wma(close, maLen) : maType == 'VWMA' ? ta.vwma(close, maLen) : ta.rma(close, maLen)
 
@@ -524,17 +523,25 @@ smartProfitOffset = input.float(0.10, 'Pullback %', step = 0.05, minval = 0.01, 
 // Simple and effective: exit when any enabled trend indicator gives opposite signal
 trendChangeExitEnable = input.bool(false, '📈 DEPRECATED — Legacy Trend Change Exit (DO NOT USE)', group = '🛑 DEPRECATED – Legacy Trend Change Exit', tooltip = 'Deprecated basic trend-change exit.  Use Advanced Trend Exit instead.  Keep OFF for production.')
 
-// HYBRID EXIT SYSTEM
-// Automatically switch between Smart Profit Locker and Trend Change Exit based on position size
-hybridExitEnable = input.bool(false, '🔄 DEPRECATED — Legacy Hybrid Exit (DO NOT USE)', group = '🛑 DEPRECATED – Legacy Hybrid Exit', tooltip = 'Deprecated stand-alone hybrid exit.  The Advanced Trend Exit already provides hybrid mode.  Keep OFF for production.')
-hybridSwitchThreshold = input.int(2, 'Switch at Contracts', minval=1, maxval=10, group = '🛑 DEPRECATED – Legacy Hybrid Exit', tooltip='Threshold used by legacy hybrid exit (deprecated). Ignored when hybrid exit disabled.')
+// REMOVED: Stand-alone Hybrid Exit System - replaced by Advanced Trend Exit's internal hybrid mode
+// Use trendExitEnable + hybridModeEnable instead for hybrid functionality
 
 // ═══════════════════ ADVANCED TREND EXIT SYSTEM ═══════════════════
 // Linear Regression Candle-based exit with trailing stop protection and re-entry logic
 
 // Enable Trend Exit Modes
 trendExitEnable = input.bool(false, '🎯 Enable Advanced Trend Exit', group = '🎯 Advanced Trend Exit', tooltip = 'Advanced exit system based on Linear Regression Candles with trailing stop protection')
-hybridModeEnable = input.bool(false, '🔄 Activate Hybrid Mode', group = '🎯 Advanced Trend Exit', tooltip = 'Use this exit system in Hybrid mode (switches based on position size)')
+
+// ═══════════════════ FLUID HYBRID SYSTEM ═══════════════════
+// Auto-detects when both SPL + Trend Exit are enabled and automatically switches based on position size
+hybridSwitchThreshold = input.int(2, 'Auto-Hybrid: Switch at Contracts', minval=1, maxval=10, group = '🔄 Fluid Hybrid System', tooltip='When both SPL + Trend Exit enabled: use SPL for positions < threshold, Trend Exit for positions ≥ threshold')
+
+// FLUID HYBRID SYSTEM INFO (Read-only display)
+// This system automatically activates when BOTH Smart Profit Locker + Advanced Trend Exit are enabled
+// • Small positions (< threshold): Uses SPL for quick scalping
+// • Large positions (≥ threshold): Uses Trend Exit for holding/riding trends  
+// • Single system enabled: Functions normally (no hybrid behavior)
+// • Re-entry is enabled by default for fluid trading experience
 
 // Phase 1: Initial Trailing Stop Protection
 initialTrailingStop = input.float(3.5, 'Initial Trailing Stop (ATR)', step=0.1, minval=1.0, maxval=10.0, group = '🎯 Advanced Trend Exit', tooltip = 'ATR multiplier for initial trailing stop protection before switching to candle exit mode')
@@ -543,7 +550,7 @@ initialTrailingStop = input.float(3.5, 'Initial Trailing Stop (ATR)', step=0.1, 
 exitMode = input.string('Color Change', 'Exit Signal Type', options=['Color Change', 'MA Cross'], group = '🎯 Advanced Trend Exit', tooltip = 'Color Change = Exit on Linear Regression candle color change | MA Cross = Exit on Bull/Bear MA crosses')
 
 // Phase 3: Re-Entry System
-reEntryEnable = input.bool(false, '🔄 Enable Re-Entry', group = '🎯 Advanced Trend Exit', tooltip = 'After color change exit, re-enter when color changes back (if trend indicators confirm)')
+reEntryEnable = input.bool(true, '🔄 Enable Re-Entry', group = '🔄 Fluid Hybrid System', tooltip = 'After trend exit, re-enter when color changes back (if trend indicators confirm) - DEFAULT ON for fluid trading')
 reEntryConfirmation = input.string('Majority', 'Re-Entry Confirmation', options=['All', 'Majority'], group = '🎯 Advanced Trend Exit', tooltip = 'Require All (3/3) or Majority (2/3) trend indicators to confirm re-entry direction')
 
 // Linear Regression Candle Inputs (Primary Exit Signal)
@@ -574,12 +581,10 @@ var bool bbExitTriggered = false
 // HYBRID EXIT INTEGRATION: Switch between Smart Profit Locker and Trend Change Exit
 
 // SMART PROFIT LOCKER - SIMPLIFIED  
-// Smart Profit Locker: Original logic + Hybrid Exit integration
-shouldRunSPL = smartProfitEnable and strategy.position_size != 0
-if hybridExitActive
-    shouldRunSPL := hybridUsingSPL  // Hybrid system overrides SPL decision
+// Smart Profit Locker: Uses fluid hybrid auto-detection
+// shouldUseSPL is set by the auto-detection logic above
     
-if shouldRunSPL
+if shouldUseSPL
     // Calculate Smart Profit Locker distance and offset
     smartDistance := smartProfitType == 'ATR' ? smartProfitVal * atrVal : smartProfitType == 'Points' ? smartProfitVal : strategyEntryPrice * smartProfitVal / 100.0
     
@@ -818,25 +823,27 @@ trendConfirmsLong = enabledTrendCount == 0 ? true : reEntryConfirmation == 'All'
 
 trendConfirmsShort = enabledTrendCount == 0 ? true : reEntryConfirmation == 'All' ? bearishTrendCount == enabledTrendCount : bearishTrendCount >= math.ceil(enabledTrendCount / 2.0)
 
-// HYBRID EXIT SYSTEM LOGIC
-// Automatically choose exit strategy based on position size (confluence indicator)
-hybridExitActive := hybridExitEnable and strategy.position_size != 0
-currentPositionSize = math.abs(strategy.position_size)
+// ═══════════════════ FLUID HYBRID AUTO-DETECTION LOGIC ═══════════════════
+// Automatically activates hybrid mode when both SPL + Trend Exit are enabled
+// Natural workflow: SPL for small positions (scalping), Trend Exit for large positions (holding)
 
-if hybridExitActive
-    // Determine which exit strategy to use based on position size
-    if currentPositionSize >= hybridSwitchThreshold
-        // Large position (confluence detected) = Trend Change Exit
-        hybridUsingSPL := false
-        hybridUsingTCE := true
-    else
-        // Small position (single signal) = Smart Profit Locker  
-        hybridUsingSPL := true
-        hybridUsingTCE := false
+currentPositionSize = math.abs(strategy.position_size)
+autoHybridMode = smartProfitEnable and trendExitEnable and strategy.position_size != 0
+
+// Unified switching logic based on position size
+var bool shouldUseTrendMode = false
+var bool shouldUseSPL = false
+
+if autoHybridMode and currentPositionSize >= hybridSwitchThreshold
+    shouldUseTrendMode := true   // Large position = hold (Trend Exit)
+    shouldUseSPL := false
+else if autoHybridMode
+    shouldUseTrendMode := false  // Small position = scalp (SPL)
+    shouldUseSPL := true
 else
-    // Reset hybrid flags when not active
-    hybridUsingSPL := false
-    hybridUsingTCE := false
+    // Single-system mode: use whatever is enabled
+    shouldUseTrendMode := trendExitEnable and strategy.position_size != 0
+    shouldUseSPL := smartProfitEnable and strategy.position_size != 0
 
 // SIMPLIFIED BIAS LOGIC - ONLY RBW FILTER
 // Removed complex trend signal consensus - using position size for confluence instead
@@ -857,6 +864,21 @@ if testModeOverride
 // Define final entry signals with directional bias and Bollinger Band Filter applied
 longEntrySignal := primaryLongSig and longDirectionalBias and bbLongFilterOK
 shortEntrySignal := primaryShortSig and shortDirectionalBias and bbShortFilterOK
+
+// Debug: Track what's blocking strategy entries vs virtual accounts
+if debugEnabled and (primaryLongSig or primaryShortSig)
+    blockingReasons = ""
+    if not longDirectionalBias and primaryLongSig
+        blockingReasons += "LONG_BIAS_BLOCK "
+    if not shortDirectionalBias and primaryShortSig  
+        blockingReasons += "SHORT_BIAS_BLOCK "
+    if not bbLongFilterOK and primaryLongSig
+        blockingReasons += "BB_LONG_BLOCK "
+    if not bbShortFilterOK and primaryShortSig
+        blockingReasons += "BB_SHORT_BLOCK "
+    
+    if blockingReasons != ""
+        debugMessage("FILTER", "🚫 STRATEGY BLOCKED: " + blockingReasons, color.orange, color.white, 0.6)
 
 // Add re-entry signals to entry logic
 if reEntrySignal and exitDirection == 1  // Re-entering long
@@ -952,20 +974,22 @@ if debugEnabled
         debugMessage("INFO", trendChangeMsg, color.purple, color.white, 0.05)
     
     // Show hybrid exit system status
-    if hybridExitEnable
-        hybridMsg = 'HYBRID EXIT: Active=' + (hybridExitActive ? 'YES' : 'NO')
-        hybridMsg += ' | Position=' + str.tostring(currentPositionSize) + '/' + str.tostring(hybridSwitchThreshold)
-        if hybridExitActive
-            hybridMsg += ' | Mode=' + (hybridUsingSPL ? 'SMART_PROFIT_LOCKER' : hybridUsingTCE ? 'TREND_CHANGE_EXIT' : 'NONE')
-        hybridMsg += ' | shouldRunSPL=' + str.tostring(shouldRunSPL)
-        debugMessage("INFO", hybridMsg, color.yellow, color.black, 0.05)
+    // Fluid Hybrid Auto-Detection Status
+    if autoHybridMode
+        hybridMode = shouldUseTrendMode ? "TREND" : "SPL"
+        debugMessage("HYBRID", "🔄 Auto-Hybrid Active: " + hybridMode + " mode (Pos: " + str.tostring(currentPositionSize) + "/" + str.tostring(hybridSwitchThreshold) + ")", color.purple, color.white, 0.1)
+    else if smartProfitEnable and trendExitEnable and strategy.position_size == 0
+        debugMessage("HYBRID", "💤 Auto-Hybrid Ready: Both SPL + Trend Exit enabled, waiting for position", color.gray, color.white, 0.1)
+    else if smartProfitEnable or trendExitEnable
+        singleMode = smartProfitEnable ? "SPL-ONLY" : "TREND-ONLY"
+        debugMessage("HYBRID", "⚙️ Single-System Mode: " + singleMode, color.blue, color.white, 0.1)
 
 // Debug logging for exit systems (trend-riding system removed)
 if debugEnabled and strategy.position_size != 0
     systemMsg = 'EXIT SYSTEMS:'
-    systemMsg += ' SPL=' + (shouldRunSPL ? 'ON' : 'OFF')
+    systemMsg += ' SPL=' + (shouldUseSPL ? 'ON' : 'OFF')
     systemMsg += ' TCE=' + (trendChangeExitActive ? 'ON' : 'OFF')
-    systemMsg += ' HYB=' + (hybridExitActive ? 'ON' : 'OFF')
+    // REMOVED: HYB debug - stand-alone hybrid system removed
     debugMessage("INFO", systemMsg, color.blue, color.white, 0.25)
 
 // Enhanced visual indicators for exit systems  
@@ -1183,15 +1207,29 @@ if showStatusPanel and barstate.isconfirmed
         currentRow += 1
     
     // Hybrid Exit System
-    if hybridExitEnable
-        hybridStatus = hybridExitActive ? (hybridUsingSPL ? '🔵 SPL MODE' : hybridUsingTCE ? '🟢 TCE MODE' : '🟡 ACTIVE') : '⚪ STANDBY'
-        hybridColor = hybridExitActive ? (hybridUsingSPL ? color.blue : hybridUsingTCE ? color.green : color.yellow) : color.gray
-        hybridSettings = 'Switch at ' + str.tostring(hybridSwitchThreshold) + ' contracts'
-        
-        table.cell(statusTable, 0, currentRow, '⚡ Hybrid Exit', text_color = color.white, text_size = size.small, bgcolor = color.new(color.gray, 80))
-        table.cell(statusTable, 1, currentRow, hybridStatus, text_color = hybridColor, text_size = size.small, bgcolor = color.new(color.gray, 90))
-        table.cell(statusTable, 2, currentRow, hybridSettings, text_color = color.white, text_size = size.small, bgcolor = color.new(color.gray, 90))
-        currentRow += 1
+    // Fluid Hybrid Auto-Detection Status
+    fluidHybridStatus = ''
+    fluidHybridColor = color.gray
+    
+    if autoHybridMode
+        fluidHybridStatus := shouldUseTrendMode ? '🎯 TREND MODE' : '💰 SPL MODE'
+        fluidHybridColor := shouldUseTrendMode ? color.orange : color.blue
+    else if smartProfitEnable and trendExitEnable
+        fluidHybridStatus := '💤 READY (No Position)'
+        fluidHybridColor := color.gray
+    else if smartProfitEnable or trendExitEnable
+        fluidHybridStatus := smartProfitEnable ? '⚙️ SPL-ONLY' : '⚙️ TREND-ONLY'
+        fluidHybridColor := color.white
+    else
+        fluidHybridStatus := '❌ NO EXIT SYSTEMS'
+        fluidHybridColor := color.red
+    
+    fluidHybridSettings = 'Auto-Switch at ' + str.tostring(hybridSwitchThreshold) + ' contracts'
+    
+    table.cell(statusTable, 0, currentRow, '🔄 Fluid Hybrid', text_color = color.white, text_size = size.small, bgcolor = color.new(color.gray, 80))
+    table.cell(statusTable, 1, currentRow, fluidHybridStatus, text_color = fluidHybridColor, text_size = size.small, bgcolor = color.new(color.gray, 90))
+    table.cell(statusTable, 2, currentRow, fluidHybridSettings, text_color = color.white, text_size = size.small, bgcolor = color.new(color.gray, 90))
+    currentRow += 1
     
     // System Status Row  
     table.cell(statusTable, 0, currentRow, '📊 Position', text_color = color.white, text_size = size.small, bgcolor = color.new(color.purple, 60))
@@ -1283,16 +1321,20 @@ if masterPanelEnable and barstate.isconfirmed
         table.cell(masterPanel, 1, 4, volText, text_color = volColor, text_size = size.normal, bgcolor = color.new(color.gray, 90))
     
     // Mode Status Row
-    if hybridExitEnable
+    // Fluid Hybrid Mode Display
+    if smartProfitEnable or trendExitEnable
         modeText = ''
         modeColor = color.gray
         
-        if hybridExitEnable and hybridExitActive
-            modeText := 'HYBRID'
-            modeColor := color.orange
+        if autoHybridMode
+            modeText := shouldUseTrendMode ? 'AUTO-TREND' : 'AUTO-SPL'
+            modeColor := shouldUseTrendMode ? color.orange : color.blue
+        else if smartProfitEnable and trendExitEnable
+            modeText := 'AUTO-READY'
+            modeColor := color.yellow
         else
-            modeText := 'NORMAL'
-            modeColor := color.gray
+            modeText := smartProfitEnable ? 'SPL-ONLY' : 'TREND-ONLY'
+            modeColor := color.white
             
         table.cell(masterPanel, 0, 5, '🚀 Mode', text_color = color.white, text_size = size.small, bgcolor = color.new(color.gray, 80))
         table.cell(masterPanel, 1, 5, modeText, text_color = modeColor, text_size = size.normal, bgcolor = color.new(color.gray, 90))
@@ -1483,8 +1525,8 @@ if trendChangeExitEnable and strategy.position_size != 0 and not useAdvancedTren
 
 // State variables for advanced trend exit (declared in global section)
 
-// Determine if we should use advanced trend exit
-useAdvancedTrendExit := (trendExitEnable and not hybridModeEnable) or (hybridModeEnable and hybridExitActive and hybridUsingTCE)
+// Determine if we should use advanced trend exit - FLUID HYBRID LOGIC
+useAdvancedTrendExit := shouldUseTrendMode  // Set by fluid hybrid auto-detection above
 
 // Reset state when no position
 if strategy.position_size == 0
@@ -1820,31 +1862,27 @@ else if strategy.position_size != 0 and wasFlat
 // ─────────────────── DEBUG ENTRY BLOCKING (ENHANCED) ───────────────────
 // Show detailed reasons why entries are blocked
 debugEntry() =>
-    if longEntrySignal and not entryAllowed and showEntryBlocks
-        // Determine the specific blocking reason
-        blockReason = ""
-        if strategy.position_size != 0
-            blockReason := "IN_POSITION"
-        else if not entryAllowed
-            blockReason := "ENTRY_DISABLED"
-        else
-            blockReason := "UNKNOWN"
+    // Enhanced debug - show ALL entry activity
+    if showEntryBlocks
+        // Show blocked entries
+        if longEntrySignal and not entryAllowed
+            blockReason = currentPositionSize >= pyramidLimit ? "PYRAMID_LIMIT (" + str.tostring(currentPositionSize) + "/" + str.tostring(pyramidLimit) + ")" : "OTHER_BLOCK"
+            debugText = "🚫 LONG BLOCKED\nReason: " + blockReason + "\nPos: " + str.tostring(strategy.position_size) + "\nEntryFlag: " + str.tostring(entryAllowed)
+            label.new(bar_index, high + (atrVal * 0.3), debugText, color=color.new(color.red, 10), style=label.style_label_down, textcolor=color.white, size=size.normal)
         
-        debugText = "🚫 LONG BLOCKED\nReason: " + blockReason + "\nPos: " + str.tostring(strategy.position_size) + "\nOpenTrades: " + str.tostring(strategy.opentrades) + "\nPhantom: " + str.tostring(phantomDetected) + "\nEntryFlag: " + str.tostring(entryAllowed)
-        label.new(bar_index, high + (atrVal * 0.3), debugText, color=color.new(color.red, 10), style=label.style_label_down, textcolor=color.white, size=size.normal)
-    
-    if shortEntrySignal and not entryAllowed and showEntryBlocks
-        // Determine the specific blocking reason
-        blockReason = ""
-        if strategy.position_size != 0
-            blockReason := "IN_POSITION"
-        else if not entryAllowed
-            blockReason := "ENTRY_DISABLED"
-        else
-            blockReason := "UNKNOWN"
+        if shortEntrySignal and not entryAllowed
+            blockReason = currentPositionSize >= pyramidLimit ? "PYRAMID_LIMIT (" + str.tostring(currentPositionSize) + "/" + str.tostring(pyramidLimit) + ")" : "OTHER_BLOCK"
+            debugText = "🚫 SHORT BLOCKED\nReason: " + blockReason + "\nPos: " + str.tostring(strategy.position_size) + "\nEntryFlag: " + str.tostring(entryAllowed)
+            label.new(bar_index, low - (atrVal * 0.3), debugText, color=color.new(color.red, 10), style=label.style_label_up, textcolor=color.white, size=size.normal)
         
-        debugText = "🚫 SHORT BLOCKED\nReason: " + blockReason + "\nPos: " + str.tostring(strategy.position_size) + "\nOpenTrades: " + str.tostring(strategy.opentrades) + "\nPhantom: " + str.tostring(phantomDetected) + "\nEntryFlag: " + str.tostring(entryAllowed)
-        label.new(bar_index, low - (atrVal * 0.3), debugText, color=color.new(color.red, 10), style=label.style_label_up, textcolor=color.white, size=size.normal)
+        // Show successful entries
+        if longEntrySignal and entryAllowed
+            debugText = "✅ LONG ENTRY\nPos: " + str.tostring(strategy.position_size) + "→" + str.tostring(strategy.position_size + positionQty) + "\nContracts: " + str.tostring(currentPositionSize) + "/" + str.tostring(pyramidLimit)
+            label.new(bar_index, high + (atrVal * 0.5), debugText, color=color.new(color.green, 20), style=label.style_label_down, textcolor=color.white, size=size.small)
+            
+        if shortEntrySignal and entryAllowed
+            debugText = "✅ SHORT ENTRY\nPos: " + str.tostring(strategy.position_size) + "→" + str.tostring(strategy.position_size - positionQty) + "\nContracts: " + str.tostring(currentPositionSize) + "/" + str.tostring(pyramidLimit)
+            label.new(bar_index, low - (atrVal * 0.5), debugText, color=color.new(color.green, 20), style=label.style_label_up, textcolor=color.white, size=size.small)
 
 // Also add position status debugging
 debugPositionStatus() =>
