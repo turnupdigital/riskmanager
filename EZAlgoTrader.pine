@@ -19,7 +19,12 @@ debugMessage(string type, string message, color bgColor, color txtColor, float y
     if debugEnabled
         label.new(bar_index, high + (high - low) * yOffset, type + ": " + message, style=label.style_label_down, color=bgColor, textcolor=txtColor, size=size.small)
 
-strategy(title = 'EZ Algo Trader (Beta)', overlay = true, default_qty_type = strategy.fixed, default_qty_value = 1, calc_on_order_fills = true, process_orders_on_close = true, calc_on_every_tick = false)
+// ─────────────────── POSITION SIZE CONTROL (declared early for strategy function) ───────────────────
+positionQty = input.int(1, 'Contracts per Signal', minval = 1, maxval = 1000, group = '💼 Position Size', inline='pos1', tooltip = 'Set the number of contracts/shares to trade per signal')
+// NOTE: Pyramiding must be set to maximum expected value (Pine Script limitation - can't use input variable)
+// Users control actual limit through position sizing logic rather than strategy parameter
+
+strategy(title = 'EZ Algo Trader (Beta)', overlay = true, default_qty_type = strategy.fixed, default_qty_value = 1, calc_on_order_fills = true, process_orders_on_close = true, calc_on_every_tick = false, pyramiding = 10)
 // User-controllable quantity
 
 // ═══════════════════ GLOBAL VARIABLE DECLARATIONS ═══════════════════
@@ -235,11 +240,11 @@ processVirtualExit(VirtualAccount account, bool exitSignal, string signalName, i
         finalPnL = 0.0  // Declare at function scope
         if account.direction == "long"
             rawPnL = (close - account.entryPrice) * virtualPositionSize * pointValue
-            finalPnL := rawPnL - commissionPerTrade - slippagePerTrade - account.commission - account.slippage
+            finalPnL := rawPnL - account.commission - account.slippage
             account.longPnL += finalPnL
         else if account.direction == "short"
             rawPnL = (account.entryPrice - close) * virtualPositionSize * pointValue
-            finalPnL := rawPnL - commissionPerTrade - slippagePerTrade - account.commission - account.slippage
+            finalPnL := rawPnL - account.commission - account.slippage
             account.shortPnL += finalPnL
         
         // Update statistics
@@ -457,57 +462,7 @@ else
     parametersChanged := false
 
 // ═══════════════════ VIRTUAL ACCOUNT PROCESSING ═══════════════════
-// Process each signal through its corresponding virtual account
-// This creates perfect signal attribution without interference
-
-// Signal names array for debugging
-signalNames = array.from(signal1Name, signal2Name, signal3Name, signal4Name, signal5Name, signal6Name, signal7Name, signal8Name, signal9Name, signal10Name)
-
-// Process virtual trades for each signal
-processVirtualTrade(virtualAccount1, sig1Long, sig1Short, signal1Name, 0)
-processVirtualTrade(virtualAccount2, sig2Long, sig2Short, signal2Name, 1)
-processVirtualTrade(virtualAccount3, sig3Long, sig3Short, signal3Name, 2)
-processVirtualTrade(virtualAccount4, sig4Long, sig4Short, signal4Name, 3)
-processVirtualTrade(virtualAccount5, sig5Long, sig5Short, signal5Name, 4)
-processVirtualTrade(virtualAccount6, sig6Long, sig6Short, signal6Name, 5)
-processVirtualTrade(virtualAccount7, sig7Long, sig7Short, signal7Name, 6)
-processVirtualTrade(virtualAccount8, sig8Long, sig8Short, signal8Name, 7)
-processVirtualTrade(virtualAccount9, sig9Long, sig9Short, signal9Name, 8)
-processVirtualTrade(virtualAccount10, sig10Long, sig10Short, signal10Name, 9)
-
-// Process virtual exits (using opposite signals for now - can be enhanced later)
-processVirtualExit(virtualAccount1, sig1Short, signal1Name, 0)  // Long exit on short signal
-processVirtualExit(virtualAccount2, sig2Short, signal2Name, 1)
-processVirtualExit(virtualAccount3, sig3Short, signal3Name, 2)
-processVirtualExit(virtualAccount4, sig4Short, signal4Name, 3)
-processVirtualExit(virtualAccount5, sig5Short, signal5Name, 4)
-processVirtualExit(virtualAccount6, sig6Short, signal6Name, 5)
-processVirtualExit(virtualAccount7, sig7Short, signal7Name, 6)
-processVirtualExit(virtualAccount8, sig8Short, signal8Name, 7)
-processVirtualExit(virtualAccount9, sig9Short, signal9Name, 8)
-processVirtualExit(virtualAccount10, sig10Short, signal10Name, 9)
-
-// Also process short exits on long signals
-if virtualAccount1.direction == "short" and sig1Long
-    processVirtualExit(virtualAccount1, sig1Long, signal1Name, 0)
-if virtualAccount2.direction == "short" and sig2Long
-    processVirtualExit(virtualAccount2, sig2Long, signal2Name, 1)
-if virtualAccount3.direction == "short" and sig3Long
-    processVirtualExit(virtualAccount3, sig3Long, signal3Name, 2)
-if virtualAccount4.direction == "short" and sig4Long
-    processVirtualExit(virtualAccount4, sig4Long, signal4Name, 3)
-if virtualAccount5.direction == "short" and sig5Long
-    processVirtualExit(virtualAccount5, sig5Long, signal5Name, 4)
-if virtualAccount6.direction == "short" and sig6Long
-    processVirtualExit(virtualAccount6, sig6Long, signal6Name, 5)
-if virtualAccount7.direction == "short" and sig7Long
-    processVirtualExit(virtualAccount7, sig7Long, signal7Name, 6)
-if virtualAccount8.direction == "short" and sig8Long
-    processVirtualExit(virtualAccount8, sig8Long, signal8Name, 7)
-if virtualAccount9.direction == "short" and sig9Long
-    processVirtualExit(virtualAccount9, sig9Long, signal9Name, 8)
-if virtualAccount10.direction == "short" and sig10Long
-    processVirtualExit(virtualAccount10, sig10Long, signal10Name, 9)
+// MOVED TO AFTER BIAS CALCULATIONS (after line 869)
 
 // ═══════════════════ PRIMARY SIGNAL COMBINATION ═══════════════════
 // Note: Primary signals are defined below after imports (line 126-127)
@@ -555,12 +510,9 @@ fixedStop = input.float(1.0, 'Stop Size', step = 0.1, minval = 0.0, group = '�
 tpCalc(d) =>
     fixedUnit == 'ATR' ? d * atrVal : d
 
-tp1Enable = input.bool(false, 'TP1', inline = 'tp1', group = '🎯 Fixed SL/TP')
-tp1Size = input.float(1.5, '', inline = 'tp1', group = '🎯 Fixed SL/TP')
-tp2Enable = input.bool(false, 'TP2', inline = 'tp2', group = '🎯 Fixed SL/TP')
-tp2Size = input.float(3.0, '', inline = 'tp2', group = '🎯 Fixed SL/TP')
-tp3Enable = input.bool(false, 'TP3', inline = 'tp3', group = '🎯 Fixed SL/TP')
-tp3Size = input.float(4.0, '', inline = 'tp3', group = '🎯 Fixed SL/TP')
+tp1Enable = input.bool(false, 'TP1 Enable', inline = 'tp1', group = '🎯 Fixed SL/TP', tooltip = 'Enable single take profit target')
+tp1Size = input.float(1.5, 'TP1 Size', inline = 'tp1', group = '🎯 Fixed SL/TP', tooltip = 'Take profit size in ATR multiples')
+// NOTE: Multiple TP targets removed - only single TP supported in current implementation
 
 // Smart Profit Locker (Aggressive Profit Protection)
 smartProfitEnable = input.bool(true, '🎯 Enable Smart Profit Locker', group = 'Smart Profit Locker', tooltip = 'Aggressive profit-taking with adjustable pullback sensitivity')
@@ -570,12 +522,12 @@ smartProfitOffset = input.float(0.10, 'Pullback %', step = 0.05, minval = 0.01, 
 
 // TREND CHANGE EXIT SYSTEM
 // Simple and effective: exit when any enabled trend indicator gives opposite signal
-trendChangeExitEnable = input.bool(false, '📈 Enable Trend Change Exit', group = 'EXIT STRATEGY: Trend Change Exit', tooltip = 'Exit when any enabled trend signal gives opposite direction. Uses the 5 Trend Signals configured below.')
+trendChangeExitEnable = input.bool(false, '📈 DEPRECATED — Legacy Trend Change Exit (DO NOT USE)', group = '🛑 DEPRECATED – Legacy Trend Change Exit', tooltip = 'Deprecated basic trend-change exit.  Use Advanced Trend Exit instead.  Keep OFF for production.')
 
 // HYBRID EXIT SYSTEM
 // Automatically switch between Smart Profit Locker and Trend Change Exit based on position size
-hybridExitEnable = input.bool(false, '🔄 Enable Hybrid Exit', group = '🔄 Hybrid Exit System', tooltip = 'Automatically use Smart Profit Locker for small positions, Trend Change Exit for larger positions (confluence-based)')
-hybridSwitchThreshold = input.int(2, 'Switch at Contracts', minval=1, maxval=10, group = '🔄 Hybrid Exit System', tooltip='Number of contracts to switch from Smart Profit Locker to Trend Change Exit (default: 2 = confluence detected)')
+hybridExitEnable = input.bool(false, '🔄 DEPRECATED — Legacy Hybrid Exit (DO NOT USE)', group = '🛑 DEPRECATED – Legacy Hybrid Exit', tooltip = 'Deprecated stand-alone hybrid exit.  The Advanced Trend Exit already provides hybrid mode.  Keep OFF for production.')
+hybridSwitchThreshold = input.int(2, 'Switch at Contracts', minval=1, maxval=10, group = '🛑 DEPRECATED – Legacy Hybrid Exit', tooltip='Threshold used by legacy hybrid exit (deprecated). Ignored when hybrid exit disabled.')
 
 // ═══════════════════ ADVANCED TREND EXIT SYSTEM ═══════════════════
 // Linear Regression Candle-based exit with trailing stop protection and re-entry logic
@@ -613,6 +565,11 @@ trend3Enable = input.bool(false, '📈 Trend 3: Custom', inline = 'trend3', grou
 trend3LongSrc = input.source(close, 'Long', inline = 'trend3', group = '🎯 Supporting Trend Indicators')
 trend3ShortSrc = input.source(close, 'Short', inline = 'trend3', group = '🎯 Supporting Trend Indicators')
 
+// ─────────────────── BB EXIT VARIABLES (moved up for scope) ────────────
+bbExitEnable = input.bool(false, '⚡ BB Exit Logic', group='🎯 Bollinger Band Risk Management', inline='bb2', tooltip='OPTIONAL: When price hits BB extreme during trade, flip to tight Smart Profit Locker.')
+bbExitTightness = input.float(0.5, 'Tight Mult', minval=0.1, maxval=1.0, step=0.1, group='🎯 Bollinger Band Risk Management', inline='bb2', tooltip='Smart Profit Locker multiplier when BB exit triggers. 0.5 = half normal distance (tighter).')
+var bool bbExitTriggered = false
+
 // ─────────────────── 4. SMART PROFIT LOCKER (Aggressive Profit Protection) ────────────
 // HYBRID EXIT INTEGRATION: Switch between Smart Profit Locker and Trend Change Exit
 
@@ -625,7 +582,15 @@ if hybridExitActive
 if shouldRunSPL
     // Calculate Smart Profit Locker distance and offset
     smartDistance := smartProfitType == 'ATR' ? smartProfitVal * atrVal : smartProfitType == 'Points' ? smartProfitVal : strategyEntryPrice * smartProfitVal / 100.0
-    smartOffset := smartDistance * math.max(smartProfitOffset, 0.01)
+    
+    // Apply BB Exit tightening if triggered
+    if bbExitTriggered
+        smartDistance := smartDistance * bbExitTightness
+        smartOffset := smartDistance * math.max(smartProfitOffset, 0.01)
+        if not trailExitSent  // Only show message once
+            debugMessage("INFO", "⚡ BB TIGHT MODE: Smart Profit Locker tightened to " + str.tostring(smartDistance, "#.##") + " pts (" + str.tostring(bbExitTightness * 100) + "% of normal)", color.orange, color.white, 0.05)
+    else
+        smartOffset := smartDistance * math.max(smartProfitOffset, 0.01)
     
     // Ensure distances are valid
     if na(smartDistance) or smartDistance <= 0
@@ -685,9 +650,27 @@ bbEntryFilterEnable = input.bool(false, '🚫 BB Entry Filter', group='🎯 Boll
 bbLength = input.int(20, 'BB Length', minval=5, maxval=50, group='🎯 Bollinger Band Risk Management', inline='bb1', tooltip='Bollinger Band period for entry filtering. Standard is 20.')
 bbMultiplier = input.float(3.0, 'BB Mult', minval=1.0, maxval=5.0, step=0.1, group='🎯 Bollinger Band Risk Management', inline='bb1', tooltip='Bollinger Band standard deviation multiplier. Default is 3.0.')
 
-// Bollinger Band Exit Logic (Row 2) - OPTIONAL TESTING FEATURE
-bbExitEnable = input.bool(false, '⚡ BB Exit Logic', group='🎯 Bollinger Band Risk Management', inline='bb2', tooltip='OPTIONAL: When price hits BB extreme during trade, flip to tight Smart Profit Locker. OFF by default - for testing only.')
-bbExitTightness = input.float(0.5, 'Tight Multiplier', minval=0.1, maxval=1.0, step=0.1, group='🎯 Bollinger Band Risk Management', inline='bb2', tooltip='Smart Profit Locker multiplier when BB exit triggers. 0.5 = half normal distance (tighter). Lower = more aggressive profit taking.')
+// Bollinger Band Exit Logic (Row 2) - MOVED EARLIER FOR SCOPE
+// bbExitEnable, bbExitTightness, and bbExitTriggered now declared above
+
+// BB Calculation (moved here for BB Exit Logic) - using temp variables for exit logic
+bbTemp_Middle = ta.sma(close, bbLength)
+bbTemp_StdDev = ta.stdev(close, bbLength)
+bbTemp_Upper = bbTemp_Middle + bbTemp_StdDev * bbMultiplier  
+bbTemp_Lower = bbTemp_Middle - bbTemp_StdDev * bbMultiplier
+
+// BB Exit Trigger Logic - Check if price hits BB extreme during trade
+if bbExitEnable and strategy.position_size != 0
+    longAtUpperBB = strategy.position_size > 0 and close >= bbTemp_Upper
+    shortAtLowerBB = strategy.position_size < 0 and close <= bbTemp_Lower
+    
+    if longAtUpperBB or shortAtLowerBB
+        bbExitTriggered := true
+        if debugEnabled
+            exitType = longAtUpperBB ? "Long at Upper BB" : "Short at Lower BB"
+            debugMessage("INFO", "⚡ BB EXIT TRIGGER: " + exitType + " - Switching to tight Smart Profit Locker", color.green, color.white, 0.05)
+else
+    bbExitTriggered := false
 
 // RBW Calculation Logic - Variable Declarations
 var float rbwUpper = na
@@ -756,7 +739,6 @@ var float bbUpper = na
 var float bbLower = na
 var float bbMiddle = na
 var bool bbEntryFilterOK = true
-var bool bbExitTriggered = false
 
 if bbEntryFilterEnable
     // Calculate standard Bollinger Bands for entry filtering
@@ -780,22 +762,8 @@ else
     bbLongFilterOK := true
     bbShortFilterOK := true
 
-// Optional BB Exit Logic (for testing)
-if bbExitEnable and strategy.position_size != 0
-    // Check if price hits BB extreme during trade
-    longAtUpperBB = strategy.position_size > 0 and close >= bbUpper
-    shortAtLowerBB = strategy.position_size < 0 and close <= bbLower
-    
-    if longAtUpperBB or shortAtLowerBB
-        bbExitTriggered := true
-        if debugEnabled
-            exitType = longAtUpperBB ? "Long at Upper BB" : "Short at Lower BB"
-            debugMessage("INFO", "⚡ BB EXIT TRIGGER: " + exitType + " - Switching to tight Smart Profit Locker", color.green, color.white, 0.05)
-else
-    bbExitTriggered := false
-
-// OLD TREND SIGNAL PROCESSING - REPLACED BY ADVANCED TREND EXIT SYSTEM
-// Keeping minimal compatibility variables
+// TREND SIGNAL PROCESSING - Updated to actually work with input sources
+// These variables are used by the Basic Trend Change Exit system
 var bool trend1Long = false
 var bool trend1Short = false
 var bool trend2Long = false  
@@ -805,6 +773,23 @@ var bool trend3Short = false
 var int trend1Signal = 0
 var int trend2Signal = 0
 var int trend3Signal = 0
+
+// Update trend variables from input sources (THE MISSING LOGIC!)
+// Only update if trend inputs are connected (not default 'close')
+if trend1Enable
+    trend1Long := trend1LongSrc != close
+    trend1Short := trend1ShortSrc != close
+    trend1Signal := trend1Long ? 1 : trend1Short ? -1 : 0
+
+if trend2Enable  
+    trend2Long := trend2LongSrc != close
+    trend2Short := trend2ShortSrc != close
+    trend2Signal := trend2Long ? 1 : trend2Short ? -1 : 0
+
+if trend3Enable
+    trend3Long := trend3LongSrc != close  
+    trend3Short := trend3ShortSrc != close
+    trend3Signal := trend3Long ? 1 : trend3Short ? -1 : 0
 
 // ═══════════════════ LINEAR REGRESSION CANDLE PROCESSING ═══════════════════
 // Process Linear Regression Candle signals for advanced trend exit
@@ -1286,10 +1271,10 @@ if masterPanelEnable and barstate.isconfirmed
         table.cell(masterPanel, 0, 3, '📊 Signal Power', text_color = color.white, text_size = size.small, bgcolor = color.new(color.gray, 80))
         table.cell(masterPanel, 1, 3, strengthText, text_color = strengthColor, text_size = size.normal, bgcolor = color.new(color.gray, 90))
     
-    // Volatility Alert Row
+    // Volatility Alert Row (DEFENSIVE PROGRAMMING FIX)
     atrCurrent = atrVal
-    // Use pre-calculated atrAvg instead of inline ta.sma calculation
-    volatilityRatio := atrCurrent / atrAvg
+    // Use pre-calculated atrAvg with defensive check to prevent division by zero
+    volatilityRatio := not na(atrAvg) and atrAvg > 0 ? atrCurrent / atrAvg : 1.0
     
     if volatilityRatio > 1.5  // Show alert when ATR is 50% above average
         volText = 'HIGH (' + str.tostring(volatilityRatio, '#.##') + 'x)'
@@ -1672,31 +1657,226 @@ if longEntrySignal
 if shortEntrySignal
     label.new(bar_index, high + (atrVal * 0.5), dynamicShortText, color = color.new(color.red, 20), style = label.style_label_down, textcolor = color.white, size = size.small)
 
+// ═══════════════════ VIRTUAL ACCOUNT PROCESSING (PROPERLY POSITIONED) ═══════════════════
+// Process each signal through its corresponding virtual account
+// This creates perfect signal attribution without interference
+// NOW POSITIONED AFTER ALL BIAS CALCULATIONS AND ENTRY SIGNAL DEFINITIONS
+
+// Signal names array for debugging
+signalNames = array.from(signal1Name, signal2Name, signal3Name, signal4Name, signal5Name, signal6Name, signal7Name, signal8Name, signal9Name, signal10Name)
+
+// Process virtual trades for each signal (SYNCED WITH STRATEGY CONDITIONS)
+// Apply the same filters used by the main strategy: longDirectionalBias and bbLongFilterOK
+processVirtualTrade(virtualAccount1, sig1Long and longDirectionalBias and bbLongFilterOK, sig1Short and shortDirectionalBias and bbShortFilterOK, signal1Name, 0)
+processVirtualTrade(virtualAccount2, sig2Long and longDirectionalBias and bbLongFilterOK, sig2Short and shortDirectionalBias and bbShortFilterOK, signal2Name, 1)
+processVirtualTrade(virtualAccount3, sig3Long and longDirectionalBias and bbLongFilterOK, sig3Short and shortDirectionalBias and bbShortFilterOK, signal3Name, 2)
+processVirtualTrade(virtualAccount4, sig4Long and longDirectionalBias and bbLongFilterOK, sig4Short and shortDirectionalBias and bbShortFilterOK, signal4Name, 3)
+processVirtualTrade(virtualAccount5, sig5Long and longDirectionalBias and bbLongFilterOK, sig5Short and shortDirectionalBias and bbShortFilterOK, signal5Name, 4)
+processVirtualTrade(virtualAccount6, sig6Long and longDirectionalBias and bbLongFilterOK, sig6Short and shortDirectionalBias and bbShortFilterOK, signal6Name, 5)
+processVirtualTrade(virtualAccount7, sig7Long and longDirectionalBias and bbLongFilterOK, sig7Short and shortDirectionalBias and bbShortFilterOK, signal7Name, 6)
+processVirtualTrade(virtualAccount8, sig8Long and longDirectionalBias and bbLongFilterOK, sig8Short and shortDirectionalBias and bbShortFilterOK, signal8Name, 7)
+processVirtualTrade(virtualAccount9, sig9Long and longDirectionalBias and bbLongFilterOK, sig9Short and shortDirectionalBias and bbShortFilterOK, signal9Name, 8)
+processVirtualTrade(virtualAccount10, sig10Long and longDirectionalBias and bbLongFilterOK, sig10Short and shortDirectionalBias and bbShortFilterOK, signal10Name, 9)
+
+// Process virtual exits (SYNCED WITH STRATEGY CONDITIONS)
+// Apply the same filters to exit signals as used for entries
+processVirtualExit(virtualAccount1, sig1Short and shortDirectionalBias and bbShortFilterOK, signal1Name, 0)  // Long exit on filtered short signal
+processVirtualExit(virtualAccount2, sig2Short and shortDirectionalBias and bbShortFilterOK, signal2Name, 1)
+processVirtualExit(virtualAccount3, sig3Short and shortDirectionalBias and bbShortFilterOK, signal3Name, 2)
+processVirtualExit(virtualAccount4, sig4Short and shortDirectionalBias and bbShortFilterOK, signal4Name, 3)
+processVirtualExit(virtualAccount5, sig5Short and shortDirectionalBias and bbShortFilterOK, signal5Name, 4)
+processVirtualExit(virtualAccount6, sig6Short and shortDirectionalBias and bbShortFilterOK, signal6Name, 5)
+processVirtualExit(virtualAccount7, sig7Short and shortDirectionalBias and bbShortFilterOK, signal7Name, 6)
+processVirtualExit(virtualAccount8, sig8Short and shortDirectionalBias and bbShortFilterOK, signal8Name, 7)
+processVirtualExit(virtualAccount9, sig9Short and shortDirectionalBias and bbShortFilterOK, signal9Name, 8)
+processVirtualExit(virtualAccount10, sig10Short and shortDirectionalBias and bbShortFilterOK, signal10Name, 9)
+
+// Also process short exits on filtered long signals
+if virtualAccount1.direction == "short" and sig1Long and longDirectionalBias and bbLongFilterOK
+    processVirtualExit(virtualAccount1, sig1Long and longDirectionalBias and bbLongFilterOK, signal1Name, 0)
+if virtualAccount2.direction == "short" and sig2Long and longDirectionalBias and bbLongFilterOK
+    processVirtualExit(virtualAccount2, sig2Long and longDirectionalBias and bbLongFilterOK, signal2Name, 1)
+if virtualAccount3.direction == "short" and sig3Long and longDirectionalBias and bbLongFilterOK
+    processVirtualExit(virtualAccount3, sig3Long and longDirectionalBias and bbLongFilterOK, signal3Name, 2)
+if virtualAccount4.direction == "short" and sig4Long and longDirectionalBias and bbLongFilterOK
+    processVirtualExit(virtualAccount4, sig4Long and longDirectionalBias and bbLongFilterOK, signal4Name, 3)
+if virtualAccount5.direction == "short" and sig5Long and longDirectionalBias and bbLongFilterOK
+    processVirtualExit(virtualAccount5, sig5Long and longDirectionalBias and bbLongFilterOK, signal5Name, 4)
+if virtualAccount6.direction == "short" and sig6Long and longDirectionalBias and bbLongFilterOK
+    processVirtualExit(virtualAccount6, sig6Long and longDirectionalBias and bbLongFilterOK, signal6Name, 5)
+if virtualAccount7.direction == "short" and sig7Long and longDirectionalBias and bbLongFilterOK
+    processVirtualExit(virtualAccount7, sig7Long and longDirectionalBias and bbLongFilterOK, signal7Name, 6)
+if virtualAccount8.direction == "short" and sig8Long and longDirectionalBias and bbLongFilterOK
+    processVirtualExit(virtualAccount8, sig8Long and longDirectionalBias and bbLongFilterOK, signal8Name, 7)
+if virtualAccount9.direction == "short" and sig9Long and longDirectionalBias and bbLongFilterOK
+    processVirtualExit(virtualAccount9, sig9Long and longDirectionalBias and bbLongFilterOK, signal9Name, 8)
+if virtualAccount10.direction == "short" and sig10Long and longDirectionalBias and bbLongFilterOK
+    processVirtualExit(virtualAccount10, sig10Long and longDirectionalBias and bbLongFilterOK, signal10Name, 9)
+
 // ═══════════════════ STRATEGY EXECUTION ═══════════════════
 
 // ─────────────────── POSITION SIZE CONTROL ───────────────────
-positionQty = input.int(1, 'Number of Contracts', minval = 1, maxval = 1000, group = '💼 Position Size', tooltip = 'Set the number of contracts/shares to trade per signal')
+pyramidLimit = input.int(5, 'Max Total Contracts', minval = 1, maxval = 100, group = '💼 Position Size', inline='pos2', tooltip = 'Maximum total contracts allowed. Strategy will reject new entries when this limit is reached.')
 
-// ─────────────────── ENTRY LOGIC ───────────────────
-// Only enter a new trade if currently flat (strategy.position_size == 0)
-if longEntrySignal and strategy.position_size == 0
+// ─────────────────── DEBUG CONTROLS ───────────────────
+debugEnable = input.bool(true, "🔍 Enable Debug Labels", group="🔧 Debug", tooltip="Show debug labels for entry blocking analysis")
+showEntryBlocks = input.bool(true, "Show Entry Blocks", group="🔧 Debug", tooltip="Display labels when entries are blocked")
+
+// ─────────────────── ENTRY LOGIC (EMERGENCY FIX) ───────────────────
+// CRITICAL FIX: Replace strategy.position_size checks with entryAllowed flag
+// This prevents exit system interference with entry conditions
+var bool entryAllowed = true
+
+// Update entry permission each bar – production: allow adds / reversals while in position
+// Check pyramid limit - prevent entries if we've reached max contracts (uses currentPositionSize from hybrid exit section)
+entryAllowed := currentPositionSize < pyramidLimit  // Respect user's pyramid limit
+
+// EMERGENCY RESET: If strategy thinks it's in position but no open trades exist, force reset
+if strategy.position_size != 0 and strategy.opentrades == 0
+    entryAllowed := true  // Force allow entries if phantom position detected
+
+// PHANTOM POSITION DETECTOR & AUTO-FIX
+var int phantomPositionBars = 0
+var bool phantomDetected = false
+
+// Detect phantom positions (position_size != 0 but no open trades)
+if strategy.position_size != 0 and strategy.opentrades == 0
+    phantomPositionBars := phantomPositionBars + 1
+    phantomDetected := true
+    
+    // Force close phantom position after 1 bar to reset strategy state
+    if phantomPositionBars >= 1
+        if strategy.position_size > 0
+            strategy.close_all("PHANTOM_LONG_RESET")
+        else
+            strategy.close_all("PHANTOM_SHORT_RESET")
+        phantomPositionBars := 0
+        phantomDetected := false
+        entryAllowed := true
+else
+    phantomPositionBars := 0
+    phantomDetected := false
+
+// Long Entry with improved entry control
+if longEntrySignal and entryAllowed
     strategy.entry("Long", strategy.long, qty=positionQty, alert_message=longEntryMsg, comment=dynamicLongText)
+    // NOTE: entryAllowed stays true to allow adding/reversing positions
 
-if shortEntrySignal and strategy.position_size == 0
+// Short Entry with improved entry control  
+if shortEntrySignal and entryAllowed
     strategy.entry("Short", strategy.short, qty=positionQty, alert_message=shortEntryMsg, comment=dynamicShortText)
+    // NOTE: entryAllowed stays true to allow adding/reversing positions
+
+// ─────────────────── ENTRY PRICE TRACKING ───────────────────
+// Track entry price and signal attribution when position opens
+var bool wasFlat = true
+
+// Detect position state change from flat to open
+if strategy.position_size == 0
+    wasFlat := true
+    // Reset exit flags when flat
+    trailExitSent := false
+else if strategy.position_size != 0 and wasFlat
+    // Position just opened - track entry details
+    strategyEntryPrice := strategy.position_avg_price
+    current_trade_entry := strategy.position_avg_price
+    current_trade_peak := 0.0
+    current_trade_trough := 0.0
+    wasFlat := false
+    
+    // Set current_trade_signals flag for contributing signals
+    // This tracks which signals contributed to opening this trade
+    if signal1Enable and ((signal1Usage == 'Entry All') or (signal1Usage == 'Entry Long Only' and strategy.position_size > 0) or (signal1Usage == 'Entry Short Only' and strategy.position_size < 0))
+        if (strategy.position_size > 0 and signal1LongSrc != close) or (strategy.position_size < 0 and signal1ShortSrc != close)
+            array.set(current_trade_signals, 0, true)
+    if signal2Enable and ((signal2Usage == 'Entry All') or (signal2Usage == 'Entry Long Only' and strategy.position_size > 0) or (signal2Usage == 'Entry Short Only' and strategy.position_size < 0))
+        if (strategy.position_size > 0 and signal2LongSrc != close) or (strategy.position_size < 0 and signal2ShortSrc != close)
+            array.set(current_trade_signals, 1, true)
+    if signal3Enable and ((signal3Usage == 'Entry All') or (signal3Usage == 'Entry Long Only' and strategy.position_size > 0) or (signal3Usage == 'Entry Short Only' and strategy.position_size < 0))
+        if (strategy.position_size > 0 and signal3LongSrc != close) or (strategy.position_size < 0 and signal3ShortSrc != close)
+            array.set(current_trade_signals, 2, true)
+    if signal4Enable and ((signal4Usage == 'Entry All') or (signal4Usage == 'Entry Long Only' and strategy.position_size > 0) or (signal4Usage == 'Entry Short Only' and strategy.position_size < 0))
+        if (strategy.position_size > 0 and signal4LongSrc != close) or (strategy.position_size < 0 and signal4ShortSrc != close)
+            array.set(current_trade_signals, 3, true)
+    if signal5Enable and ((signal5Usage == 'Entry All') or (signal5Usage == 'Entry Long Only' and strategy.position_size > 0) or (signal5Usage == 'Entry Short Only' and strategy.position_size < 0))
+        if (strategy.position_size > 0 and signal5LongSrc != close) or (strategy.position_size < 0 and signal5ShortSrc != close)
+            array.set(current_trade_signals, 4, true)
+    if signal6Enable and ((signal6Usage == 'Entry All') or (signal6Usage == 'Entry Long Only' and strategy.position_size > 0) or (signal6Usage == 'Entry Short Only' and strategy.position_size < 0))
+        if (strategy.position_size > 0 and signal6LongSrc != close) or (strategy.position_size < 0 and signal6ShortSrc != close)
+            array.set(current_trade_signals, 5, true)
+    if signal7Enable and ((signal7Usage == 'Entry All') or (signal7Usage == 'Entry Long Only' and strategy.position_size > 0) or (signal7Usage == 'Entry Short Only' and strategy.position_size < 0))
+        if (strategy.position_size > 0 and signal7LongSrc != close) or (strategy.position_size < 0 and signal7ShortSrc != close)
+            array.set(current_trade_signals, 6, true)
+    if signal8Enable and ((signal8Usage == 'Entry All') or (signal8Usage == 'Entry Long Only' and strategy.position_size > 0) or (signal8Usage == 'Entry Short Only' and strategy.position_size < 0))
+        if (strategy.position_size > 0 and signal8LongSrc != close) or (strategy.position_size < 0 and signal8ShortSrc != close)
+            array.set(current_trade_signals, 7, true)
+    if signal9Enable and ((signal9Usage == 'Entry All') or (signal9Usage == 'Entry Long Only' and strategy.position_size > 0) or (signal9Usage == 'Entry Short Only' and strategy.position_size < 0))
+        if (strategy.position_size > 0 and signal9LongSrc != close) or (strategy.position_size < 0 and signal9ShortSrc != close)
+            array.set(current_trade_signals, 8, true)
+    if signal10Enable and ((signal10Usage == 'Entry All') or (signal10Usage == 'Entry Long Only' and strategy.position_size > 0) or (signal10Usage == 'Entry Short Only' and strategy.position_size < 0))
+        if (strategy.position_size > 0 and signal10LongSrc != close) or (strategy.position_size < 0 and signal10ShortSrc != close)
+            array.set(current_trade_signals, 9, true)
+
+// ─────────────────── DEBUG ENTRY BLOCKING (ENHANCED) ───────────────────
+// Show detailed reasons why entries are blocked
+debugEntry() =>
+    if longEntrySignal and not entryAllowed and showEntryBlocks
+        // Determine the specific blocking reason
+        blockReason = ""
+        if strategy.position_size != 0
+            blockReason := "IN_POSITION"
+        else if not entryAllowed
+            blockReason := "ENTRY_DISABLED"
+        else
+            blockReason := "UNKNOWN"
+        
+        debugText = "🚫 LONG BLOCKED\nReason: " + blockReason + "\nPos: " + str.tostring(strategy.position_size) + "\nOpenTrades: " + str.tostring(strategy.opentrades) + "\nPhantom: " + str.tostring(phantomDetected) + "\nEntryFlag: " + str.tostring(entryAllowed)
+        label.new(bar_index, high + (atrVal * 0.3), debugText, color=color.new(color.red, 10), style=label.style_label_down, textcolor=color.white, size=size.normal)
+    
+    if shortEntrySignal and not entryAllowed and showEntryBlocks
+        // Determine the specific blocking reason
+        blockReason = ""
+        if strategy.position_size != 0
+            blockReason := "IN_POSITION"
+        else if not entryAllowed
+            blockReason := "ENTRY_DISABLED"
+        else
+            blockReason := "UNKNOWN"
+        
+        debugText = "🚫 SHORT BLOCKED\nReason: " + blockReason + "\nPos: " + str.tostring(strategy.position_size) + "\nOpenTrades: " + str.tostring(strategy.opentrades) + "\nPhantom: " + str.tostring(phantomDetected) + "\nEntryFlag: " + str.tostring(entryAllowed)
+        label.new(bar_index, low - (atrVal * 0.3), debugText, color=color.new(color.red, 10), style=label.style_label_up, textcolor=color.white, size=size.normal)
+
+// Also add position status debugging
+debugPositionStatus() =>
+    if debugEnable and barstate.islast
+        statusText = "📊 POSITION STATUS\nSize: " + str.tostring(strategy.position_size) + "\nAvgPrice: " + str.tostring(strategy.position_avg_price) + "\nEntryAllowed: " + str.tostring(entryAllowed) + "\nClosedTrades: " + str.tostring(strategy.closedtrades) + "\nOpenTrades: " + str.tostring(strategy.opentrades)
+        label.new(bar_index, close, statusText, color=color.new(color.blue, 20), style=label.style_label_left, textcolor=color.white, size=size.normal)
+
+if debugEnable
+    debugEntry()
+    debugPositionStatus()
+    
+    // Show phantom position reset events
+    if phantomDetected and phantomPositionBars == 1
+        resetText = "⚠️ PHANTOM RESET\nPos: " + str.tostring(strategy.position_size) + "\nOpenTrades: " + str.tostring(strategy.opentrades) + "\nForcing Close All"
+        label.new(bar_index, close, resetText, color=color.new(color.orange, 0), style=label.style_label_center, textcolor=color.black, size=size.large)
+    
+
 
 // ─────────────────── EXIT LOGIC ───────────────────
 
-// MA EXIT LOGIC
+// MA EXIT LOGIC (UPDATED WITH ENTRY RE-ENABLING)
 if maExitOn and strategy.position_size != 0
     longExitCondition = strategy.position_size > 0 and close < priceMA
     shortExitCondition = strategy.position_size < 0 and close > priceMA
     
     if longExitCondition
         strategy.close("Long", comment="MA Exit", alert_message=longExitMsg)
+        entryAllowed := true  // Re-enable entries after exit
         
     if shortExitCondition
         strategy.close("Short", comment="MA Exit", alert_message=shortExitMsg)
+        entryAllowed := true  // Re-enable entries after exit
 
 // FIXED SL/TP LOGIC
 if fixedEnable and strategy.position_size != 0
@@ -1710,18 +1890,22 @@ if fixedEnable and strategy.position_size != 0
         profitLevel = tp1Enable ? strategy.position_avg_price - tpCalc(tp1Size) : na
         strategy.exit("Fixed-Short", from_entry="Short", stop=stopLevel, limit=profitLevel, comment="Fixed SL/TP")
 
-// ADVANCED TREND EXIT EXECUTION
+// ADVANCED TREND EXIT EXECUTION (UPDATED WITH ENTRY RE-ENABLING)
 if colorChangeExit and strategy.position_size != 0
     if strategy.position_size > 0
         strategy.close("Long", comment="LRC Exit", alert_message=longExitMsg)
+        entryAllowed := true  // Re-enable entries after exit
         
     if strategy.position_size < 0
         strategy.close("Short", comment="LRC Exit", alert_message=shortExitMsg)
+        entryAllowed := true  // Re-enable entries after exit
 
-// BASIC TREND CHANGE EXIT EXECUTION
+// BASIC TREND CHANGE EXIT EXECUTION (UPDATED WITH ENTRY RE-ENABLING)
 if trendChangeDetected and trendChangeExitEnable and strategy.position_size != 0 and not useAdvancedTrendExit
     if strategy.position_size > 0
         strategy.close("Long", comment="Trend Change Exit", alert_message=longExitMsg)
+        entryAllowed := true  // Re-enable entries after exit
         
     if strategy.position_size < 0
         strategy.close("Short", comment="Trend Change Exit", alert_message=shortExitMsg)
+        entryAllowed := true  // Re-enable entries after exit
