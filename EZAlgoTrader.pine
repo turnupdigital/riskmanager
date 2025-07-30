@@ -698,6 +698,7 @@ var int rbwSignal = 0
 var float rbwBBMiddle = na
 var float rbwBBUpper = na
 var float rbwBBLower = na
+var float rbwBBStdDev = na
 var float rbwRef = na
 var float rbwStdDev = na
 var float rbwATR = na
@@ -706,6 +707,8 @@ var float rbwATR = na
 rbwSMA = ta.sma(rbwSource, rbwLength)
 rbwStdDev_calc = ta.stdev(rbwSource, rbwLength)
 rbwATR_calc = rbwUseTR ? ta.atr(rbwLength) : ta.rma(high - low, rbwLength)
+rbwBBMiddle_calc = ta.sma(rbwRelativeBandwidth, 100)
+rbwBBStdDev_calc = ta.stdev(rbwRelativeBandwidth, 100)
 
 if rbwEnable
     // Bollinger Bands
@@ -736,8 +739,8 @@ if rbwEnable
             rbwRelativeBandwidth := (rbwUpper - rbwLower) / rbwATR
             
             // Calculate reference bands for signal (use extracted TA functions)
-            rbwBBMiddle := ta.sma(rbwRelativeBandwidth, 100)
-            rbwBBStdDev := ta.stdev(rbwRelativeBandwidth, 100)
+            rbwBBMiddle := rbwBBMiddle_calc
+            rbwBBStdDev := rbwBBStdDev_calc
             rbwBBUpper := rbwBBMiddle + rbwBBStdDev * 1.0
             rbwBBLower := rbwBBMiddle - rbwBBStdDev * 1.0
             
