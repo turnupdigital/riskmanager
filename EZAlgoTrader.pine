@@ -74,7 +74,9 @@ var bool reEntrySignal = false
 var bool colorChangeExit = false
 var bool useAdvancedTrendExit = false
 
-// Missing hybrid exit variables
+// Fluid Hybrid System Variables
+var bool shouldUseTrendMode = false  // Controls when to use Advanced Trend Exit
+var bool shouldUseSPL = false        // Controls when to use Smart Profit Locker
 // REMOVED: hybridExitActive - no longer used since stand-alone hybrid system was removed
 // REMOVED: Stand-alone hybrid flags - functionality moved to Advanced Trend Exit's internal hybrid mode
 var bool bbLongFilterOK = true
@@ -831,9 +833,6 @@ currentPositionSize = math.abs(strategy.position_size)
 autoHybridMode = smartProfitEnable and trendExitEnable and strategy.position_size != 0
 
 // Unified switching logic based on position size
-var bool shouldUseTrendMode = false
-var bool shouldUseSPL = false
-
 if autoHybridMode and currentPositionSize >= hybridSwitchThreshold
     shouldUseTrendMode := true   // Large position = hold (Trend Exit)
     shouldUseSPL := false
@@ -899,11 +898,43 @@ plotchar(lrcBearColor, title='🔴 LRC Bear Color', char='🔴', location=locati
 plotchar(lrcBullMA, title='📈 LRC Bull MA', char='📈', location=location.bottom, color=color.new(color.blue, 0), size=size.tiny)
 plotchar(lrcBearMA, title='📉 LRC Bear MA', char='📉', location=location.bottom, color=color.new(color.maroon, 0), size=size.tiny)
 
-// TEMPORARY DEBUG PLOTS (recommended by AI analysis) - Remove after confirming signals work
-plotchar(sig1Long, title="Sig1Long", char='1', location=location.bottom, color=color.yellow, size=size.tiny)
-plotchar(primaryLongSig, title="PrimaryLong", char='●', location=location.bottom, color=color.orange, size=size.tiny)
-plotchar(longDirectionalBias, title="LongBias", char='B', location=location.bottom, color=color.blue, size=size.tiny)
-plotchar(longEntrySignal, title="LongFinal", char='↑', location=location.bottom, color=color.lime, size=size.small)
+// ═══════════════════ COMPREHENSIVE ENTRY DEBUG PLOTS (STEP 1) ═══════════════════
+// Diagnostic plots to identify why trades show in backtest but not on chart
+
+// RAW SIGNAL DETECTION
+plotchar(primaryLongSig, title="1️⃣ Primary Long Signal", char='🔵', location=location.bottom, color=color.new(color.blue, 0), size=size.small)
+plotchar(primaryShortSig, title="1️⃣ Primary Short Signal", char='🔴', location=location.bottom, color=color.new(color.red, 0), size=size.small)
+
+// DIRECTIONAL BIAS FILTERS
+plotchar(longDirectionalBias, title="2️⃣ Long Bias OK", char='📈', location=location.bottom, color=color.new(color.green, 0), size=size.small)
+plotchar(shortDirectionalBias, title="2️⃣ Short Bias OK", char='📉', location=location.bottom, color=color.new(color.maroon, 0), size=size.small)
+
+// BOLLINGER BAND FILTERS
+plotchar(bbLongFilterOK, title="3️⃣ BB Long Filter OK", char='🟢', location=location.bottom, color=color.new(color.lime, 0), size=size.small)
+plotchar(bbShortFilterOK, title="3️⃣ BB Short Filter OK", char='🟠', location=location.bottom, color=color.new(color.orange, 0), size=size.small)
+
+// FINAL FILTERED SIGNALS
+plotchar(longEntrySignal, title="4️⃣ FINAL Long Entry", char='⬆️', location=location.bottom, color=color.new(color.white, 0), size=size.large)
+plotchar(shortEntrySignal, title="4️⃣ FINAL Short Entry", char='⬇️', location=location.bottom, color=color.new(color.yellow, 0), size=size.large)
+
+// ENTRY PERMISSION STATUS
+plotchar(entryAllowed, title="5️⃣ Entry Allowed", char='✅', location=location.bottom, color=color.new(color.aqua, 0), size=size.large)
+
+// POSITION STATUS
+plotchar(strategy.position_size > 0, title="📊 Long Position", char='📊', location=location.top, color=color.new(color.green, 50), size=size.small)
+plotchar(strategy.position_size < 0, title="📊 Short Position", char='📊', location=location.top, color=color.new(color.red, 50), size=size.small)
+
+// EXECUTION STATUS - Shows when trades actually execute
+plotchar(longEntrySignal and entryAllowed, title="🚀 LONG EXECUTION", char='🚀', location=location.belowbar, color=color.new(color.lime, 0), size=size.large)
+plotchar(shortEntrySignal and entryAllowed, title="🚀 SHORT EXECUTION", char='🚀', location=location.abovebar, color=color.new(color.red, 0), size=size.large)
+
+// BLOCKING STATUS - Shows when entries are blocked
+plotchar(longEntrySignal and not entryAllowed, title="🚫 LONG BLOCKED", char='🚫', location=location.belowbar, color=color.new(color.orange, 0), size=size.large)
+plotchar(shortEntrySignal and not entryAllowed, title="🚫 SHORT BLOCKED", char='🚫', location=location.abovebar, color=color.new(color.orange, 0), size=size.large)
+
+// PYRAMID STATUS - Shows position size vs limit
+currentPositionSize = math.abs(strategy.position_size)
+plotchar(currentPositionSize >= pyramidLimit, title="⚠️ PYRAMID LIMIT", char='⚠️', location=location.top, color=color.new(color.purple, 0), size=size.small)
 
 // Debug warnings when Bollinger Band filter blocks trades (critical risk management)
 if debugEnabled and bbEntryFilterEnable
@@ -993,7 +1024,7 @@ if debugEnabled and strategy.position_size != 0
     debugMessage("INFO", systemMsg, color.blue, color.white, 0.25)
 
 // Enhanced visual indicators for exit systems  
-plotchar(shouldRunSPL, title='Smart Profit Locker', char='🔒', location=location.top, color=color.blue, size=size.small)
+plotchar(shouldUseSPL, title='Smart Profit Locker', char='🔒', location=location.top, color=color.blue, size=size.small)
 plotchar(trendChangeExitEnable and strategy.position_size != 0, title='Trend Change Exit Active', char='📈', location=location.top, color=color.green, size=size.small)
 
 
@@ -1351,7 +1382,7 @@ if masterPanelEnable and barstate.isconfirmed
             // BB EXIT MODE: Tight profit locker from BB extreme
             exitSystemText := 'BB TIGHT'
             exitSystemColor := color.yellow
-        else if smartProfitEnable and shouldRunSPL
+        else if smartProfitEnable and shouldUseSPL
             // NORMAL MODE: Smart profit locker active
             exitSystemText := 'SMART LOCKER'
             exitSystemColor := color.lime
