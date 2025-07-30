@@ -283,6 +283,7 @@ signal1ShortSrc = input.source(close, 'Short', inline = 'sig1', group = '🔄 Mu
 signal1Name = input.string('LuxAlgo', 'Name', inline = 'sig1name', group = '🔄 Multi-Signals')
 signal1Usage = input.string('Entry All', 'Usage', options = ['Entry All', 'Entry Long Only', 'Entry Short Only', 'Exit All', 'Exit Long Only', 'Exit Short Only', 'Observe'], inline = 'sig1name', group = '🔄 Multi-Signals')
 signal1OnlyMode = input.bool(false, 'Only', inline = 'sig1only', group = '🔄 Multi-Signals', tooltip = 'Make this the ONLY active signal (for individual testing)')
+signal1TrendEnable = input.bool(false, '   └─ Use as Trend Indicator', group = '🔄 Multi-Signals', tooltip = 'Include this signal in trend majority calculation')
 
 signal2Enable = input.bool(false, '📊 Signal 2', inline = 'sig2', group = '🔄 Multi-Signals')
 signal2LongSrc = input.source(close, 'Long', inline = 'sig2', group = '🔄 Multi-Signals', tooltip = 'Connect to: UTBot Long, Wonder Long, or any Long signal plot')
@@ -290,6 +291,7 @@ signal2ShortSrc = input.source(close, 'Short', inline = 'sig2', group = '🔄 Mu
 signal2Name = input.string('UTBot', 'Name', inline = 'sig2name', group = '🔄 Multi-Signals')
 signal2Usage = input.string('Entry All', 'Usage', options = ['Entry All', 'Entry Long Only', 'Entry Short Only', 'Exit All', 'Exit Long Only', 'Exit Short Only', 'Observe'], inline = 'sig2name', group = '🔄 Multi-Signals')
 signal2OnlyMode = input.bool(false, 'Only', inline = 'sig2only', group = '🔄 Multi-Signals', tooltip = 'Make this the ONLY active signal (for individual testing)')
+signal2TrendEnable = input.bool(false, '   └─ Use as Trend Indicator', group = '🔄 Multi-Signals', tooltip = 'Include this signal in trend majority calculation')
 
 signal3Enable = input.bool(false, '📊 Signal 3', inline = 'sig3', group = '🔄 Multi-Signals')
 signal3LongSrc = input.source(close, 'Long', inline = 'sig3', group = '🔄 Multi-Signals')
@@ -297,6 +299,7 @@ signal3ShortSrc = input.source(close, 'Short', inline = 'sig3', group = '🔄 Mu
 signal3Name = input.string('VIDYA', 'Name', inline = 'sig3name', group = '🔄 Multi-Signals')
 signal3Usage = input.string('Entry All', 'Usage', options = ['Entry All', 'Entry Long Only', 'Entry Short Only', 'Exit All', 'Exit Long Only', 'Exit Short Only', 'Observe'], inline = 'sig3name', group = '🔄 Multi-Signals')
 signal3OnlyMode = input.bool(false, 'Only', inline = 'sig3only', group = '🔄 Multi-Signals', tooltip = 'Make this the ONLY active signal (for individual testing)')
+signal3TrendEnable = input.bool(false, '   └─ Use as Trend Indicator', group = '🔄 Multi-Signals', tooltip = 'Include this signal in trend majority calculation')
 
 signal4Enable = input.bool(false, '📊 Signal 4', inline = 'sig4', group = '🔄 Multi-Signals')
 signal4LongSrc = input.source(close, 'Long', inline = 'sig4', group = '🔄 Multi-Signals')
@@ -304,6 +307,7 @@ signal4ShortSrc = input.source(close, 'Short', inline = 'sig4', group = '🔄 Mu
 signal4Name = input.string('KyleAlgo', 'Name', inline = 'sig4name', group = '🔄 Multi-Signals')
 signal4Usage = input.string('Entry All', 'Usage', options = ['Entry All', 'Entry Long Only', 'Entry Short Only', 'Exit All', 'Exit Long Only', 'Exit Short Only', 'Observe'], inline = 'sig4name', group = '🔄 Multi-Signals')
 signal4OnlyMode = input.bool(false, 'Only', inline = 'sig4only', group = '🔄 Multi-Signals', tooltip = 'Make this the ONLY active signal (for individual testing)')
+signal4TrendEnable = input.bool(false, '   └─ Use as Trend Indicator', group = '🔄 Multi-Signals', tooltip = 'Include this signal in trend majority calculation')
 
 signal5Enable = input.bool(false, '📊 Signal 5', inline = 'sig5', group = '🔄 Multi-Signals')
 signal5LongSrc = input.source(close, 'Long', inline = 'sig5', group = '🔄 Multi-Signals')
@@ -311,6 +315,7 @@ signal5ShortSrc = input.source(close, 'Short', inline = 'sig5', group = '🔄 Mu
 signal5Name = input.string('Wonder', 'Name', inline = 'sig5name', group = '🔄 Multi-Signals')
 signal5Usage = input.string('Entry All', 'Usage', options = ['Entry All', 'Entry Long Only', 'Entry Short Only', 'Exit All', 'Exit Long Only', 'Exit Short Only', 'Observe'], inline = 'sig5name', group = '🔄 Multi-Signals')
 signal5OnlyMode = input.bool(false, 'Only', inline = 'sig5only', group = '🔄 Multi-Signals', tooltip = 'Make this the ONLY active signal (for individual testing)')
+signal5TrendEnable = input.bool(false, '   └─ Use as Trend Indicator', group = '🔄 Multi-Signals', tooltip = 'Include this signal in trend majority calculation')
 
 signal6Enable = input.bool(false, '📊 Signal 6', inline = 'sig6', group = '🔄 Multi-Signals')
 signal6LongSrc = input.source(close, 'Long', inline = 'sig6', group = '🔄 Multi-Signals')
@@ -318,6 +323,7 @@ signal6ShortSrc = input.source(close, 'Short', inline = 'sig6', group = '🔄 Mu
 signal6Name = input.string('Signal 6', 'Name', inline = 'sig6name', group = '🔄 Multi-Signals')
 signal6Usage = input.string('Entry All', 'Usage', options = ['Entry All', 'Entry Long Only', 'Entry Short Only', 'Exit All', 'Exit Long Only', 'Exit Short Only', 'Observe'], inline = 'sig6name', group = '🔄 Multi-Signals')
 signal6OnlyMode = input.bool(false, 'Only', inline = 'sig6only', group = '🔄 Multi-Signals', tooltip = 'Make this the ONLY active signal (for individual testing)')
+signal6TrendEnable = input.bool(false, '   └─ Use as Trend Indicator', group = '🔄 Multi-Signals', tooltip = 'Include this signal in trend majority calculation')
 
 signal7Enable = input.bool(false, '📊 Signal 7', inline = 'sig7', group = '🔄 Multi-Signals')
 signal7LongSrc = input.source(close, 'Long', inline = 'sig7', group = '🔄 Multi-Signals')
@@ -325,6 +331,7 @@ signal7ShortSrc = input.source(close, 'Short', inline = 'sig7', group = '🔄 Mu
 signal7Name = input.string('Signal 7', 'Name', inline = 'sig7name', group = '🔄 Multi-Signals')
 signal7Usage = input.string('Entry All', 'Usage', options = ['Entry All', 'Entry Long Only', 'Entry Short Only', 'Exit All', 'Exit Long Only', 'Exit Short Only', 'Observe'], inline = 'sig7name', group = '🔄 Multi-Signals')
 signal7OnlyMode = input.bool(false, 'Only', inline = 'sig7only', group = '🔄 Multi-Signals', tooltip = 'Make this the ONLY active signal (for individual testing)')
+signal7TrendEnable = input.bool(false, '   └─ Use as Trend Indicator', group = '🔄 Multi-Signals', tooltip = 'Include this signal in trend majority calculation')
 
 signal8Enable = input.bool(false, '📊 Signal 8', inline = 'sig8', group = '🔄 Multi-Signals')
 signal8LongSrc = input.source(close, 'Long', inline = 'sig8', group = '🔄 Multi-Signals')
@@ -332,6 +339,7 @@ signal8ShortSrc = input.source(close, 'Short', inline = 'sig8', group = '🔄 Mu
 signal8Name = input.string('Signal 8', 'Name', inline = 'sig8name', group = '🔄 Multi-Signals')
 signal8Usage = input.string('Entry All', 'Usage', options = ['Entry All', 'Entry Long Only', 'Entry Short Only', 'Exit All', 'Exit Long Only', 'Exit Short Only', 'Observe'], inline = 'sig8name', group = '🔄 Multi-Signals')
 signal8OnlyMode = input.bool(false, 'Only', inline = 'sig8only', group = '🔄 Multi-Signals', tooltip = 'Make this the ONLY active signal (for individual testing)')
+signal8TrendEnable = input.bool(false, '   └─ Use as Trend Indicator', group = '🔄 Multi-Signals', tooltip = 'Include this signal in trend majority calculation')
 
 signal9Enable = input.bool(false, '📊 Signal 9', inline = 'sig9', group = '🔄 Multi-Signals')
 signal9LongSrc = input.source(close, 'Long', inline = 'sig9', group = '🔄 Multi-Signals')
@@ -339,6 +347,7 @@ signal9ShortSrc = input.source(close, 'Short', inline = 'sig9', group = '🔄 Mu
 signal9Name = input.string('Signal 9', 'Name', inline = 'sig9name', group = '🔄 Multi-Signals')
 signal9Usage = input.string('Entry All', 'Usage', options = ['Entry All', 'Entry Long Only', 'Entry Short Only', 'Exit All', 'Exit Long Only', 'Exit Short Only', 'Observe'], inline = 'sig9name', group = '🔄 Multi-Signals')
 signal9OnlyMode = input.bool(false, 'Only', inline = 'sig9only', group = '🔄 Multi-Signals', tooltip = 'Make this the ONLY active signal (for individual testing)')
+signal9TrendEnable = input.bool(false, '   └─ Use as Trend Indicator', group = '🔄 Multi-Signals', tooltip = 'Include this signal in trend majority calculation')
 
 signal10Enable = input.bool(false, '📊 Signal 10', inline = 'sig10', group = '🔄 Multi-Signals')
 signal10LongSrc = input.source(close, 'Long', inline = 'sig10', group = '🔄 Multi-Signals')
@@ -346,6 +355,7 @@ signal10ShortSrc = input.source(close, 'Short', inline = 'sig10', group = '🔄 
 signal10Name = input.string('Signal 10', 'Name', inline = 'sig10name', group = '🔄 Multi-Signals')
 signal10Usage = input.string('Entry All', 'Usage', options = ['Entry All', 'Entry Long Only', 'Entry Short Only', 'Exit All', 'Exit Long Only', 'Exit Short Only', 'Observe'], inline = 'sig10name', group = '🔄 Multi-Signals')
 signal10OnlyMode = input.bool(false, 'Only', inline = 'sig10only', group = '🔄 Multi-Signals', tooltip = 'Make this the ONLY active signal (for individual testing)')
+signal10TrendEnable = input.bool(false, '   └─ Use as Trend Indicator', group = '🔄 Multi-Signals', tooltip = 'Include this signal in trend majority calculation')
 
 // ─────────────────── SIGNAL PROCESSING ───────────────────
 // Process signals directly - most indicators (UTBot, LuxAlgo) output pulse signals
@@ -545,8 +555,7 @@ hybridSwitchThreshold = input.int(2, 'Auto-Hybrid: Switch at Contracts', minval=
 // • Single system enabled: Functions normally (no hybrid behavior)
 // • Re-entry is enabled by default for fluid trading experience
 
-// Phase 1: Initial Trailing Stop Protection
-initialTrailingStop = input.float(3.5, 'Initial Trailing Stop (ATR)', step=0.1, minval=1.0, maxval=10.0, group = '🎯 Advanced Trend Exit', tooltip = 'ATR multiplier for initial trailing stop protection before switching to candle exit mode')
+// Phase 1: REMOVED - No competing trailing stops (SPL handles all trailing stop logic)
 
 // Phase 2: Exit Mode Selection  
 exitMode = input.string('Color Change', 'Exit Signal Type', options=['Color Change', 'MA Cross'], group = '🎯 Advanced Trend Exit', tooltip = 'Color Change = Exit on Linear Regression candle color change | MA Cross = Exit on Bull/Bear MA crosses')
@@ -561,18 +570,9 @@ lrcBearColorChange = input.source(close, '🔴 Bear Color Change', group = '📊
 lrcBullMAXross = input.source(close, '📈 Bull MA Cross', group = '📊 Linear Regression Candles', tooltip = 'Connect to Linear Regression Candles Bull MA Cross plot')
 lrcBearMACross = input.source(close, '📉 Bear MA Cross', group = '📊 Linear Regression Candles', tooltip = 'Connect to Linear Regression Candles Bear MA Cross plot')
 
-// Supporting Trend Indicators (Reduced from 5 to 3)
-trend1Enable = input.bool(false, '📈 Trend 1: Adaptive SuperTrend', inline = 'trend1', group = '🎯 Supporting Trend Indicators', tooltip = 'Adaptive SuperTrend for trend confirmation')
-trend1LongSrc = input.source(close, 'Long', inline = 'trend1', group = '🎯 Supporting Trend Indicators')
-trend1ShortSrc = input.source(close, 'Short', inline = 'trend1', group = '🎯 Supporting Trend Indicators')
-
-trend2Enable = input.bool(false, '📈 Trend 2: Custom', inline = 'trend2', group = '🎯 Supporting Trend Indicators', tooltip = 'Custom trend indicator for additional confirmation')
-trend2LongSrc = input.source(close, 'Long', inline = 'trend2', group = '🎯 Supporting Trend Indicators')
-trend2ShortSrc = input.source(close, 'Short', inline = 'trend2', group = '🎯 Supporting Trend Indicators')
-
-trend3Enable = input.bool(false, '📈 Trend 3: Custom', inline = 'trend3', group = '🎯 Supporting Trend Indicators', tooltip = 'Custom trend indicator for additional confirmation')
-trend3LongSrc = input.source(close, 'Long', inline = 'trend3', group = '🎯 Supporting Trend Indicators')
-trend3ShortSrc = input.source(close, 'Short', inline = 'trend3', group = '🎯 Supporting Trend Indicators')
+// ═══════════════════ OLD TREND SECTION REMOVED ═══════════════════
+// Trend detection now uses checkbox system in Multi-Signals section above
+// This eliminates redundant configuration and leverages profitable signals for both entry AND trend confirmation
 
 // ─────────────────── BB EXIT VARIABLES (moved up for scope) ────────────
 bbExitEnable = input.bool(false, '⚡ BB Exit Logic', group='🎯 Bollinger Band Risk Management', inline='bb2', tooltip='OPTIONAL: When price hits BB extreme during trade, flip to tight Smart Profit Locker.')
@@ -769,34 +769,72 @@ else
     bbLongFilterOK := true
     bbShortFilterOK := true
 
-// TREND SIGNAL PROCESSING - Updated to actually work with input sources
-// These variables are used by the Basic Trend Change Exit system
-var bool trend1Long = false
-var bool trend1Short = false
-var bool trend2Long = false  
-var bool trend2Short = false
-var bool trend3Long = false
-var bool trend3Short = false
-var int trend1Signal = 0
-var int trend2Signal = 0
-var int trend3Signal = 0
+// ═══════════════════ NEW TREND CHECKBOX MAJORITY RULE SYSTEM ═══════════════════
+// Trend detection now uses checkbox system from Multi-Signals section
+// This leverages profitable signals for BOTH entry AND trend confirmation
 
-// Update trend variables from input sources (THE MISSING LOGIC!)
-// Only update if trend inputs are connected (not default 'close')
-if trend1Enable
-    trend1Long := trend1LongSrc != close
-    trend1Short := trend1ShortSrc != close
-    trend1Signal := trend1Long ? 1 : trend1Short ? -1 : 0
+// Calculate trend majority from enabled signal checkboxes
+calcTrendMajority() =>
+    trendEnabledCount = 0
+    bullishTrendCount = 0
+    bearishTrendCount = 0
+    
+    // Check each signal's trend checkbox and current signal state
+    if signal1TrendEnable and signal1Enable
+        trendEnabledCount += 1
+        if sig1Long: bullishTrendCount += 1
+        if sig1Short: bearishTrendCount += 1
+    
+    if signal2TrendEnable and signal2Enable
+        trendEnabledCount += 1
+        if sig2Long: bullishTrendCount += 1
+        if sig2Short: bearishTrendCount += 1
+        
+    if signal3TrendEnable and signal3Enable
+        trendEnabledCount += 1
+        if sig3Long: bullishTrendCount += 1
+        if sig3Short: bearishTrendCount += 1
+        
+    if signal4TrendEnable and signal4Enable
+        trendEnabledCount += 1
+        if sig4Long: bullishTrendCount += 1
+        if sig4Short: bearishTrendCount += 1
+        
+    if signal5TrendEnable and signal5Enable
+        trendEnabledCount += 1
+        if sig5Long: bullishTrendCount += 1
+        if sig5Short: bearishTrendCount += 1
+        
+    if signal6TrendEnable and signal6Enable
+        trendEnabledCount += 1
+        if sig6Long: bullishTrendCount += 1
+        if sig6Short: bearishTrendCount += 1
+        
+    if signal7TrendEnable and signal7Enable
+        trendEnabledCount += 1
+        if sig7Long: bullishTrendCount += 1
+        if sig7Short: bearishTrendCount += 1
+        
+    if signal8TrendEnable and signal8Enable
+        trendEnabledCount += 1
+        if sig8Long: bullishTrendCount += 1
+        if sig8Short: bearishTrendCount += 1
+        
+    if signal9TrendEnable and signal9Enable
+        trendEnabledCount += 1
+        if sig9Long: bullishTrendCount += 1
+        if sig9Short: bearishTrendCount += 1
+        
+    if signal10TrendEnable and signal10Enable
+        trendEnabledCount += 1
+        if sig10Long: bullishTrendCount += 1
+        if sig10Short: bearishTrendCount += 1
+    
+    // Return trend majority result (if no trend indicators enabled, default to true)
+    trendEnabledCount == 0 ? true : bullishTrendCount > bearishTrendCount
 
-if trend2Enable  
-    trend2Long := trend2LongSrc != close
-    trend2Short := trend2ShortSrc != close
-    trend2Signal := trend2Long ? 1 : trend2Short ? -1 : 0
-
-if trend3Enable
-    trend3Long := trend3LongSrc != close  
-    trend3Short := trend3ShortSrc != close
-    trend3Signal := trend3Long ? 1 : trend3Short ? -1 : 0
+// Calculate current trend consensus
+trendsAgree = calcTrendMajority()
 
 // ═══════════════════ LINEAR REGRESSION CANDLE PROCESSING ═══════════════════
 // Process Linear Regression Candle signals for advanced trend exit
@@ -807,23 +845,9 @@ lrcBearColor = lrcBearColorChange != close and (lrcBearColorChange > 0 or bool(l
 lrcBullMA = lrcBullMAXross != close and (lrcBullMAXross > 0 or bool(lrcBullMAXross) == true)
 lrcBearMA = lrcBearMACross != close and (lrcBearMACross > 0 or bool(lrcBearMACross) == true)
 
-// Supporting trend indicators (reduced to 3)
-supportTrend1Long = trend1Enable and trend1Long
-supportTrend1Short = trend1Enable and trend1Short
-supportTrend2Long = trend2Enable and trend2Long  
-supportTrend2Short = trend2Enable and trend2Short
-supportTrend3Long = trend3Enable and trend3Long
-supportTrend3Short = trend3Enable and trend3Short
-
-// Count supporting trend indicators for re-entry confirmation
-enabledTrendCount = (trend1Enable ? 1 : 0) + (trend2Enable ? 1 : 0) + (trend3Enable ? 1 : 0)
-bullishTrendCount = (supportTrend1Long ? 1 : 0) + (supportTrend2Long ? 1 : 0) + (supportTrend3Long ? 1 : 0)
-bearishTrendCount = (supportTrend1Short ? 1 : 0) + (supportTrend2Short ? 1 : 0) + (supportTrend3Short ? 1 : 0)
-
-// Determine trend confirmation for re-entry
-trendConfirmsLong = enabledTrendCount == 0 ? true : reEntryConfirmation == 'All' ? bullishTrendCount == enabledTrendCount : bullishTrendCount >= math.ceil(enabledTrendCount / 2.0)
-
-trendConfirmsShort = enabledTrendCount == 0 ? true : reEntryConfirmation == 'All' ? bearishTrendCount == enabledTrendCount : bearishTrendCount >= math.ceil(enabledTrendCount / 2.0)
+// Trend confirmation for re-entry (now uses the majority rule from checkbox system)
+trendConfirmsLong = trendsAgree  // Simplified: majority rule handles all logic
+trendConfirmsShort = not trendsAgree  // Opposite of bullish majority
 
 // ═══════════════════ FLUID HYBRID AUTO-DETECTION LOGIC ═══════════════════
 // Automatically activates hybrid mode when both SPL + Trend Exit are enabled
@@ -1070,21 +1094,17 @@ plot(profitLockerLine, title="💰 Profit Locker", color=color.new(color.green, 
 // Real-time performance tracking with commission/slippage integration
 
 if showBacktestTable and barstate.islast
-    // Enhanced Virtual Account Table with Long/Short Separation
-    var table virtualSignalTable = table.new(position.bottom_left, columns=11, rows=12, bgcolor=color.new(color.black, 85), border_width=2, border_color=color.new(color.white, 70))
+    // Simplified Virtual Account Table - Combined P&L (No Long/Short Separation)
+    var table virtualSignalTable = table.new(position.bottom_left, columns=7, rows=12, bgcolor=color.new(color.black, 85), border_width=2, border_color=color.new(color.white, 70))
     
-    // Professional Headers with Icons and Color Hierarchy
+    // Simplified Headers - Combined Results for Comparative Analysis
     table.cell(virtualSignalTable, 0, 0, '📊 SIGNAL', text_color=color.white, text_size=size.normal, bgcolor=color.new(color.blue, 80))
-    table.cell(virtualSignalTable, 1, 0, 'L.TRADES', text_color=color.white, text_size=size.small, bgcolor=color.new(color.green, 80))
-    table.cell(virtualSignalTable, 2, 0, 'L.WIN%', text_color=color.white, text_size=size.small, bgcolor=color.new(color.green, 80))
-    table.cell(virtualSignalTable, 3, 0, 'L.P&L($)', text_color=color.white, text_size=size.small, bgcolor=color.new(color.green, 80))
-    table.cell(virtualSignalTable, 4, 0, 'S.TRADES', text_color=color.white, text_size=size.small, bgcolor=color.new(color.red, 80))
-    table.cell(virtualSignalTable, 5, 0, 'S.WIN%', text_color=color.white, text_size=size.small, bgcolor=color.new(color.red, 80))
-    table.cell(virtualSignalTable, 6, 0, 'S.P&L($)', text_color=color.white, text_size=size.small, bgcolor=color.new(color.red, 80))
-    table.cell(virtualSignalTable, 7, 0, 'MAX DD($)', text_color=color.white, text_size=size.small, bgcolor=color.new(color.orange, 80))
-    table.cell(virtualSignalTable, 8, 0, 'PF', text_color=color.white, text_size=size.small, bgcolor=color.new(color.purple, 80))
-    table.cell(virtualSignalTable, 9, 0, 'STATUS', text_color=color.white, text_size=size.small, bgcolor=color.new(color.blue, 80))
-    table.cell(virtualSignalTable, 10, 0, 'ACTION', text_color=color.white, text_size=size.small, bgcolor=color.new(color.blue, 80))
+    table.cell(virtualSignalTable, 1, 0, 'TRADES', text_color=color.white, text_size=size.small, bgcolor=color.new(color.blue, 80))
+    table.cell(virtualSignalTable, 2, 0, 'WIN%', text_color=color.white, text_size=size.small, bgcolor=color.new(color.green, 80))
+    table.cell(virtualSignalTable, 3, 0, 'TOTAL P&L($)', text_color=color.white, text_size=size.small, bgcolor=color.new(color.yellow, 80))
+    table.cell(virtualSignalTable, 4, 0, 'MAX DD($)', text_color=color.white, text_size=size.small, bgcolor=color.new(color.orange, 80))
+    table.cell(virtualSignalTable, 5, 0, 'PF', text_color=color.white, text_size=size.small, bgcolor=color.new(color.purple, 80))
+    table.cell(virtualSignalTable, 6, 0, 'STATUS', text_color=color.white, text_size=size.small, bgcolor=color.new(color.blue, 80))
     
     // Process each virtual account for display
     signalEnables = array.from(signal1Enable, signal2Enable, signal3Enable, signal4Enable, signal5Enable, signal6Enable, signal7Enable, signal8Enable, signal9Enable, signal10Enable)
@@ -1116,22 +1136,18 @@ if showBacktestTable and barstate.islast
             // Truncate signal name for display
             displayName = str.length(signalName) > 8 ? str.substring(signalName, 0, 8) : signalName
             
-            // Populate table row
+            // Populate table row - SIMPLIFIED 7-COLUMN FORMAT (Combined P&L)
             table.cell(virtualSignalTable, 0, currentRow, displayName, text_color=color.white, text_size=size.small, bgcolor=color.new(color.gray, 80))
-            table.cell(virtualSignalTable, 1, currentRow, str.tostring(account.longTrades), text_color=color.white, text_size=size.small, bgcolor=color.new(color.gray, 90))
-            table.cell(virtualSignalTable, 2, currentRow, str.tostring(longWinRate, '#.#') + '%', text_color=longWinRate >= 60 ? color.lime : longWinRate >= 40 ? color.yellow : color.red, text_size=size.small, bgcolor=color.new(color.gray, 90))
-            table.cell(virtualSignalTable, 3, currentRow, '$' + str.tostring(account.longPnL, '#.##'), text_color=account.longPnL > 0 ? color.lime : color.red, text_size=size.small, bgcolor=color.new(color.gray, 90))
-            table.cell(virtualSignalTable, 4, currentRow, str.tostring(account.shortTrades), text_color=color.white, text_size=size.small, bgcolor=color.new(color.gray, 90))
-            table.cell(virtualSignalTable, 5, currentRow, str.tostring(shortWinRate, '#.#') + '%', text_color=shortWinRate >= 60 ? color.lime : shortWinRate >= 40 ? color.yellow : color.red, text_size=size.small, bgcolor=color.new(color.gray, 90))
-            table.cell(virtualSignalTable, 6, currentRow, '$' + str.tostring(account.shortPnL, '#.##'), text_color=account.shortPnL > 0 ? color.lime : color.red, text_size=size.small, bgcolor=color.new(color.gray, 90))
-            table.cell(virtualSignalTable, 7, currentRow, '$' + str.tostring(account.maxDrawdown, '#.##'), text_color=color.white, text_size=size.small, bgcolor=color.new(color.red, 80))
-            table.cell(virtualSignalTable, 8, currentRow, str.tostring(profitFactor, '#.##'), text_color=profitFactor >= 2.0 ? color.lime : profitFactor >= 1.5 ? color.yellow : profitFactor >= 1.0 ? color.orange : color.red, text_size=size.small, bgcolor=color.new(color.gray, 90))
-            table.cell(virtualSignalTable, 9, currentRow, statusEmoji, text_color=color.white, text_size=size.small, bgcolor=statusColor)
-            table.cell(virtualSignalTable, 10, currentRow, actionText, text_color=actionColor, text_size=size.small, bgcolor=color.new(color.gray, 90))
+            table.cell(virtualSignalTable, 1, currentRow, str.tostring(account.totalTrades), text_color=color.white, text_size=size.small, bgcolor=color.new(color.gray, 90))
+            table.cell(virtualSignalTable, 2, currentRow, str.tostring(overallWinRate, '#.#') + '%', text_color=overallWinRate >= 60 ? color.lime : overallWinRate >= 40 ? color.yellow : color.red, text_size=size.small, bgcolor=color.new(color.gray, 90))
+            table.cell(virtualSignalTable, 3, currentRow, '$' + str.tostring(totalPnL, '#.##'), text_color=totalPnL > 0 ? color.lime : color.red, text_size=size.small, bgcolor=color.new(color.gray, 90))
+            table.cell(virtualSignalTable, 4, currentRow, '$' + str.tostring(account.maxDrawdown, '#.##'), text_color=color.white, text_size=size.small, bgcolor=color.new(color.red, 80))
+            table.cell(virtualSignalTable, 5, currentRow, str.tostring(profitFactor, '#.##'), text_color=profitFactor >= 2.0 ? color.lime : profitFactor >= 1.5 ? color.yellow : profitFactor >= 1.0 ? color.orange : color.red, text_size=size.small, bgcolor=color.new(color.gray, 90))
+            table.cell(virtualSignalTable, 6, currentRow, statusEmoji, text_color=color.white, text_size=size.small, bgcolor=statusColor)
             
             currentRow += 1
     
-    // Summary Row with System Status
+    // Summary Row with System Status - SIMPLIFIED 7-COLUMN FORMAT
     if currentRow <= 11
         table.cell(virtualSignalTable, 0, 11, '🚀 SYSTEM', text_color=color.white, text_size=size.small, bgcolor=color.new(color.blue, 25))
         table.cell(virtualSignalTable, 1, 11, 'Comm: $' + str.tostring(commissionPerTrade, '#.##'), text_color=color.white, text_size=size.tiny, bgcolor=color.new(color.blue, 35))
@@ -1139,11 +1155,7 @@ if showBacktestTable and barstate.islast
         table.cell(virtualSignalTable, 3, 11, 'Size: ' + str.tostring(virtualPositionSize), text_color=color.white, text_size=size.tiny, bgcolor=color.new(color.blue, 35))
         table.cell(virtualSignalTable, 4, 11, 'Point: $' + str.tostring(syminfo.pointvalue * futuresMultiplier, '#.##'), text_color=color.white, text_size=size.tiny, bgcolor=color.new(color.blue, 35))
         table.cell(virtualSignalTable, 5, 11, parametersChanged ? 'RESET ⚡' : 'STABLE ✓', text_color=parametersChanged ? color.orange : color.lime, text_size=size.tiny, bgcolor=color.new(color.blue, 35))
-        table.cell(virtualSignalTable, 6, 11, 'Virtual Accounts Active', text_color=color.lime, text_size=size.tiny, bgcolor=color.new(color.blue, 35))
-        table.cell(virtualSignalTable, 7, 11, 'Real-Time P&L', text_color=color.lime, text_size=size.tiny, bgcolor=color.new(color.blue, 35))
-        table.cell(virtualSignalTable, 8, 11, 'Perfect Attribution', text_color=color.lime, text_size=size.tiny, bgcolor=color.new(color.blue, 35))
-        table.cell(virtualSignalTable, 9, 11, 'Commission Adjusted', text_color=color.lime, text_size=size.tiny, bgcolor=color.new(color.blue, 35))
-        table.cell(virtualSignalTable, 10, 11, 'Phase 1 ACTIVE ✅', text_color=color.lime, text_size=size.tiny, bgcolor=color.new(color.green, 35))
+        table.cell(virtualSignalTable, 6, 11, 'COMBINED P&L ✅', text_color=color.lime, text_size=size.tiny, bgcolor=color.new(color.green, 35))
 
 // ═══════════════════ INTRABAR EXIT DEBUG SYSTEM ═══════════════════
 // Visual monitoring and validation system for robust exit logic
@@ -1543,13 +1555,13 @@ trendChangeDetails := ""
 // OLD TREND CHANGE EXIT LOGIC - KEPT FOR BASIC COMPATIBILITY
 // This is overridden by the Advanced Trend Exit System when enabled
 if trendChangeExitEnable and strategy.position_size != 0 and not useAdvancedTrendExit
-    // Basic fallback logic (simplified)
-    if strategy.position_size > 0 and (trend1Short or trend2Short or trend3Short)
+    // Basic fallback logic (now uses new trend majority system)
+    if strategy.position_size > 0 and trendConfirmsShort
         trendChangeDetected := true
-        trendChangeDetails := "Basic Trend Exit: Opposite signal detected"
-    else if strategy.position_size < 0 and (trend1Long or trend2Long or trend3Long)
+        trendChangeDetails := "Basic Trend Exit: Majority trend turned bearish"
+    else if strategy.position_size < 0 and trendConfirmsLong
         trendChangeDetected := true
-        trendChangeDetails := "Basic Trend Exit: Opposite signal detected"
+        trendChangeDetails := "Basic Trend Exit: Majority trend turned bullish"
 
 // ═══════════════════ ADVANCED TREND EXIT LOGIC ═══════════════════
 // 3-Phase Exit System: Trailing Stop → Color Change Exit → Re-Entry
@@ -1576,23 +1588,14 @@ if strategy.position_size != 0 and not inTrendExitMode and useAdvancedTrendExit
     waitingForReEntry := false
     exitDirection := 0
 
-// Phase 1: Check if we should switch from trailing stop to profit mode
-if inTrendExitMode and not inProfitMode and strategy.position_size != 0
-    trailingStopDistance = initialTrailingStop * atrVal
-    
-    if strategy.position_size > 0
-        // Long position: switch to profit mode when price is above entry + trailing stop distance
-        if close >= trendExitPrice + trailingStopDistance
-            inProfitMode := true
-    else
-        // Short position: switch to profit mode when price is below entry - trailing stop distance  
-        if close <= trendExitPrice - trailingStopDistance
-            inProfitMode := true
+// Phase 1: REMOVED - Advanced Trend Exit is now pure trend-following (no competing trailing stops)
+// SPL (Smart Profit Locker) handles ALL trailing stop protection
+// Advanced Trend Exit focuses solely on trend change detection and re-entry
 
-// Phase 2: Color Change Exit (when in profit mode)
+// Phase 2: Color Change Exit (SIMPLIFIED - immediate trend change detection)
 colorChangeExit := false
 
-if inTrendExitMode and inProfitMode and strategy.position_size != 0
+if inTrendExitMode and strategy.position_size != 0
     if exitMode == 'Color Change'
         if strategy.position_size > 0 and lrcBearColor  // Long position exits on bear color
             colorChangeExit := true
