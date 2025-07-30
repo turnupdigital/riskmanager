@@ -190,11 +190,11 @@ PROPOSED ORDER:
 
 ## 🔄 **IMPLEMENTATION STATUS**
 
-### **✅ STEP 1 COMPLETED: CHART DEBUG PLOTS**
+### **✅ STEP 1 COMPLETED: COMPREHENSIVE CHART DEBUG SYSTEM**
 
-**IMPLEMENTED:** Comprehensive diagnostic plots to identify entry blocking:
+**IMPLEMENTED:** Multi-layer diagnostic system focusing on `strategy.entry()` execution:
 
-**Added Debug Visualizations:**
+#### **SIGNAL PROCESSING DEBUG (Lines 901-937):**
 1. **1️⃣ Primary Signals**: Blue/Red circles showing raw signal aggregation
 2. **2️⃣ Directional Bias**: Green/Maroon arrows showing bias filter status
 3. **3️⃣ Bollinger Band Filter**: Green/Orange circles showing BB filter status
@@ -205,12 +205,23 @@ PROPOSED ORDER:
 8. **⚠️ Pyramid Status**: Purple warning when pyramid limit reached
 9. **📊 Position Status**: Green/Red squares showing current position
 
-**PURPOSE:** 
-- Identify exactly why trades show in backtest but not on live chart
-- Show step-by-step signal processing from raw signals to final execution
-- Visualize which filters are blocking entries in real-time
+#### **STRATEGY EXECUTION DEBUG (Lines 1843-1873) - CRITICAL:**
+10. **📞 Strategy Calls**: White phones showing when `strategy.entry()` is called
+11. **✅ Fill Detection**: Huge green/red checkmarks when position actually changes  
+12. **🏛️ Historical Calls**: Gray buildings showing backtest entry calls
+13. **⚡ Realtime Calls**: Yellow lightning showing live entry calls
+14. **🎯 Trade Completion**: Purple targets when `strategy.closedtrades` increases
+15. **📈 Position Display**: Numeric position size with color coding
+16. **H/R/E Bar Types**: Shows historical/realtime/elapsed bar types
 
-**LOCATION:** Lines 901-937 in EZAlgoTrader.pine
+**USER INSIGHT:** "Doesn't it usually have something to do with strategy entry" - CORRECT!
+**FOCUS:** Compare when we THINK entries should happen vs when `strategy.entry()` ACTUALLY executes
+
+**PURPOSE:** 
+- Compare visual signals vs actual strategy execution
+- Identify historical vs realtime behavior differences  
+- Show when `strategy.entry()` calls vs when fills occur
+- Debug backtest vs live chart discrepancies
 
 ### **🔄 NEXT STEPS**
 

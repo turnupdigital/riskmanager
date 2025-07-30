@@ -1840,6 +1840,38 @@ if shortEntrySignal and entryAllowed
     strategy.entry("Short", strategy.short, qty=positionQty, alert_message=shortEntryMsg, comment=dynamicShortText)
     // NOTE: entryAllowed stays true to allow adding/reversing positions
 
+// ═══════════════════ STRATEGY EXECUTION DEBUG (CRITICAL) ═══════════════════
+// Debug the actual strategy.entry() calls vs our visual indicators
+
+// Show when strategy.entry() is ACTUALLY CALLED
+plotchar(longEntrySignal and entryAllowed, title="📞 CALLING strategy.entry LONG", char='📞', location=location.belowbar, color=color.new(color.white, 0), size=size.large)
+plotchar(shortEntrySignal and entryAllowed, title="📞 CALLING strategy.entry SHORT", char='📞', location=location.abovebar, color=color.new(color.white, 0), size=size.large)
+
+// Show actual strategy position changes (when fills occur)
+var float lastPositionSize = 0
+positionChanged = strategy.position_size != lastPositionSize
+plotchar(positionChanged and strategy.position_size > lastPositionSize, title="✅ LONG FILL DETECTED", char='✅', location=location.belowbar, color=color.new(color.lime, 0), size=size.huge)
+plotchar(positionChanged and strategy.position_size < lastPositionSize, title="✅ SHORT FILL DETECTED", char='✅', location=location.abovebar, color=color.new(color.red, 0), size=size.huge)
+lastPositionSize := strategy.position_size
+
+// Show backtest vs live mode detection  
+plotchar(barstate.isconfirmed, title="📊 HISTORICAL BAR", char='H', location=location.top, color=color.new(color.gray, 50), size=size.tiny)
+plotchar(barstate.isrealtime, title="🔴 REALTIME BAR", char='R', location=location.top, color=color.new(color.red, 0), size=size.tiny)
+plotchar(not barstate.isconfirmed and not barstate.isrealtime, title="⏳ ELAPSED REALTIME", char='E', location=location.top, color=color.new(color.orange, 0), size=size.tiny)
+
+// CRITICAL: Compare entry calls vs actual fills by bar type
+plotchar(longEntrySignal and entryAllowed and barstate.isconfirmed, title="🏛️ HISTORICAL LONG CALL", char='🏛️', location=location.belowbar, color=color.new(color.gray, 0), size=size.normal)
+plotchar(longEntrySignal and entryAllowed and barstate.isrealtime, title="⚡ REALTIME LONG CALL", char='⚡', location=location.belowbar, color=color.new(color.yellow, 0), size=size.normal)
+
+// Show strategy.closedtrades count changes (when trades complete)
+var int lastClosedTrades = 0
+newTradeCompleted = strategy.closedtrades > lastClosedTrades
+plotchar(newTradeCompleted, title="🎯 TRADE COMPLETED", char='🎯', location=location.top, color=color.new(color.purple, 0), size=size.normal)
+lastClosedTrades := strategy.closedtrades
+
+// Show position size with numeric display
+plotchar(strategy.position_size != 0, title="📈 POSITION: " + str.tostring(strategy.position_size), char='📈', location=location.top, color=strategy.position_size > 0 ? color.green : color.red, size=size.small)
+
 // ─────────────────── ENTRY PRICE TRACKING ───────────────────
 // Track entry price and signal attribution when position opens
 var bool wasFlat = true
