@@ -1,0 +1,103 @@
+//@version=6
+// ═══════════════════ EXIT SYSTEM COORDINATION - STEP 1.2 ═══════════════════
+// 🎯 PURPOSE: Proper exit system hierarchy with state tracking
+// This implements the coordinated exit system with proper hierarchy:
+// 1. Smart Profit Locker (Primary for Scalp Mode)
+// 2. Fixed SL/TP (Safety Net) 
+// 3. MA Exit (Trend Filter)
+
+// ═══════════════════ MISSING EXIT STATE VARIABLES ═══════════════════
+// Add these variables after line 1481 in EZAlgoTrader.pine (after exitShortPulse declaration)
+
+// Exit system coordination state tracking variables
+var bool trailExitSent = false      // Tracks if Smart Profit Locker exit has been sent
+var bool fixedExitSent = false      // Tracks if Fixed SL/TP exit has been sent  
+var bool maExitSent = false         // Tracks if MA Exit has been sent
+
+// Additional required variables for exit system
+var float strategyEntryPrice = na   // Stores the actual strategy entry price
+var float atrVal = ta.atr(20)      // ATR value for calculations
+
+// Reset exit flags when entering new position
+if strategy.position_size != 0 and strategy.position_size[1] == 0
+    trailExitSent := false
+    fixedExitSent := false  
+    maExitSent := false
+    strategyEntryPrice := strategy.position_avg_price
+
+// Reset exit flags when position closes
+if strategy.position_size == 0 and strategy.position_size[1] != 0
+    trailExitSent := false
+    fixedExitSent := false
+    maExitSent := false
+    strategyEntryPrice := na
+
+// ═══════════════════ COORDINATED EXIT SYSTEM HIERARCHY ═══════════════════
+// Replace the existing Smart Profit Locker and Fixed SL/TP sections (around lines 3514-3570)
+
+// 1. Smart Profit Locker (Primary for Scalp Mode)
+if smartProfitEnable and strategy.position_size != 0 and not trailExitSent and tradeMode != "TREND"
+    if strategy.position_size > 0
+        strategy.exit("SPL-Long", "Long", trail_points=smartDistance, trail_offset=smartOffset)
+        trailExitSent := true
+        if debugEnabled
+            debugMessage("INFO", "🎯 SPL-Long activated - Distance: " + str.tostring(smartDistance, "#.##"), color.green, color.white, 0.05)
+    else if strategy.position_size < 0
+        strategy.exit("SPL-Short", "Short", trail_points=smartDistance, trail_offset=smartOffset)
+        trailExitSent := true
+        if debugEnabled
+            debugMessage("INFO", "🎯 SPL-Short activated - Distance: " + str.tostring(smartDistance, "#.##"), color.green, color.white, 0.05)
+
+// 2. Fixed SL/TP (Safety Net)
+if fixedEnable and strategy.position_size != 0 and not fixedExitSent
+    stopLevel = strategy.position_size > 0 ? 
+                strategyEntryPrice - (fixedStop * atrVal) : 
+                strategyEntryPrice + (fixedStop * atrVal)
+    
+    profitLevel = tp1Enable ? 
+                  (strategy.position_size > 0 ? 
+                   strategyEntryPrice + (tp1Size * atrVal) : 
+                   strategyEntryPrice - (tp1Size * atrVal)) : na
+    
+    strategy.exit("Fixed", strategy.position_size > 0 ? "Long" : "Short", 
+                  stop=stopLevel, limit=profitLevel)
+    fixedExitSent := true
+    if debugEnabled
+        debugMessage("INFO", "🛡️ Fixed SL/TP set - Stop: " + str.tostring(stopLevel, "#.##"), color.blue, color.white, 0.05)
+
+// 3. MA Exit (Trend Filter)
+if maExitOn and strategy.position_size != 0 and not maExitSent
+    exitCondition = (strategy.position_size > 0 and close < priceMA) or 
+                    (strategy.position_size < 0 and close > priceMA)
+    
+    if exitCondition
+        strategy.close_all("MA Exit", alert_message=flatExitMsg)
+        maExitSent := true
+        entryAllowed := true
+        if debugEnabled
+            debugMessage("INFO", "📈 MA Exit triggered - Price crossed MA", color.orange, color.white, 0.05)
+
+// 4. Trend Mode Exits (Signal-based for trend following)
+if tradeMode == "TREND" and strategy.position_size != 0
+    // Exit on opposite signals for trend mode
+    trendExitCondition = (strategy.position_size > 0 and exitLongPulse) or 
+                        (strategy.position_size < 0 and exitShortPulse)
+    
+    if trendExitCondition and barstate.isconfirmed
+        strategy.close_all("Trend Exit", alert_message=flatExitMsg)
+        entryAllowed := true
+        if debugEnabled
+            exitDirection = strategy.position_size > 0 ? "Long" : "Short"
+            debugMessage("INFO", "🔄 Trend Exit: " + exitDirection + " closed on opposite signal", color.purple, color.white, 0.05)
+
+// ═══════════════════ EXIT SYSTEM DEBUGGING ═══════════════════
+// Add this section for exit system monitoring
+
+if debugEnabled and strategy.position_size != 0
+    exitStatus = "Exit Status: SPL=" + (trailExitSent ? "✅" : "⏳") + 
+                 " Fixed=" + (fixedExitSent ? "✅" : "⏳") + 
+                 " MA=" + (maExitSent ? "✅" : "⏳")
+    
+    // Only show status once per position
+    if not trailExitSent and not fixedExitSent and not maExitSent
+        debugMessage("DEBUG", exitStatus, color.gray, color.white, 0.05)

@@ -1,0 +1,29 @@
+//@version=6
+
+// ═══════════════════ TABLE UTILITIES ═══════════════════
+// 🎯 PURPOSE: Safe table operations to prevent out-of-bounds errors
+// These utility functions provide bounds checking for table operations
+
+// ⚙️ HOW TO USE:
+// 1. Import this library: import "table_utils" as tu
+// 2. Replace table.cell() calls with tu.safeCell()
+// 3. Replace table.clear() calls with tu.safeClear()
+
+// Safe table cell access with bounds checking
+safeCell(tbl, col, row, txt, text_color, text_size, bgcolor) =>
+    if row < table.rows(tbl) and col < table.columns(tbl)
+        table.cell(tbl, col, row, txt, text_color, text_size, bgcolor)
+
+// Safe table clear with bounds checking
+safeClear(tbl, fromCol, fromRow, toCol, toRow) =>
+    safeToCol = math.min(toCol, table.columns(tbl) - 1)
+    safeToRow = math.min(toRow, table.rows(tbl) - 1)
+    if fromCol <= safeToCol and fromRow <= safeToRow
+        table.clear(tbl, fromCol, fromRow, safeToCol, safeToRow)
+
+// Create table with dynamic row calculation
+dynamicTable(pos, cols, minRows, buffer = 2) =>
+    // Calculate safe row count: minimum rows + buffer
+    safeRowCount = math.max(minRows + buffer, 5)
+    // Create table with safe row count
+    table.new(pos, cols, safeRowCount, bgcolor = color.new(color.black, 85), border_width = 2, border_color = color.new(color.white, 70))

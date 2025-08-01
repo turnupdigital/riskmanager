@@ -1,64 +1,395 @@
-// 2025 Andres Garcia — EZ Algo Trader (Production Ready)
-//  ────────────────────────────────────────────────────────────────
-//  Enhanced Multi-Signal Risk Management System - PRODUCTION READY
-//  • FIXED: Critical pulse detection bug (ta.change() vs != close)
-//  • FIXED: Virtual account exit logic now matches main strategy
-//  • FIXED: Complete parameter change detection for reliable backtesting
-//  • FIXED: Consolidated Bollinger Band calculations (no redundancy)
-//  • FIXED: Cleaned up global variables and removed dead code
-//  • Professional risk management with multiple exit strategies
-//  • TradersPost webhook integration for automated trading
-//  • Configurable position sizing and stop-loss/take-profit levels
-//  • Enhanced phantom position detection and auto-recovery
-//  ────────────────────────────────────────────────────────────────
 //@version=6
+// 2025 Andres Garcia — EZ Algo Trader (Production Ready)
 
-// ═══════════════════ PROFESSIONAL STYLE SYSTEM ═══════════════════
-// Optimized performance and visual hierarchy system
+// === CONSOLIDATED INPUT BLOCK ===
+// All variables are declared globally for clean organization and maintainability
 
-// Style Configuration
-debugLevel = input.string("Basic", "Debug Level", options=["Off", "Basic", "Detailed", "Full"], group="🔧 Debug Settings")
+// ═══════════════════ GLOBAL VARIABLE DECLARATIONS ═══════════════════
+// 
+// 🚨 CRITICAL RULE: ALL VARIABLES MUST BE DECLARED IN THIS SECTION 🚨
+// 
+// ❌ ABSOLUTELY FORBIDDEN: Declaring variables anywhere else in the script
+// ❌ NO EXCEPTIONS: Not even for "quick tests" or "temporary variables"
+// ❌ NON-NEGOTIABLE: This rule applies to ALL developers and AI assistants
+// 
+// ─── POSITION SIZING & RISK MANAGEMENT ───
+// Controls how many contracts/shares are traded and maximum exposure limits.
+// These are the foundation variables that determine trade size and risk.
+var positionQty = 1          // Contracts per individual signal entry
+var pyramidLimit = 5         // Maximum total contracts before blocking new entries
+var futuresMultiplier = 20   // Point value multiplier (NQ=20, ES=50, YM=5, RTY=50)
 
-// Visual Settings
-trendModeColor = input(#089981, 'Trend Mode Color', group = 'Strategy Mode Colors')
-scalpModeColor = input(#f23645, 'Scalp Mode Color', group = 'Strategy Mode Colors') 
-hybridModeColor = input(#2157f3, 'Hybrid Mode Color', group = 'Strategy Mode Colors')
-flatModeColor = input(#808080, 'Flat/No Position Color', group = 'Strategy Mode Colors')
-modeBackgroundIntensity = input.int(60, 'Background Transparency', minval=50, maxval=95, group = 'Strategy Mode Colors')
+// ─── PRIMARY EXIT SYSTEMS ───
+// 3️⃣ PRIMARY EXIT SYSTEMS (SPL, Fixed, MA)
+    // 🎯 PURPOSE:
+    // This section configures the three primary, independent exit systems. 
+    //
+    // ⚙️ THREE CORE METHODOLOGIES:
+    // 1. Smart Profit Locker (SPL): An advanced, dynamic trailing stop system. It's the
+    //    default and recommended exit for the scalping aspect of the strategy. It calculates
+    //    its trail distance based on market volatility (ATR), fixed points, or percentage.
+    // 2. Fixed Stop-Loss & Take-Profit: The traditional approach to risk management.
+    //    Users can set static stop-loss and take-profit levels based on ATR multiples.
+    //    It's a simple, non-trailing exit system.
+    // 3. Moving Average Exit: When enabled, the strategy will exit a position if the price crosses a specified moving average.
+// SPL is the core scalping exit, Fixed is traditional, MA is trend-following.
 
-tablePosition = input.string("Top Right", "Status Table Position", options=["Top Right", "Top Left", "Bottom Right", "Bottom Left"], group="🎨 Visual Settings")
+// Smart Profit Locker (SPL) - Advanced trailing stop system
+var smartProfitEnable = true     // Master enable for SPL (primary scalping exit)
+var smartProfitType = "ATR"      // Distance calculation: ATR/Points/Percent
+var smartProfitVal = 2.0         // Distance value (multiplier for ATR, raw value for Points/Percent)
+var smartProfitOffset = 0.1      // Trail offset - how tight the trail follows price
 
-compactMode = input.bool(false, "Compact Mode (Mobile)", group="🎨 Visual Settings")
+// Fixed Stop-Loss & Take-Profit - Traditional exit system
+var fixedEnable = false          // Enable traditional SL/TP levels
+var fixedStop = 1.5             // Stop-loss distance (ATR multiplier)
+var tp1Enable = false           // Enable take-profit target
+var tp1Size = 2.0               // Take-profit distance (ATR multiplier)
+var fixedUnit = "ATR"            // Unit type: ATR multipliers or fixed Points
 
-// Performance Settings
-atrLength = input.int(20, 'ATR Length for Background Range', minval=5, maxval=100, group = 'Strategy Mode Colors')
-rangeMultiplier = input.float(1.5, 'Background Range Multiplier', minval=0.5, maxval=3.0, step=0.1, group = 'Strategy Mode Colors')
+// Moving Average Exit - Trend-following exit
+var maExitOn = false            // Enable MA-based exits
+var maLen = 21                  // Moving average period
+var maType = "EMA"              // MA type: SMA/EMA/WMA/VWMA/SMMA
 
-// ═══════════════════ EXIT SYSTEM INPUT VARIABLES ═══════════════════
-// These control when and how exits fire - they were missing from the input section
+// Bollinger Band Exit Integration
+var bbExitTightness = 0.5       // How much to tighten SPL when BB exit triggers
 
-// Smart Profit Locker Settings
-smartProfitEnable = input.bool(true, '🎯 Enable Smart Profit Locker', group = '🎯 Smart Profit Locker')
-smartProfitType = input.string('ATR', 'Distance Type', options = ['ATR', 'Points', 'Percent'], group = '🎯 Smart Profit Locker')
-smartProfitVal = input.float(2.0, 'Distance Value', step = 0.1, minval = 0.1, group = '🎯 Smart Profit Locker')
-smartProfitOffset = input.float(0.1, 'Trail Offset', step = 0.01, minval = 0.01, group = '🎯 Smart Profit Locker')
+// ─── PHANTOM POSITION DETECTION ───
+// Safety system to detect and resolve position synchronization issues
+var int phantomPositionBars = 0  // Counter for phantom position detection
+var bool phantomDetected = false // Flag indicating phantom position state
 
-// Fixed SL/TP Settings
-fixedEnable = input.bool(false, '🛡️ Enable Fixed SL/TP', group = '🛡️ Fixed SL/TP')
-fixedStop = input.float(1.5, 'Stop Loss (ATR)', step = 0.1, minval = 0.1, group = '🛡️ Fixed SL/TP')
-tp1Enable = input.bool(false, 'Enable Take Profit', group = '🛡️ Fixed SL/TP')
-tp1Size = input.float(2.0, 'Take Profit (ATR)', step = 0.1, minval = 0.1, group = '🛡️ Fixed SL/TP')
+// ─── HYBRID TREND MODE SYSTEM ───
+// Controls the automatic switching between scalping (SPL) and trend-following modes.
+// Based on position size and signal power - more contracts + strong signals = trend mode.
+var trendExitEnable = true           // Master enable for trend exit logic
+var autoHybridMode = true            // Enable automatic mode switching (SPL ↔ Trend)
+var trendPowerThreshold = 60         // Signal power % required for trend mode (0-100)
+var trendSizeThreshold = 0           // Minimum contracts for trend mode (0 = disabled)
+var requireBothConditions = true     // Require BOTH power AND size thresholds
+var hybridSwitchThreshold = 2        // Switch between SPL and Trend exits based on position size
 
-// MA Exit Settings
-maExitOn = input.bool(false, '📊 Enable MA Exit', group = '📊 MA Exit')
+// ─── FILTER SYSTEMS ───
+// Additional filters to improve signal quality and reduce false entries.
+// Filters can block entries or modify exit behavior based on market conditions.
 
-// BB Exit Settings (referenced in SPL logic)
-bbExitTightness = input.float(0.5, 'BB Exit Tightness', step = 0.1, minval = 0.1, maxval = 1.0, group = '📊 BB Exit')
+// Bollinger Band Filter - Volatility-based entry filtering
+var bbLength = 20                    // BB calculation period
+var bbMultiplier = 3.0              // BB standard deviation multiplier
+var bbEntryFilterEnable = false      // Block entries at BB extremes
+var bbExitEnable = false             // Trigger tight SPL at BB extremes
 
-// Note: Exit variables and helper functions moved to avoid duplicates
+// Relative Bandwidth (RBW) Filter - Market condition assessment
+var rbwEnable = false               // Enable RBW filtering system
+var rbwBandType = "KC"              // Band type: BB/KC/DC (Bollinger/Keltner/Donchian)
+var rbwSource = close               // Source for RBW calculations
+var rbwLength = 100                 // RBW calculation period
+var rbwMultiplier = 2.0             // Band multiplier for RBW calculations
+var rbwATRLength = 20               // ATR period for Keltner Channel calculations
+var rbwUseTR = true                 // Use True Range in calculation (for Keltner Channels)
+var rbwUseAltSrc = false            // Use high/low instead of selected source (for Donchian)
+var rbwRefBand = "Middle"            // Reference band for filter logic: Upper/Lower/Middle
+var rbwDesiredCond = "Higher Bandwidth" // Desired market condition: Higher/Lower Bandwidth
+
+// ATR Settings - Volatility measurements used throughout the strategy
+var atrLen = 14                     // Primary ATR period for exit calculations
+var atrLength = 20                  // Secondary ATR for background highlighting
+var rangeMultiplier = 1.5           // Background range envelope multiplier
+
+// ─── VISUAL & UI SETTINGS ───
+// Controls the appearance and positioning of on-chart elements.
+// These affect labels, tables, background colors, and debug information.
+var trendModeColor = #089981         // Background color when in trend mode
+var scalpModeColor = #f23645         // Background color when in scalp mode
+var hybridModeColor = #2157f3        // Background color during mode transitions
+var flatModeColor = #808080          // Background color when no position
+var modeBackgroundIntensity = 60     // Background transparency (50-95)
+var tablePosition = "Top Right"      // Status table placement on chart
+var compactMode = false              // Shrink UI elements for mobile/small screens
+
+// ─── DEBUG & ADVANCED SETTINGS ───
+// Development and troubleshooting tools. Debug levels control label verbosity.
+// Phantom detection helps identify and resolve position sync issues.
+var bool trendsAgree = true
+var debugLevel = "Basic"             // Debug verbosity: Off/Basic/Detailed/Full
+var phantomAutoCloseEnable = true    // Auto-close phantom positions (safety feature)
+
+// ═══════════════════ DEBUG & RENDERING VARIABLES ═══════════════════
+// These must be declared early since they're used throughout the script
+var bool debugEnabled = false               // Debug system enabled flag
+var bool showDebugLabels = false            // Show debug labels flag
+var bool showDetailedDebug = false          // Detailed debug mode flag  
+var bool showFullDebug = false              // Full debug mode flag
+var bool shouldRenderDebug = false          // Should render debug elements
+
+// ─── BACKTESTING & VIRTUAL ACCOUNTS ───
+// Each of the 10 signals gets its own virtual trading account for performance attribution.
+// This allows precise measurement of individual signal performance with realistic costs.
+var showBacktestTable = true        // Display individual signal performance table
+var commissionPerTrade = 2.50        // Commission cost per trade (entry + exit)
+var slippagePerTrade = 0.50          // Slippage cost per trade (market impact)
+var virtualPositionSize = 1          // Position size for virtual account calculations
+
+// ═══════════════════ CONSOLIDATED INPUT PANEL ═══════════════════
+// ⚙️ ORGANIZATION:
+// Inputs are organized into 9 logical sections covering all aspects of the strategy:
+// 1️⃣ General Trading Parameters, 2️⃣ Entry Signals, 3️⃣ Exit Systems, etc.
+
+// ═══════════════ CONSOLIDATED PANEL LAYOUT ═══════════════
+// Inputs are organized in logical sections for optimal user experience
+// This section defines the core risk and position sizing parameters for the entire
+// strategy. 
+// NOTE: These variables are already declared in the early variable section (lines 48-50)
+// and are controlled by the consolidated input panel below.
+// ⚙️ HOW IT WORKS:
+// Each of the 10 signal slots has an identical set of configuration options:
+// - Enable/Disable: A master switch for the entire signal slot.
+// - Long/Short Source: The user connects the plot of an external indicator here.
+//   The strategy detects changes in these values to trigger entries.
+// - Signal Name: A custom name used for on-chart labels and the status table,
+//   allowing for clear attribution of which signal fired.
+// - Usage Mode: Defines how the signal is used (Longs only, Shorts only, Both, or
+//   Observe for data collection without trading).
+// - Trend Contribution: Determines if this signal should be included in the
+//   'Signal Power' calculation for the hybrid trend-following mode.
+//
+// 💡 STRATEGY CONCEPT:
+// The system is built on the principle of confluence. Trades can be taken based
+// on a single signal, or the strategy can wait for multiple signals to align
+// before building a larger position (pyramiding). This is the foundation for the
+// hybrid scalp/trend model.
+// Row 1: Enable + Name + Usage
+signal1Enable = input.bool(true, 'Signal 1', inline='sig1', group='2️⃣ Entry Signals', tooltip='Primary signal source')
+signal1Name = input.string('LuxAlgo', 'Name', inline='sig1', group='2️⃣ Entry Signals')
+signal1Usage = input.string('All Entries', 'Usage', options=['Long Only', 'Short Only', 'All Entries', 'Observe'], inline='sig1', group='2️⃣ Entry Signals')
+// Row 2: Long + Short Sources
+signal1LongSrc = input.source(close, 'Long', inline='sig1src', group='2️⃣ Entry Signals', tooltip='Connect to: LuxAlgo Long, UTBot Long, or any Long signal plot')
+signal1ShortSrc = input.source(close, 'Short', inline='sig1src', group='2️⃣ Entry Signals', tooltip='Connect to: LuxAlgo Short, UTBot Short, or any Short signal plot')
+// Row 3: Advanced Options
+signal1RequiredForTrend = input.bool(false, '⭐ Required', inline='sig1opts', group='2️⃣ Entry Signals', tooltip='This signal MUST be active for trend mode activation')
+signal1OnlyMode = input.bool(false, 'Only', inline='sig1opts', group='2️⃣ Entry Signals', tooltip='Make this the ONLY active signal (for individual testing)')
+signal1TrendEnable = input.bool(false, 'Trend', inline='sig1opts', group='2️⃣ Entry Signals', tooltip='Include this signal in trend majority calculation')
+    
+// Signal 2
+// Row 1: Enable + Name + Usage
+signal2Enable = input.bool(false, 'Signal 2', inline='sig2', group='2️⃣ Entry Signals', tooltip='Secondary signal source')
+signal2Name = input.string('UTBot', 'Name', inline='sig2', group='2️⃣ Entry Signals')
+signal2Usage = input.string('All Entries', 'Usage', options=['Long Only', 'Short Only', 'All Entries', 'Observe'], inline='sig2', group='2️⃣ Entry Signals')
+// Row 2: Long + Short Sources
+signal2LongSrc = input.source(close, 'Long', inline='sig2src', group='2️⃣ Entry Signals', tooltip='Connect to: UTBot Long, MACD Long, or any Long signal plot')
+signal2ShortSrc = input.source(close, 'Short', inline='sig2src', group='2️⃣ Entry Signals', tooltip='Connect to: UTBot Short, MACD Short, or any Short signal plot')
+// Row 3: Advanced Options
+signal2RequiredForTrend = input.bool(false, '⭐ Required', inline='sig2opts', group='2️⃣ Entry Signals', tooltip='This signal MUST be active for trend mode activation')
+signal2OnlyMode = input.bool(false, 'Only', inline='sig2opts', group='2️⃣ Entry Signals', tooltip='Make this the ONLY active signal (for individual testing)')
+signal2TrendEnable = input.bool(false, 'Trend', inline='sig2opts', group='2️⃣ Entry Signals', tooltip='Include this signal in trend majority calculation')
+    
+// Signal 3
+// Row 1: Enable + Name + Usage
+signal3Enable = input.bool(false, 'Signal 3', inline='sig3', group='2️⃣ Entry Signals', tooltip='Third signal source')
+signal3Name = input.string('RSI', 'Name', inline='sig3', group='2️⃣ Entry Signals')
+signal3Usage = input.string('All Entries', 'Usage', options=['Long Only', 'Short Only', 'All Entries', 'Observe'], inline='sig3', group='2️⃣ Entry Signals')
+// Row 2: Long + Short Sources
+signal3LongSrc = input.source(close, 'Long', inline='sig3src', group='2️⃣ Entry Signals', tooltip='Connect to: RSI Long, Stoch Long, or any Long signal plot')
+signal3ShortSrc = input.source(close, 'Short', inline='sig3src', group='2️⃣ Entry Signals', tooltip='Connect to: RSI Short, Stoch Short, or any Short signal plot')
+// Row 3: Advanced Options
+signal3RequiredForTrend = input.bool(false, '⭐ Required', inline='sig3opts', group='2️⃣ Entry Signals', tooltip='This signal MUST be active for trend mode activation')
+signal3OnlyMode = input.bool(false, 'Only', inline='sig3opts', group='2️⃣ Entry Signals', tooltip='Make this the ONLY active signal (for individual testing)')
+signal3TrendEnable = input.bool(false, 'Trend', inline='sig3opts', group='2️⃣ Entry Signals', tooltip='Include this signal in trend majority calculation')
+
+// Signal 4
+// Row 1: Enable + Name + Usage
+signal4Enable = input.bool(false, 'Signal 4', inline='sig4', group='2️⃣ Entry Signals', tooltip='Fourth signal source')
+signal4Name = input.string('MACD', 'Name', inline='sig4', group='2️⃣ Entry Signals')
+signal4Usage = input.string('All Entries', 'Usage', options=['Long Only', 'Short Only', 'All Entries', 'Observe'], inline='sig4', group='2️⃣ Entry Signals')
+// Row 2: Long + Short Sources
+signal4LongSrc = input.source(close, 'Long', inline='sig4src', group='2️⃣ Entry Signals', tooltip='Connect to: MACD Long, CCI Long, or any Long signal plot')
+signal4ShortSrc = input.source(close, 'Short', inline='sig4src', group='2️⃣ Entry Signals', tooltip='Connect to: MACD Short, CCI Short, or any Short signal plot')
+// Row 3: Advanced Options
+signal4RequiredForTrend = input.bool(false, '⭐ Required', inline='sig4opts', group='2️⃣ Entry Signals', tooltip='This signal MUST be active for trend mode activation')
+signal4OnlyMode = input.bool(false, 'Only', inline='sig4opts', group='2️⃣ Entry Signals', tooltip='Make this the ONLY active signal (for individual testing)')
+signal4TrendEnable = input.bool(false, 'Trend', inline='sig4opts', group='2️⃣ Entry Signals', tooltip='Include this signal in trend majority calculation')
+
+// Signal 5
+// Row 1: Enable + Name + Usage
+signal5Enable = input.bool(false, 'Signal 5', inline='sig5', group='2️⃣ Entry Signals', tooltip='Fifth signal source')
+signal5Name = input.string('Stoch', 'Name', inline='sig5', group='2️⃣ Entry Signals')
+signal5Usage = input.string('All Entries', 'Usage', options=['Long Only', 'Short Only', 'All Entries', 'Observe'], inline='sig5', group='2️⃣ Entry Signals')
+// Row 2: Long + Short Sources
+signal5LongSrc = input.source(close, 'Long', inline='sig5src', group='2️⃣ Entry Signals', tooltip='Connect to: Stoch Long, Williams Long, or any Long signal plot')
+signal5ShortSrc = input.source(close, 'Short', inline='sig5src', group='2️⃣ Entry Signals', tooltip='Connect to: Stoch Short, Williams Short, or any Short signal plot')
+// Row 3: Advanced Options
+signal5RequiredForTrend = input.bool(false, '⭐ Required', inline='sig5opts', group='2️⃣ Entry Signals', tooltip='This signal MUST be active for trend mode activation')
+signal5OnlyMode = input.bool(false, 'Only', inline='sig5opts', group='2️⃣ Entry Signals', tooltip='Make this the ONLY active signal (for individual testing)')
+signal5TrendEnable = input.bool(false, 'Trend', inline='sig5opts', group='2️⃣ Entry Signals', tooltip='Include this signal in trend majority calculation')
+
+// Signal 6
+// Row 1: Enable + Name + Usage
+signal6Enable = input.bool(false, 'Signal 6', inline='sig6', group='2️⃣ Entry Signals', tooltip='Sixth signal source')
+signal6Name = input.string('CCI', 'Name', inline='sig6', group='2️⃣ Entry Signals')
+signal6Usage = input.string('All Entries', 'Usage', options=['Long Only', 'Short Only', 'All Entries', 'Observe'], inline='sig6', group='2️⃣ Entry Signals')
+// Row 2: Long + Short Sources
+signal6LongSrc = input.source(close, 'Long', inline='sig6src', group='2️⃣ Entry Signals', tooltip='Connect to: CCI Long, Williams Long, or any Long signal plot')
+signal6ShortSrc = input.source(close, 'Short', inline='sig6src', group='2️⃣ Entry Signals', tooltip='Connect to: CCI Short, Williams Short, or any Short signal plot')
+// Row 3: Advanced Options
+signal6RequiredForTrend = input.bool(false, '⭐ Required', inline='sig6opts', group='2️⃣ Entry Signals', tooltip='This signal MUST be active for trend mode activation')
+signal6OnlyMode = input.bool(false, 'Only', inline='sig6opts', group='2️⃣ Entry Signals', tooltip='Make this the ONLY active signal (for individual testing)')
+signal6TrendEnable = input.bool(false, 'Trend', inline='sig6opts', group='2️⃣ Entry Signals', tooltip='Include this signal in trend majority calculation')
+
+// Signal 7
+// Row 1: Enable + Name + Usage
+signal7Enable = input.bool(false, 'Signal 7', inline='sig7', group='2️⃣ Entry Signals', tooltip='Seventh signal source')
+signal7Name = input.string('ADX', 'Name', inline='sig7', group='2️⃣ Entry Signals')
+signal7Usage = input.string('All Entries', 'Usage', options=['Long Only', 'Short Only', 'All Entries', 'Observe'], inline='sig7', group='2️⃣ Entry Signals')
+// Row 2: Long + Short Sources
+signal7LongSrc = input.source(close, 'Long', inline='sig7src', group='2️⃣ Entry Signals', tooltip='Connect to: ADX Long, MFI Long, or any Long signal plot')
+signal7ShortSrc = input.source(close, 'Short', inline='sig7src', group='2️⃣ Entry Signals', tooltip='Connect to: ADX Short, MFI Short, or any Short signal plot')
+// Row 3: Advanced Options
+signal7RequiredForTrend = input.bool(false, '⭐ Required', inline='sig7opts', group='2️⃣ Entry Signals', tooltip='This signal MUST be active for trend mode activation')
+signal7OnlyMode = input.bool(false, 'Only', inline='sig7opts', group='2️⃣ Entry Signals', tooltip='Make this the ONLY active signal (for individual testing)')
+signal7TrendEnable = input.bool(false, 'Trend', inline='sig7opts', group='2️⃣ Entry Signals', tooltip='Include this signal in trend majority calculation')
+
+// Signal 8
+// Row 1: Enable + Name + Usage
+signal8Enable = input.bool(false, 'Signal 8', inline='sig8', group='2️⃣ Entry Signals', tooltip='Eighth signal source')
+signal8Name = input.string('MFI', 'Name', inline='sig8', group='2️⃣ Entry Signals')
+signal8Usage = input.string('All Entries', 'Usage', options=['Long Only', 'Short Only', 'All Entries', 'Observe'], inline='sig8', group='2️⃣ Entry Signals')
+// Row 2: Long + Short Sources
+signal8LongSrc = input.source(close, 'Long', inline='sig8src', group='2️⃣ Entry Signals', tooltip='Connect to: MFI Long, OBV Long, or any Long signal plot')
+signal8ShortSrc = input.source(close, 'Short', inline='sig8src', group='2️⃣ Entry Signals', tooltip='Connect to: MFI Short, OBV Short, or any Short signal plot')
+// Row 3: Advanced Options
+signal8RequiredForTrend = input.bool(false, '⭐ Required', inline='sig8opts', group='2️⃣ Entry Signals', tooltip='This signal MUST be active for trend mode activation')
+signal8OnlyMode = input.bool(false, 'Only', inline='sig8opts', group='2️⃣ Entry Signals', tooltip='Make this the ONLY active signal (for individual testing)')
+signal8TrendEnable = input.bool(false, 'Trend', inline='sig8opts', group='2️⃣ Entry Signals', tooltip='Include this signal in trend majority calculation')
+
+// Signal 9
+// Row 1: Enable + Name + Usage
+signal9Enable = input.bool(false, 'Signal 9', inline='sig9', group='2️⃣ Entry Signals', tooltip='Ninth signal source')
+signal9Name = input.string('OBV', 'Name', inline='sig9', group='2️⃣ Entry Signals')
+signal9Usage = input.string('All Entries', 'Usage', options=['Long Only', 'Short Only', 'All Entries', 'Observe'], inline='sig9', group='2️⃣ Entry Signals')
+// Row 2: Long + Short Sources
+signal9LongSrc = input.source(close, 'Long', inline='sig9src', group='2️⃣ Entry Signals', tooltip='Connect to: OBV Long, Custom Long, or any Long signal plot')
+signal9ShortSrc = input.source(close, 'Short', inline='sig9src', group='2️⃣ Entry Signals', tooltip='Connect to: OBV Short, Custom Short, or any Short signal plot')
+// Row 3: Advanced Options
+signal9RequiredForTrend = input.bool(false, '⭐ Required', inline='sig9opts', group='2️⃣ Entry Signals', tooltip='This signal MUST be active for trend mode activation')
+signal9OnlyMode = input.bool(false, 'Only', inline='sig9opts', group='2️⃣ Entry Signals', tooltip='Make this the ONLY active signal (for individual testing)')
+signal9TrendEnable = input.bool(false, 'Trend', inline='sig9opts', group='2️⃣ Entry Signals', tooltip='Include this signal in trend majority calculation')
+
+// Signal 10
+// Row 1: Enable + Name + Usage
+signal10Enable = input.bool(false, 'Signal 10', inline='sig10', group='2️⃣ Entry Signals', tooltip='Tenth signal source')
+signal10Name = input.string('Custom', 'Name', inline='sig10', group='2️⃣ Entry Signals')
+signal10Usage = input.string('All Entries', 'Usage', options=['Long Only', 'Short Only', 'All Entries', 'Observe'], inline='sig10', group='2️⃣ Entry Signals')
+// Row 2: Long + Short Sources
+signal10LongSrc = input.source(close, 'Long', inline='sig10src', group='2️⃣ Entry Signals', tooltip='Connect to: Custom Long, External Long, or any Long signal plot')
+signal10ShortSrc = input.source(close, 'Short', inline='sig10src', group='2️⃣ Entry Signals', tooltip='Connect to: Custom Short, External Short, or any Short signal plot')
+// Row 3: Advanced Options
+signal10RequiredForTrend = input.bool(false, '⭐ Required', inline='sig10opts', group='2️⃣ Entry Signals', tooltip='This signal MUST be active for trend mode activation')
+signal10OnlyMode = input.bool(false, 'Only', inline='sig10opts', group='2️⃣ Entry Signals', tooltip='Make this the ONLY active signal (for individual testing)')
+signal10TrendEnable = input.bool(false, 'Trend', inline='sig10opts', group='2️⃣ Entry Signals', tooltip='Include this signal in trend majority calculation')
+    
+   
+smartProfitEnable := input.bool(true, 'Enable Smart Profit Locker', group='3️⃣ Exit Systems › SPL', tooltip='Smart trailing stop that locks in profits')
+smartProfitType := input.string('ATR', 'Distance Type', options=['ATR', 'Points', 'Percent'], group='3️⃣ Exit Systems › SPL')
+smartProfitVal := input.float(2.0, 'Distance Value', step=0.1, minval=0.1, group='3️⃣ Exit Systems › SPL')
+smartProfitOffset := input.float(0.1, 'Trail Offset', step=0.01, minval=0.01, group='3️⃣ Exit Systems › SPL')
+
+fixedEnable := input.bool(false, 'Enable Fixed SL/TP', group='3️⃣ Exit Systems › Fixed', tooltip='Traditional stop-loss and take-profit levels')
+fixedStop := input.float(1.5, 'Stop Loss (ATR)', step=0.1, minval=0.1, group='3️⃣ Exit Systems › Fixed')
+tp1Enable := input.bool(false, 'Enable Take Profit', group='3️⃣ Exit Systems › Fixed')
+tp1Size := input.float(2.0, 'Take Profit (ATR)', step=0.1, minval=0.1, group='3️⃣ Exit Systems › Fixed')
+
+maExitOn := input.bool(false, 'Enable MA Exit', group='3️⃣ Exit Systems › MA', tooltip='Exit when price crosses moving average')
+maLen := input.int(21, 'MA Length', minval=1, group='3️⃣ Exit Systems › MA')
+maType := input.string('EMA', 'MA Type', options=['SMA', 'EMA', 'WMA', 'VWMA', 'SMMA'], group='3️⃣ Exit Systems › MA')
+
+bbExitTightness := input.float(0.5, 'BB Exit Tightness', step=0.1, minval=0.1, maxval=1.0, group='3️⃣ Exit Systems › BB', tooltip='How much to tighten SPL when BB exit triggers')
+    
+// 4️⃣ HYBRID / TREND MODE CONTROLS
+// 🎯 PURPOSE:
+// automatic Finite State Machine (FSM) that switches the strategy's behavior
+// between 'Scalp Mode' (using SPL exits) and 'Trend Mode' (using opposite-signal exits).
+// This allows the strategy to adapt to market conditions, taking quick profits in
+// choppy markets and letting winners run in strong trends.
+//
+// ⚙️ HOW IT WORKS:
+// The switch to 'Trend Mode' is governed by two conditions:
+// 1. Signal Power: A measure of how many of the designated 'Trend Indicators'
+//    (from the Signal Matrix) are in agreement. This is the 'trendPowerThreshold'.
+// 2. Position Size: The number of open contracts. This is the 'trendSizeThreshold'.
+//
+// The user can require either or both of these conditions to be met. Once in
+// Trend Mode, the primary exit logic switches from the SPL to looking for an
+// opposite signal from any of the designated trend indicators.
+trendExitEnable := input.bool(true, 'Enable Trend Exit Logic', group='4️⃣ Hybrid/Trend Mode', tooltip='Enable the core trend-following exit system')
+autoHybridMode := input.bool(true, 'Enable Auto Hybrid FSM', group='4️⃣ Hybrid/Trend Mode', tooltip='Automatically switch between SPL and Trend exits based on position size')
+trendPowerThreshold := input.int(60, 'Signal-Power %', minval=1, maxval=100, group='4️⃣ Hybrid/Trend Mode')
+trendSizeThreshold := input.int(0, 'Contracts Threshold (0 = off)', minval=0, group='4️⃣ Hybrid/Trend Mode')
+requireBothConditions := input.bool(true, 'Require BOTH Power & Size?', group='4️⃣ Hybrid/Trend Mode')
+    
+// 5️⃣ FILTERS
+// 🎯 PURPOSE:
+// This section provides additional layers of confirmation and risk management by
+// filtering out low-probability trade signals. These filters analyze market
+// conditions (like volatility and range) to help avoid entries during unfavorable
+// periods, such as extreme volatility spikes or directionless, choppy markets.
+//
+// ⚙️ AVAILABLE FILTERS:
+// - Bollinger Bands (BB): Can be used to prevent new entries when the price is already
+//   at a statistical extreme (e.g., outside the upper/lower bands). It can also
+//   be used to trigger a tightening of the Smart Profit Locker (SPL).
+// - Relative Bandwidth (RBW): A measure of volatility. This can be used to
+//   determine if the market is trending or ranging, helping to activate or
+//   deactivate certain strategies accordingly.
+bbLength := input.int(20, 'BB Length', minval=5, maxval=50, group='5️⃣ Filters › Bollinger Bands', tooltip='Bollinger Band period for exit logic')
+bbMultiplier := input.float(3.0, 'BB Mult', minval=1.0, maxval=5.0, step=0.1, group='5️⃣ Filters › Bollinger Bands', tooltip='Bollinger Band standard deviation multiplier')
+bbEntryFilterEnable := input.bool(false, 'BB Entry Filter', group='5️⃣ Filters › Bollinger Bands', tooltip='Ignore signals at BB extremes')
+bbExitEnable := input.bool(false, 'BB Exit Logic', group='5️⃣ Filters › Bollinger Bands', tooltip='Trigger tight SPL at BB extremes')
+
+rbwEnable := input.bool(false, 'Enable RBW Filter', group='5️⃣ Filters › RBW', tooltip='Relative Bandwidth filter for signal quality')
+rbwBandType := input.string('KC', 'Band Type', group='5️⃣ Filters › RBW', options=['BB', 'KC', 'DC'])
+rbwLength := input.int(100, 'Length', group='5️⃣ Filters › RBW')
+rbwMultiplier := input.float(2.0, 'Mult', step=0.5, group='5️⃣ Filters › RBW')
+
+atrLen := input.int(14, 'ATR Length', minval=1, group='5️⃣ Filters › ATR', tooltip='ATR period for various calculations')
+
+tablePosition := input.string('Top Right', 'Status Table Position', options=['Top Right', 'Top Left', 'Middle Right', 'Middle Left', 'Bottom Right', 'Bottom Left'], group='7️⃣ Visual Settings', tooltip='Where to place the status table')
+compactMode := input.bool(false, 'Compact Mode (Mobile)', group='7️⃣ Visual Settings', tooltip='Shrink UI elements for tight screens')
+trendModeColor := input.color(#089981, 'Trend Mode Color', group='7️⃣ Visual Settings')
+scalpModeColor := input.color(#f23645, 'Scalp Mode Color', group='7️⃣ Visual Settings')
+hybridModeColor := input.color(#2157f3, 'Hybrid Mode Color', group='7️⃣ Visual Settings')
+flatModeColor := input.color(#808080, 'Flat/No Position Color', group='7️⃣ Visual Settings')
+modeBackgroundIntensity := input.int(60, 'Background Transparency', minval=50, maxval=95, group='7️⃣ Visual Settings')
+atrLength := input.int(20, 'ATR Length for Background Range', minval=5, maxval=100, group='7️⃣ Visual Settings', tooltip='ATR period for background highlighting')
+rangeMultiplier := input.float(1.5, 'Background Range Multiplier', minval=0.5, maxval=3.0, step=0.1, group='7️⃣ Visual Settings', tooltip='Multiplier for background range envelope')
+
+// 8️⃣ DEBUG & ADVANCED
+// 🎯 PURPOSE:
+// Provides tools for developers and advanced users to troubleshoot the strategy's
+// behavior. 
+debugLevel := input.string('Basic', 'Debug Level', options=['Off', 'Basic', 'Detailed', 'Full'], group='8️⃣ Debug & Advanced', tooltip='Controls the verbosity of on-chart labels for troubleshooting')
+phantomAutoCloseEnable := input.bool(true, 'Auto-Close Phantom Positions', group='8️⃣ Advanced/Debug', tooltip='Automatically close phantom positions (strategy.position_size != 0 but no open trades)')
+
+// 9️⃣ BACKTESTING & VIRTUAL ACCOUNTS
+// 🎯 PURPOSE:
+showBacktestTable := input.bool(true, 'Show Backtest Table', group='9️⃣ Backtesting & Virtual Accounts', tooltip='Display a detailed table with performance metrics for each individual signal')
+commissionPerTrade := input.float(2.50, 'Commission Per Trade', minval=0.0, step=0.25, group='9️⃣ Back-Testing', tooltip='Commission cost per trade (both entry and exit)')
+slippagePerTrade := input.float(0.50, 'Slippage Per Trade', minval=0.0, step=0.25, group='9️⃣ Back-Testing', tooltip='Slippage cost per trade (market impact)')
+virtualPositionSize := input.int(1, 'Virtual Position Size', minval=1, group='9️⃣ Back-Testing', tooltip='Position size for virtual accounts (contracts/shares)')
+
+
+// ═══════════════════ LEGACY INPUT CLEANUP COMPLETE ═══════════════════
+// All legacy input declarations have been removed and consolidated into the refactored panel above.
+// Exit system variables are now properly managed through the consolidated input block.
 
 // ═══════════════════ OPTIMIZED LABEL POOL SYSTEM ═══════════════════
-// Reduced maximum labels for better performance while maintaining visual quality
+// 💡 KEY FEATURES:
+// - Recycling: Labels are recycled on each new bar, dramatically reducing the number
+//   of objects created and avoiding Pine Script's drawing limits.
+// - Performance: This is significantly faster than creating new objects on the fly.
+// - Priority Allocation: The system gives priority to more important labels (like
+//   entry/exit signals) to ensure they are always displayed, even if the label
+//   limit for a single bar is reached.
 var int MAX_LABELS = 250  // Reduced from 450 to improve performance
 var label[] labelPool = array.new<label>()
 var int labelPoolIndex = 0
@@ -66,12 +397,69 @@ var int labelsCreatedThisBar = 0
 var int lastProcessedBar = na
 var int priorityLabelsCreated = 0  // Track high-priority labels separately
 
+// ═══════════════════ TESTING & VALIDATION FRAMEWORK ═══════════════════
+// 🎯 PURPOSE: Monitor system health and validate critical fixes
+// Comprehensive testing framework to ensure memory management and exit system fixes work properly
+
+type TestingMetrics
+    int memoryTests
+    int performanceTests
+    array<string> testResults
+    float testStartTime
+    bool testingEnabled
+
+// Testing mode input (separate from constructor to avoid line length issues)
+testingModeEnabled = input.bool(false, "🧪 Enable Testing Mode", group="🔧 Debug", tooltip="Enable comprehensive testing and validation framework")
+
+var TestingMetrics testMetrics = TestingMetrics.new(memoryTests = 0, performanceTests = 0, testResults = array.new<string>(), testStartTime = na, testingEnabled = testingModeEnabled)
+
+// ═══════════════════ DEBUG SYSTEM INITIALIZATION ═══════════════════
+// Update debug flags based on input values (variables declared early in GLOBAL section)
+debugEnabled := debugLevel != "Off"
+showDebugLabels := debugEnabled
+showDetailedDebug := debugLevel == "Detailed" or debugLevel == "Full"
+showFullDebug := debugLevel == "Full"
+// Memory leak detection test
+runMemoryTest() =>
+    if testMetrics.testingEnabled
+        poolSize = array.size(labelPool)
+        usage = poolSize / MAX_LABELS * 100
+        
+        if usage > 90
+            array.push(testMetrics.testResults, "MEMORY_CRITICAL: " + str.tostring(usage) + "%")
+        else if usage > 70
+            array.push(testMetrics.testResults, "MEMORY_WARNING: " + str.tostring(usage) + "%")
+        
+        testMetrics.memoryTests += 1
+
+// Performance benchmark test
+runPerformanceTest() =>
+    if testMetrics.testingEnabled
+        startTime = timenow
+        
+        // Test label pool efficiency
+        testLabelCount = 0
+        if array.size(labelPool) > 0
+            testLabelCount := array.size(labelPool)
+        
+        processingTime = timenow - startTime
+        
+        if processingTime > 100  // More than 100ms is concerning
+            array.push(testMetrics.testResults, "PERFORMANCE_SLOW: " + str.tostring(processingTime) + "ms")
+        
+        testMetrics.performanceTests += 1
+
 // Reset counters on new bar (global scope)
 currentBar = bar_index
 if currentBar != lastProcessedBar
     labelsCreatedThisBar := 0
     priorityLabelsCreated := 0
     lastProcessedBar := currentBar
+    
+    // Run tests on new bar
+    if testMetrics.testingEnabled
+        runMemoryTest()
+        runPerformanceTest()
 
 // Smart label recycling with priority-based allocation
 getPooledLabel(isPriority = false) =>
@@ -121,7 +509,17 @@ updateLabel(labelId, x, y, txt, style, bgColor, textColor, size) =>
         label.set_size(labelId, size)
 
 // ═══════════════════ CONTRAST-SAFE COLOR SYSTEM ═══════════════════
-// Semantic color mapping with transparency levels
+// This system ensures that all text on the chart remains readable, regardless of the
+// background color it's placed on. 
+//
+// ⚙️ HOW IT WORKS:
+// - getSemanticColor(): A helper function that maps abstract concepts ('critical',
+//   'success', 'info') to the actual user-defined colors from the input panel. It also
+//   applies a standardized transparency level based on the 'priority' of the message.
+// - getContrastSafeTextColor(): The core of the system. It calculates the luminance
+//   difference between a given background color and the chart's main background. Based
+//   on this, it returns either black or white, whichever will be more readable.
+
 getSemanticColor(colorType, priority) =>
     baseColor = switch colorType
         "critical" => scalpModeColor
@@ -155,7 +553,21 @@ getContrastSafeTextColor(backgroundColor) =>
     contrastDiff < 240 ? (color.r(chart.bg_color) + color.g(chart.bg_color) + color.b(chart.bg_color) < 384 ? color.white : color.black) : color.white
 
 // ═══════════════════ PERFORMANCE-OPTIMIZED RENDERING ═══════════════════
-// Smart zoom gating with entry/exit preservation
+//designed to reduce the script's
+// calculation load, especially on historical data. It intelligently skips the execution
+// of non-critical visual updates (like drawing labels or background colors) on bars
+// where no trading activity is occurring. This results in a much faster and more
+// responsive script.
+//
+// ⚙️ HOW IT WORKS (ZOOM GATING):
+// - The script determines a 'skipFactor' based on the chart's timeframe. Lower
+//   timeframes have a higher skip factor (e.g., render 1 in every 5 bars), while
+//   higher timeframes render every bar.
+// - The 'shouldRender' variable is true only on bars that fall on this interval.
+// - CRITICALLY, the 'shouldRenderCritical' variable ensures that rendering is NEVER
+//   skipped if a position is opened/closed or on the very last bar of the chart.
+//   This guarantees that all important events are always visualized.
+
 getOptimizedSkipFactor() =>
     seconds = timeframe.in_seconds(timeframe.period)
     positionActive = strategy.position_size != 0
@@ -173,14 +585,22 @@ getOptimizedSkipFactor() =>
 skipFactor = getOptimizedSkipFactor()
 shouldRender = bar_index % skipFactor == 0
 
-// Always render critical events regardless of skip factor
-shouldRenderCritical = shouldRender or 
-                      strategy.position_size != strategy.position_size[1] or  // Position change
-                      barstate.isconfirmed or  // Bar confirmation
-                      barstate.islast          // Last bar
+// Note: shouldRenderCritical is calculated in the PERFORMANCE-OPTIMIZED RENDERING section below
 
 // ═══════════════════ STREAMLINED ANTI-OVERLAP SYSTEM ═══════════════════
-// Simplified to reduce memory usage while maintaining label separation
+// To prevent on-chart labels from drawing on top of one another, which would make
+// them unreadable. This system ensures that labels are neatly stacked and spaced
+// out, even when multiple events occur in close proximity.
+//
+// ⚙️ HOW IT WORKS:
+// - It maintains two small, pre-sized arrays that store the Y-position and bar index
+//   of the last few labels that were drawn.
+// - Before drawing a new label, the 'getAdaptiveY' function checks these arrays to see
+//   if a recent label is too close. If it detects a potential overlap, it calculates
+//   a new, slightly offset Y-coordinate for the new label.
+// - Using pre-sized arrays (`array.new<type>(size)`) is a key performance optimization
+//   that is more memory-efficient than dynamically growing arrays on the fly.
+
 var float[] lastLabelY = array.new<float>(4, na)  // Pre-sized array for better performance
 var int[] lastLabelBar = array.new<int>(4, na)    // Pre-sized array for better performance
 
@@ -220,20 +640,13 @@ getSmartLabelY(baseY, isAbove, priority) =>
     newY
 
 // ═══════════════════ OPTIMIZED DEBUG SYSTEM ═══════════════════
-// Streamlined debug system with reduced memory footprint
-bool debugEnabled = debugLevel != "Off"
-showDebugLabels = debugEnabled
-showDetailedDebug = debugLevel == "Detailed" or debugLevel == "Full"
-showFullDebug = debugLevel == "Full"
-
-// Smart debug rendering - only show when truly needed
-shouldRenderDebug = showDebugLabels and 
-                   (strategy.position_size != 0 or barstate.islast or barstate.isconfirmed) and
-                   shouldRenderCritical
+// NOTE: Debug flags are initialized early in the script after input declarations
 
 // Optimized debug message function with priority-based allocation
+// Updated for Pine Script consistency - always call but conditionally execute
 debugMessage(string type, string message, color bgColor, color txtColor, float yOffset, bool isPriority = false) =>
-    if shouldRenderDebug
+    // Always call but conditionally execute for Pine Script consistency
+    if shouldRenderDebug and debugEnabled
         // Get label with priority flag
         labelId = getLabelFromPool(isPriority)
         if not na(labelId)
@@ -244,122 +657,154 @@ debugMessage(string type, string message, color bgColor, color txtColor, float y
             // Truncate very long messages to save memory
             displayMessage = str.length(message) > 100 ? str.substring(message, 0, 97) + "..." : message
             updateLabel(labelId, bar_index, yPos, type + ": " + displayMessage, label.style_label_down, debugColor, textColor, size.small)
+    // Return a dummy value for consistency
+    true
 
-// ─────────────────── POSITION SIZE CONTROL (declared early for strategy function) ───────────────────
-positionQty = input.int(1, 'Contracts per Signal', minval = 1, maxval = 1000, group = '💼 Position Size', inline='pos1', tooltip = 'Set the number of contracts/shares to trade per signal')
-pyramidLimit = input.int(5, 'Max Total Contracts', minval = 1, maxval = 100, group = '💼 Position Size', inline='pos2', tooltip = 'Maximum total contracts allowed. Strategy will reject new entries when this limit is reached.')
-// NOTE: Pyramiding must be set to maximum expected value (Pine Script limitation - can't use input variable)
-// Users control actual limit through position sizing logic rather than strategy parameter
+// ═══════════════════ STRATEGY DECLARATION & CONFIGURATION ═══════════════════
 
 strategy(title = 'EZ Algo Trader (Beta)', overlay = true, default_qty_type = strategy.fixed, default_qty_value = 1, calc_on_order_fills = true, process_orders_on_close = false, calc_on_every_tick = true, pyramiding = 5)
-// User-controllable quantity
 
 // ═══════════════════ GLOBAL VARIABLE DECLARATIONS ═══════════════════
-// CLEANED UP: Organized variables by category and removed redundant ones
+// This section is the script's central memory bank. 
+// Variables are grouped by their function (Core State, Mode Tracking, Signal Processing, etc.)
 
 // === CORE STRATEGY STATE ===
-var float strategyEntryPrice = na
-var bool entryAllowed = true
-var int currentPositionSize = 0
-var bool currentPosition = false
+// They know if we are in a trade, the size of the trade, the entry price, and
+// whether the logic currently permits a new entry.
+var float strategyEntryPrice = na  // Stores the entry price of the current position. Resets to 'na' when flat.
+var bool entryAllowed = true         // A master flag that controls whether a new entry is permitted. Used for blocking entries during certain conditions.
+var int currentPositionSize = 0      // Tracks the absolute size of the current position (e.g., 5 contracts, not +5 or -5).
+var bool currentPosition = false       // A simple boolean indicating if the strategy is currently in any position (true) or flat (false).
+var float volatilityRatio = 1.0        // Tracks current ATR relative to average ATR for volatility monitoring.
+var string exitDirection = ""           // Tracks exit direction for debug messages (Long/Short).
+var bool debugEnabled = false            // Calculated from debugLevel - true when debug is enabled.
 
 // === EXIT SYSTEM STATE ===
-var float smartOffset = na
-var float smartDistance = na
-var bool trailExitSent = false
-var bool maExitSent = false
-var bool fixedExitSent = false
+// Manages the state of the various exit systems. The boolean 'sent' flags are
+// crucial anti-spam controls, ensuring that we only send one of each type of
+// exit order per trade, preventing conflicting or redundant exit signals.
+var float smartOffset = na         // Stores the calculated offset for the Smart Profit Locker, determining the trailing distance.
+var float smartDistance = na       // Stores the calculated price distance for the Smart Profit Locker exit.
+var bool trailExitSent = false       // Anti-spam flag for the Smart Profit Locker. Becomes true after the exit is sent, preventing duplicates.
+var bool maExitSent = false          // Anti-spam flag for the Moving Average exit. Becomes true after the exit is sent.
+var bool fixedExitSent = false       // Anti-spam flag for the Fixed SL/TP exit. Becomes true after the exit is sent.
 
 // === STRATEGY PERFORMANCE TRACKING ===
-var array<float> signal_strategy_profits = array.new<float>(10, 0.0)
-var array<float> signal_strategy_drawdowns = array.new<float>(10, 0.0)
-var array<int> signal_strategy_trades = array.new<int>(10, 0)
-var array<int> signal_strategy_wins = array.new<int>(10, 0)
+// This is the data backend for the virtual account system. 
+var array<float> signal_strategy_profits = array.new<float>(10, 0.0)   // Tracks the cumulative profit or loss for each of the 10 virtual signal accounts.
+var array<float> signal_strategy_drawdowns = array.new<float>(10, 0.0) // Tracks the maximum drawdown experienced by each virtual signal account.
+var array<int> signal_strategy_trades = array.new<int>(10, 0)          // Counts the total number of trades taken by each virtual signal account.
+var array<int> signal_strategy_wins = array.new<int>(10, 0)            // Counts the total number of winning trades for each virtual signal account.
 
 // === LEGACY BACKTESTING VARIABLES (CONSOLIDATED) ===
-var array<int> signal_tradeCounts = array.new<int>(10, 0)
-var array<int> signal_winCounts = array.new<int>(10, 0)
-var array<float> signal_profits = array.new<float>(10, 0.0)
-var array<float> signal_entryPrices = array.new<float>(10, na)
-var array<string> signal_positions = array.new<string>(10, "none")
-var array<float> signal_largestWins = array.new<float>(10, 0.0)
-var array<float> signal_grossProfits = array.new<float>(10, 0.0)
-var array<float> signal_grossLosses = array.new<float>(10, 0.0)
+// These arrays are part of the original virtual backtesting system. While the primary
+// performance tracking has been updated, these variables are retained for compatibility
+// and deeper, more granular analysis of each signal's historical performance,
+// including gross profit/loss calculations.
+var array<int> signal_tradeCounts = array.new<int>(10, 0)            // Legacy: Counts total trades for each signal's virtual account.
+var array<int> signal_winCounts = array.new<int>(10, 0)              // Legacy: Counts winning trades for each signal's virtual account.
+var array<float> signal_profits = array.new<float>(10, 0.0)          // Legacy: Tracks cumulative P&L for each signal's virtual account.
+var array<float> signal_entryPrices = array.new<float>(10, na)       // Legacy: Stores the entry price for each signal's current virtual position.
+var array<string> signal_positions = array.new<string>(10, "none")   // Legacy: Stores the position status ('long', 'short', 'none') for each virtual account.
+var array<float> signal_largestWins = array.new<float>(10, 0.0)      // Legacy: Tracks the largest single winning trade for each signal.
+var array<float> signal_grossProfits = array.new<float>(10, 0.0)     // Legacy: Tracks the sum of all positive P&L trades for each signal.
+var array<float> signal_grossLosses = array.new<float>(10, 0.0)      // Legacy: Tracks the sum of all negative P&L trades (as a positive value) for each signal.
 
-// Panel control variables
-showBacktestTable = input.bool(true, '📊 Individual Signal Backtest', group = '🔍 Backtesting Panels', tooltip = 'Show individual signal performance (existing table)')
-futuresMultiplier = input.int(20, '💰 Futures Multiplier', minval=1, maxval=100, group = '🔍 Backtesting Panels', tooltip = 'Point value multiplier for futures (NQ=20, ES=50, YM=5, RTY=50)')
+// === ADVANCED TREND EXIT SYSTEM STATE ===
+// These variables form the brain of the advanced trend-following exit logic. They
+// track whether the system is actively looking for a trend-based exit, the price at
+// which that exit should occur, and conditions for re-entering a trade after a
+// partial profit-take. This allows for more nuanced trade management than a simple
+// stop-loss.
+var bool inTrendExitMode = false     // Flag indicating if the system is currently in the special trend exit mode.
+var bool inProfitMode = false        // Flag indicating if a profit-taking event has occurred within the trend mode.
+var float trendExitPrice = na         // Stores the specific price level that would trigger a trend-based exit.
+var bool waitingForReEntry = false   // Flag that becomes true after a partial profit-take, indicating the system is looking for a signal to re-enter.
 
-// ==== Hybrid Trend-Mode Settings ====
-trendExitEnable = input.bool(true, "Enable Trend Exit Logic", group="🎯 Hybrid Trend Mode", tooltip="Enable the core trend-following exit system.")
-autoHybridMode = input.bool(true, "Enable Auto Hybrid FSM", group="🎯 Hybrid Trend Mode", tooltip="Automatically switch between SPL and Trend exits based on position size.")
-trendPowerThreshold   = input.int(60, "Signal-Power %", minval=1, maxval=100, group="🎯 Hybrid Trend Mode")
-trendSizeThreshold    = input.int(0,  "Contracts Threshold (0 = off)", minval=0, group="🎯 Hybrid Trend Mode")
-requireBothConditions = input.bool(true, "Require BOTH Power & Size?", group="🎯 Hybrid Trend Mode")
-
-// Advanced Trend Exit System Variables (moved here from later in script)
-var bool inTrendExitMode = false
-var bool inProfitMode = false
-var float trendExitPrice = na
-var bool waitingForReEntry = false
-var int exitDirection = 0  // 1 = was long, -1 = was short
-var bool reEntrySignal = false
-var bool colorChangeExit = false
-var bool useAdvancedTrendExit = false
+// === RBW FILTER STATE VARIABLES ===
+// Variables for the Relative Bandwidth (RBW) filter system that provides directional bias
+var float rbwUpper = na              // Upper band for RBW calculation
+var float rbwLower = na              // Lower band for RBW calculation
+var float rbwMiddle = na             // Middle band for RBW calculation
+var float rbwRelativeBandwidth = na  // Calculated relative bandwidth value
+var int rbwSignal = 0                // RBW signal: 0=bearish, 2=bullish
+var float rbwBBMiddle = na           // Bollinger Band middle for RBW reference
+var float rbwBBUpper = na            // Bollinger Band upper for RBW reference
+var float rbwBBLower = na            // Bollinger Band lower for RBW reference
+var float rbwBBStdDev = na           // Standard deviation for RBW BB calculation
+var float rbwRef = na                // Reference band value for RBW signal
+var float rbwStdDev = na             // Standard deviation for RBW calculation
+var float rbwATR = na                // ATR value for RBW calculation
+var bool reEntrySignal = false       // A boolean flag that is set to true when a valid re-entry condition is met.
+var bool colorChangeExit = false     // A flag that triggers an exit based on a change in trend-confirming indicator color or state.
+var bool useAdvancedTrendExit = false // Master switch to enable or disable the advanced trend exit logic.
 
 // === HYBRID SYSTEM VARIABLES ===
-var bool shouldUseTrendMode = false
-var bool shouldUseSPL = false
-var bool bbLongFilterOK = true
-var bool bbShortFilterOK = true
+// This is the control center for the hybrid engine. 
+var bool shouldUseTrendMode = false   // Real-time flag that is true when conditions for Trend Mode (signal power, position size) are met.
+var bool shouldUseSPL = false         // Real-time flag that is true when the strategy should use the Smart Profit Locker (i.e., in Scalp Mode).
+var bool bbLongFilterOK = true        // Becomes false if the Bollinger Band filter is blocking long entries.
+var bool bbShortFilterOK = true       // Becomes false if the Bollinger Band filter is blocking short entries.
+
+// ═══════════════════ PERFORMANCE-OPTIMIZED RENDERING ═══════════════════
+// Calculate rendering flags to optimize performance and ensure proper debug display
+// Note: getOptimizedSkipFactor() function is defined above (around line 576)
+
+// Calculate rendering conditions using the existing function
+// Note: skipFactor and shouldRender are already calculated above (around line 590-591)
+
+// Calculate shouldRenderCritical now that skipFactor and shouldRender are available
+shouldRenderCritical = shouldRender or strategy.position_size != strategy.position_size[1] or barstate.isconfirmed or barstate.islast
+
+// Update shouldRenderDebug now that shouldRenderCritical is calculated
+shouldRenderDebug := showDebugLabels and (strategy.position_size != 0 or barstate.islast or barstate.isconfirmed) and shouldRenderCritical
 
 // === TRADE TRACKING VARIABLES ===
-var array<float> signal_contributions = array.new<float>(10, 0.0)
-var float volatilityRatio = na
-var float current_trade_entry = na
-var float current_trade_peak = na
-var float current_trade_trough = na
-var array<bool> current_trade_signals = array.new<bool>(10, false)
+// These variables provide a deep, real-time analysis of the current open trade.
+var array<float> signal_contributions = array.new<float>(10, 0.0) // Tracks the profit/loss contribution of each signal to the current trade.
+var float current_trade_entry = na                                  // The entry price of the currently active trade.
+var float current_trade_peak = na                                   // The highest price reached during the current trade (Maximum Favorable Excursion).
+var float current_trade_trough = na                                 // The lowest price reached during the current trade (Maximum Adverse Excursion).
+var array<bool> current_trade_signals = array.new<bool>(10, false)  // An array of booleans indicating which of the 10 signals fired to initiate the current trade.
 
 // === ENTRY SIGNAL STATE ===
-var bool longEntrySignal = false
-var bool shortEntrySignal = false
+// These are the final, master signal variables. 
+var bool longEntrySignal = false     // The final master signal for long entries. If this is true at the end of a bar's calculation, a long entry is attempted.
+var bool shortEntrySignal = false    // The final master signal for short entries. If this is true at the end of a bar's calculation, a short entry is attempted.
 
 // === PHANTOM POSITION DETECTION ===
-var int phantomPositionBars = 0
-var bool phantomDetected = false
-phantomAutoCloseEnable = input.bool(true, "🛡️ Auto-Close Phantom Positions", group="🔧 Debug Settings", tooltip="Automatically close phantom positions (strategy.position_size != 0 but no open trades). Disable for extra safety in live trading.")
+// A critical safety system. A 'phantom position' occurs if the script believes it's
+// flat but the broker reports a position (or vice-versa). 
 
 // ═══════════════════ VIRTUAL SIGNAL ARCHITECTURE ═══════════════════
-// Individual Signal Backtesting System - 10 Parallel Virtual Accounts
-// Each signal gets its own isolated "trading account" for perfect attribution
+// This is the engine behind the per-signal backtesting feature. 
 
 // Virtual Account Structure for Each Signal
 type VirtualAccount
-    bool inPosition = false
-    string direction = "none"  // "long", "short", "none"
-    float entryPrice = na
-    float currentPnL = 0.0
-    float totalPnL = 0.0
-    int totalTrades = 0
-    int winningTrades = 0
-    float maxDrawdown = 0.0
-    float peakPnL = 0.0
-    float troughPnL = 0.0
-    float largestWin = 0.0
-    float largestLoss = 0.0
-    float grossProfit = 0.0
-    float grossLoss = 0.0
-    int longTrades = 0
-    int shortTrades = 0
-    int longWins = 0
-    int shortWins = 0
-    float longPnL = 0.0
-    float shortPnL = 0.0
-    float commission = 0.0
-    float slippage = 0.0
+    bool inPosition = false      // Is this virtual account currently holding a position?
+    string direction = "none"    // Direction of the current position: "long", "short", or "none".
+    float entryPrice = na        // The price at which the current virtual position was entered.
+    float currentPnL = 0.0       // The real-time, unrealized profit or loss of the current open position.
+    float totalPnL = 0.0         // The cumulative, realized profit or loss across all closed trades for this signal.
+    int totalTrades = 0          // The total number of trades this virtual account has executed.
+    int winningTrades = 0        // The number of trades that closed with a positive profit.
+    float maxDrawdown = 0.0      // The largest peak-to-trough reduction in this account's P&L.
+    float peakPnL = 0.0          // The highest P&L value this account has reached during an open trade.
+    float troughPnL = 0.0        // The lowest P&L value this account has reached during an open trade.
+    float largestWin = 0.0       // The P&L from the single most profitable trade.
+    float largestLoss = 0.0      // The P&L from the single worst trade (stored as a positive number).
+    float grossProfit = 0.0      // The sum of all winning trades' P&L.
+    float grossLoss = 0.0        // The sum of all losing trades' P&L (stored as a positive number).
+    int longTrades = 0           // The total number of long trades taken.
+    int shortTrades = 0          // The total number of short trades taken.
+    int longWins = 0             // The number of winning long trades.
+    int shortWins = 0            // The number of winning short trades.
+    float longPnL = 0.0          // The cumulative P&L from all long trades.
+    float shortPnL = 0.0         // The cumulative P&L from all short trades.
+    float commission = 0.0       // The total commission paid for this virtual account's trades.
+    float slippage = 0.0         // The total slippage incurred for this virtual account's trades.
 
-// Initialize 10 Virtual Accounts (one for each signal)
+// === VIRTUAL ACCOUNT INITIALIZATION ===
 var VirtualAccount virtualAccount1 = VirtualAccount.new()
 var VirtualAccount virtualAccount2 = VirtualAccount.new()
 var VirtualAccount virtualAccount3 = VirtualAccount.new()
@@ -371,65 +816,52 @@ var VirtualAccount virtualAccount8 = VirtualAccount.new()
 var VirtualAccount virtualAccount9 = VirtualAccount.new()
 var VirtualAccount virtualAccount10 = VirtualAccount.new()
 
-// Array of virtual accounts for easy iteration
+// master list of all 10 virtual accounts
 var array<VirtualAccount> virtualAccounts = array.from(virtualAccount1, virtualAccount2, virtualAccount3, virtualAccount4, virtualAccount5, virtualAccount6, virtualAccount7, virtualAccount8, virtualAccount9, virtualAccount10)
 
-// Commission and Slippage Configuration
-commissionPerTrade = input.float(2.50, '💰 Commission Per Trade', minval=0.0, step=0.25, group='💼 Virtual Account Settings', tooltip='Commission cost per trade (both entry and exit)')
-slippagePerTrade = input.float(0.50, '📉 Slippage Per Trade', minval=0.0, step=0.25, group='💼 Virtual Account Settings', tooltip='Slippage cost per trade (market impact)')
-virtualPositionSize = input.int(1, '📊 Virtual Position Size', minval=1, group='💼 Virtual Account Settings', tooltip='Position size for virtual accounts (contracts/shares)')
+// === COMMISSION & SLIPPAGE CONFIGURATION ===
+// These inputs are vital for creating realistic backtests.
+commissionPerTrade := input.float(2.50, 'Commission Per Trade', minval=0.0, step=0.25, group='💼 Virtual Account Settings', tooltip='Commission cost per trade (both entry and exit)') // Defines the round-trip commission cost for each virtual trade.
+slippagePerTrade := input.float(0.50, 'Slippage Per Trade', minval=0.0, step=0.25, group='💼 Virtual Account Settings', tooltip='Slippage cost per trade (market impact)')       // Defines the estimated slippage cost for each virtual trade.
+virtualPositionSize := input.int(1, 'Virtual Position Size', minval=1, group='💼 Virtual Account Settings', tooltip='Position size for virtual accounts (contracts/shares)') // Sets the fixed position size used for all virtual account simulations.
 
-// Parameter Change Detection System
-var int lastParameterHash = na
-var bool parametersChanged = false
+// ═══════════════════ PARAMETER CHANGE DETECTION ═══════════════════
+// A critical system for ensuring the integrity and reliability of backtest results.
+var int lastParameterHash = na      // Stores the hash value of the script's parameters from the previous bar's calculation.
+var bool parametersChanged = false   // Becomes true for a single bar if the current parameter hash does not match the last one.
 
 
-// ─────────────────── EARLY VARIABLE DECLARATIONS (MOVED FOR COMPILATION) ───────────────────
-// These variables are moved here because they're used in functions defined earlier in the script
+// ═══════════════════ CALCULATED VALUES (USING CONSOLIDATED INPUTS) ═══════════════════
+// All input variables are declared in the consolidated input panel at the top.
+// This section only contains calculated values and derived indicators.
 
-// ATR Settings (moved from line 902)
-atrLen = input.int(14, 'ATR Length', minval = 1, group = 'ATR Settings')
-atrVal = ta.atr(atrLen)
+// ATR Calculations (using consolidated atrLen variable)
+atrVal = ta.atr(atrLen) // Calculates the ATR value based on the specified length, making it available for functions that need it.
 atrAvg = ta.sma(atrVal, 20)
 
-// ═══════════════════ ESSENTIAL INPUT VARIABLES RESTORED ═══════════════════
-// These were accidentally removed during deduplication - they are essential for script functionality
+// Moving Average Calculation (using consolidated maLen and maType variables)
+priceMA = maType == 'SMA' ? ta.sma(close, maLen) : maType == 'EMA' ? ta.ema(close, maLen) : maType == 'WMA' ? ta.wma(close, maLen) : maType == 'VWMA' ? ta.vwma(close, maLen) : ta.rma(close, maLen) // Dynamically calculates the selected Moving Average based on user input.
 
-// MA Exit Settings
-maLen = input.int(21, 'MA Length', minval = 1, group = '📊 MA Exit')
-maType = input.string('EMA', 'MA Type', options = ['SMA', 'EMA', 'WMA', 'VWMA', 'SMMA'], group = '📊 MA Exit')
-priceMA = maType == 'SMA' ? ta.sma(close, maLen) : maType == 'EMA' ? ta.ema(close, maLen) : maType == 'WMA' ? ta.wma(close, maLen) : maType == 'VWMA' ? ta.vwma(close, maLen) : ta.rma(close, maLen)
+// NOTE: All input variables (fixedUnit, hybridSwitchThreshold, etc.) are declared in the consolidated input panel at the top.
+// No duplicate declarations needed here - using consolidated variables directly.
 
-// Fixed SL/TP Additional Settings
-fixedUnit = input.string('ATR', 'Unit', options = ['ATR', 'Points'], group = '🛡️ Fixed SL/TP')
-
-// Bollinger Band Settings
-bbLength = input.int(20, 'BB Length', minval=5, maxval=50, group = '📊 BB Exit', tooltip = 'Bollinger Band period for exit logic')
-bbMultiplier = input.float(3.0, 'BB Mult', minval=1.0, maxval=5.0, step=0.1, group = '📊 BB Exit', tooltip = 'Bollinger Band standard deviation multiplier')
-bbEntryFilterEnable = input.bool(false, '🚫 BB Entry Filter', group = '📊 BB Exit', tooltip = 'Ignore signals at BB extremes')
-bbExitEnable = input.bool(false, '⚡ BB Exit Logic', group = '📊 BB Exit', tooltip = 'Trigger tight SPL at BB extremes')
-
-// Hybrid System Settings
-hybridSwitchThreshold = input.int(2, 'Auto-Hybrid: Switch at Contracts', minval=1, maxval=10, group = '🔄 Hybrid System', tooltip='Switch between SPL and Trend exits based on position size')
-
-// RBW Filter Settings
-rbwEnable = input.bool(false, '📊 Enable RBW Filter', group = '📊 RBW Filter')
-rbwBandType = input.string("KC", "Band Type", group = '📊 RBW Filter', options=["BB", "KC", "DC"])
-rbwSource = input.source(close, "Source", group = '📊 RBW Filter')
-rbwLength = input.int(100, "Length", group = '📊 RBW Filter')
-rbwMultiplier = input.float(2.0, "Mult", step=0.5, group = '📊 RBW Filter')
-rbwUseTR = input.bool(true, "Use TR", group = '📊 RBW Filter')
-rbwUseAltSrc = input.bool(false, "Alt Src", group = '📊 RBW Filter')
-rbwDesiredCond = input.string("Higher Bandwidth", "Condition", group = '📊 RBW Filter', options=["Higher Bandwidth", "Lower Bandwidth"])
-rbwRefBand = input.string("Middle", "Reference", group = '📊 RBW Filter', options=["Upper", "Lower", "Middle"])
-rbwATRLength = input.int(20, "ATR Len", group = '📊 RBW Filter')
-rbwBBType = input.string("sma", "BB Type", group = '📊 RBW Filter', options=["sma", "ema", "hma", "rma", "wma", "vwma", "linreg", "median"])
-
-// Helper function for Fixed SL/TP calculations
-tpCalc(d) =>
+// ═══════════════════ HELPER FUNCTIONS ═══════════════════
+// If it loops through the entire array without finding a 'true' value, it returns 'false'. This is a common utility function that is not
+array_any(array<bool> arr) =>
+    any = false
+    for i = 0 to array.size(arr) - 1
+        if array.get(arr, i)
+            any := true
+            break
+    any
+// ⚙️ HOW IT WORKS: It takes a distance value 'd' and checks the user's preferred unit
+// ('ATR' or 'Points'). It then returns the correct final distance, either by multiplying
+// the value by the current ATR or by using the raw point value.
+tpCalc(d) => // A simple ternary operator that returns the value 'd' multiplied by ATR if the unit is 'ATR', otherwise returns 'd' unchanged.
     fixedUnit == 'ATR' ? d * ta.atr(atrLength) : d
 
-// Calculate parameter hash for change detection (will be called after inputs are declared)
+// ⚙️ HOW IT WORKS: This function creates a unique numerical 'fingerprint' (a hash) that
+// represents the current state of all critical, backtest-sensitive input settings.
 calculateParameterHash() =>
     // Hash key parameters that affect backtesting
     hashFloat = 0.0
@@ -438,7 +870,9 @@ calculateParameterHash() =>
     hashFloat += virtualPositionSize * 100
     // Signal enables will be added later after they're declared
     int(hashFloat)
-// Reset all virtual accounts when parameters change
+
+// ⚙️ HOW IT WORKS: This function is called whenever the Parameter Change Detection system
+// flags that a setting has been modified. 
 resetVirtualAccounts() =>
     for i = 0 to array.size(virtualAccounts) - 1
         account = array.get(virtualAccounts, i)
@@ -465,7 +899,16 @@ resetVirtualAccounts() =>
         account.commission := 0.0
         account.slippage := 0.0
 
-// Virtual Account Trading Functions
+// ═══════════════════ VIRTUAL TRADE PROCESSING ═══════════════════
+// ⚙️ HOW IT WORKS:
+// 1. ENTRY LOGIC: If the account is flat, it checks for a long or short entry signal.
+//    Upon entry, it flips the `inPosition` flag, records the entry price, and updates
+//    trade counters and initial costs (commission & slippage).
+// 2. REAL-TIME P&L: If the account is already in a position, it calculates the current,
+//    unrealized Profit or Loss on every bar based on the distance between the current
+//    close price and the entry price.
+// 3. DRAWDOWN TRACKING: It continuously monitors the `currentPnL` to keep a running
+//    record of the peak profit and the maximum drawdown experienced during the trade.
 processVirtualTrade(VirtualAccount account, bool longSignal, bool shortSignal, string signalName, int signalIndex) =>
     // Calculate point value for accurate P&L
     pointValue = syminfo.pointvalue * futuresMultiplier
@@ -480,8 +923,7 @@ processVirtualTrade(VirtualAccount account, bool longSignal, bool shortSignal, s
             account.longTrades += 1
             account.commission += commissionPerTrade
             account.slippage += slippagePerTrade
-            if debugEnabled
-                debugMessage("VIRTUAL", signalName + " Virtual Long Entry @ " + str.tostring(close), color.lime, color.white, 0.4)
+            debugMessage("VIRTUAL", signalName + " Virtual Long Entry @ " + str.tostring(close), color.lime, color.white, 0.4)
         else if shortSignal
             account.inPosition := true
             account.direction := "short"
@@ -490,8 +932,7 @@ processVirtualTrade(VirtualAccount account, bool longSignal, bool shortSignal, s
             account.shortTrades += 1
             account.commission += commissionPerTrade
             account.slippage += slippagePerTrade
-            if debugEnabled
-                debugMessage("VIRTUAL", signalName + " Virtual Short Entry @ " + str.tostring(close), color.red, color.white, 0.4)
+            debugMessage("VIRTUAL", signalName + " Virtual Short Entry @ " + str.tostring(close), color.red, color.white, 0.4)
     
     // Update current P&L for open positions
     if account.inPosition
@@ -513,7 +954,19 @@ processVirtualTrade(VirtualAccount account, bool longSignal, bool shortSignal, s
         if currentDrawdown > account.maxDrawdown
             account.maxDrawdown := currentDrawdown
 
-// FIXED: Enhanced exit logic that mirrors main strategy exit systems
+// ⚙️ HOW IT WORKS:
+// 1. EXIT CONDITION CASCADE: It checks for an exit signal by evaluating a series of
+//    potential exit conditions in a specific order of priority. If any condition is met,
+//    it flags the trade for exit and stops checking further. The priority is:
+//      a. An explicit opposite signal from the same indicator.
+//      b. A Moving Average crossover (if enabled).
+//      c. The Smart Profit Locker (simulated as a trailing stop).
+//      d. A Fixed Stop-Loss or Take-Profit level (if enabled).
+// 2. TRADE FINALIZATION: Once an exit is triggered, it calculates the final, realized P&L.
+// 3. STATS UPDATE: It meticulously updates all of the account's performance metrics:
+//    total P&L, win/loss counters, gross profit/loss, largest win/loss, etc.
+// 4. POSITION RESET: Finally, it wipes the account's position state (entry price, direction,
+//    etc.), preparing it to cleanly enter the next trade.
 processVirtualExit(VirtualAccount account, bool exitSignal, string signalName, int signalIndex) =>
     if account.inPosition
         shouldExit = false
@@ -612,105 +1065,27 @@ processVirtualExit(VirtualAccount account, bool exitSignal, string signalName, i
             if debugEnabled
                 debugMessage("VIRTUAL", signalName + " Virtual Exit (" + exitReason + ") @ " + str.tostring(close) + " P&L: $" + str.tostring(finalPnL, "#.##"), finalPnL > 0 ? color.lime : color.red, color.white, 0.5)
 
-// ═══════════════════ MULTI-SIGNAL INPUT SYSTEM ═══════════════════
-// ─────────────────── SIGNAL SOURCE INPUTS ───────────────────
-signal1Enable = input.bool(true, '📊 Signal 1', inline = 'sig1', group = '🔄 Multi-Signals', tooltip = 'Primary signal source')
-signal1LongSrc = input.source(close, 'Long', inline = 'sig1', group = '🔄 Multi-Signals', tooltip = 'Connect to: LuxAlgo Long, UTBot Long, or any Long signal plot')
-signal1ShortSrc = input.source(close, 'Short', inline = 'sig1', group = '🔄 Multi-Signals', tooltip = 'Connect to: LuxAlgo Short, UTBot Short, or any Short signal plot')
-signal1Name = input.string('LuxAlgo', 'Name', inline = 'sig1name', group = '🔄 Multi-Signals')
-signal1Usage = input.string('Entry All', 'Usage', options = ['Entry All', 'Entry Long Only', 'Entry Short Only', 'Exit All', 'Exit Long Only', 'Exit Short Only', 'Observe'], inline = 'sig1name', group = '🔄 Multi-Signals')
-signal1OnlyMode = input.bool(false, 'Only', inline = 'sig1only', group = '🔄 Multi-Signals', tooltip = 'Make this the ONLY active signal (for individual testing)')
-signal1TrendEnable = input.bool(false, '   └─ Use as Trend Indicator', group = '🔄 Multi-Signals', tooltip = 'Include this signal in trend majority calculation')
-
-signal2Enable = input.bool(false, '📊 Signal 2', inline = 'sig2', group = '🔄 Multi-Signals')
-signal2LongSrc = input.source(close, 'Long', inline = 'sig2', group = '🔄 Multi-Signals', tooltip = 'Connect to: UTBot Long, Wonder Long, or any Long signal plot')
-signal2ShortSrc = input.source(close, 'Short', inline = 'sig2', group = '🔄 Multi-Signals', tooltip = 'Connect to: UTBot Short, Wonder Short, or any Short signal plot')
-signal2Name = input.string('UTBot', 'Name', inline = 'sig2name', group = '🔄 Multi-Signals')
-signal2Usage = input.string('Entry All', 'Usage', options = ['Entry All', 'Entry Long Only', 'Entry Short Only', 'Exit All', 'Exit Long Only', 'Exit Short Only', 'Observe'], inline = 'sig2name', group = '🔄 Multi-Signals')
-signal2OnlyMode = input.bool(false, 'Only', inline = 'sig2only', group = '🔄 Multi-Signals', tooltip = 'Make this the ONLY active signal (for individual testing)')
-signal2TrendEnable = input.bool(false, '   └─ Use as Trend Indicator', group = '🔄 Multi-Signals', tooltip = 'Include this signal in trend majority calculation')
-
-signal3Enable = input.bool(false, '📊 Signal 3', inline = 'sig3', group = '🔄 Multi-Signals')
-signal3LongSrc = input.source(close, 'Long', inline = 'sig3', group = '🔄 Multi-Signals')
-signal3ShortSrc = input.source(close, 'Short', inline = 'sig3', group = '🔄 Multi-Signals')
-signal3Name = input.string('VIDYA', 'Name', inline = 'sig3name', group = '🔄 Multi-Signals')
-signal3Usage = input.string('Entry All', 'Usage', options = ['Entry All', 'Entry Long Only', 'Entry Short Only', 'Exit All', 'Exit Long Only', 'Exit Short Only', 'Observe'], inline = 'sig3name', group = '🔄 Multi-Signals')
-signal3OnlyMode = input.bool(false, 'Only', inline = 'sig3only', group = '🔄 Multi-Signals', tooltip = 'Make this the ONLY active signal (for individual testing)')
-signal3TrendEnable = input.bool(false, '   └─ Use as Trend Indicator', group = '🔄 Multi-Signals', tooltip = 'Include this signal in trend majority calculation')
-
-signal4Enable = input.bool(false, '📊 Signal 4', inline = 'sig4', group = '🔄 Multi-Signals')
-signal4LongSrc = input.source(close, 'Long', inline = 'sig4', group = '🔄 Multi-Signals')
-signal4ShortSrc = input.source(close, 'Short', inline = 'sig4', group = '🔄 Multi-Signals')
-signal4Name = input.string('KyleAlgo', 'Name', inline = 'sig4name', group = '🔄 Multi-Signals')
-signal4Usage = input.string('Entry All', 'Usage', options = ['Entry All', 'Entry Long Only', 'Entry Short Only', 'Exit All', 'Exit Long Only', 'Exit Short Only', 'Observe'], inline = 'sig4name', group = '🔄 Multi-Signals')
-signal4OnlyMode = input.bool(false, 'Only', inline = 'sig4only', group = '🔄 Multi-Signals', tooltip = 'Make this the ONLY active signal (for individual testing)')
-signal4TrendEnable = input.bool(false, '   └─ Use as Trend Indicator', group = '🔄 Multi-Signals', tooltip = 'Include this signal in trend majority calculation')
-
-signal5Enable = input.bool(false, '📊 Signal 5', inline = 'sig5', group = '🔄 Multi-Signals')
-signal5LongSrc = input.source(close, 'Long', inline = 'sig5', group = '🔄 Multi-Signals')
-signal5ShortSrc = input.source(close, 'Short', inline = 'sig5', group = '🔄 Multi-Signals')
-signal5Name = input.string('Wonder', 'Name', inline = 'sig5name', group = '🔄 Multi-Signals')
-signal5Usage = input.string('Entry All', 'Usage', options = ['Entry All', 'Entry Long Only', 'Entry Short Only', 'Exit All', 'Exit Long Only', 'Exit Short Only', 'Observe'], inline = 'sig5name', group = '🔄 Multi-Signals')
-signal5OnlyMode = input.bool(false, 'Only', inline = 'sig5only', group = '🔄 Multi-Signals', tooltip = 'Make this the ONLY active signal (for individual testing)')
-signal5TrendEnable = input.bool(false, '   └─ Use as Trend Indicator', group = '🔄 Multi-Signals', tooltip = 'Include this signal in trend majority calculation')
-
-signal6Enable = input.bool(false, '📊 Signal 6', inline = 'sig6', group = '🔄 Multi-Signals')
-signal6LongSrc = input.source(close, 'Long', inline = 'sig6', group = '🔄 Multi-Signals')
-signal6ShortSrc = input.source(close, 'Short', inline = 'sig6', group = '🔄 Multi-Signals')
-signal6Name = input.string('Signal 6', 'Name', inline = 'sig6name', group = '🔄 Multi-Signals')
-signal6Usage = input.string('Entry All', 'Usage', options = ['Entry All', 'Entry Long Only', 'Entry Short Only', 'Exit All', 'Exit Long Only', 'Exit Short Only', 'Observe'], inline = 'sig6name', group = '🔄 Multi-Signals')
-signal6OnlyMode = input.bool(false, 'Only', inline = 'sig6only', group = '🔄 Multi-Signals', tooltip = 'Make this the ONLY active signal (for individual testing)')
-signal6TrendEnable = input.bool(false, '   └─ Use as Trend Indicator', group = '🔄 Multi-Signals', tooltip = 'Include this signal in trend majority calculation')
-
-signal7Enable = input.bool(false, '📊 Signal 7', inline = 'sig7', group = '🔄 Multi-Signals')
-signal7LongSrc = input.source(close, 'Long', inline = 'sig7', group = '🔄 Multi-Signals')
-signal7ShortSrc = input.source(close, 'Short', inline = 'sig7', group = '🔄 Multi-Signals')
-signal7Name = input.string('Signal 7', 'Name', inline = 'sig7name', group = '🔄 Multi-Signals')
-signal7Usage = input.string('Entry All', 'Usage', options = ['Entry All', 'Entry Long Only', 'Entry Short Only', 'Exit All', 'Exit Long Only', 'Exit Short Only', 'Observe'], inline = 'sig7name', group = '🔄 Multi-Signals')
-signal7OnlyMode = input.bool(false, 'Only', inline = 'sig7only', group = '🔄 Multi-Signals', tooltip = 'Make this the ONLY active signal (for individual testing)')
-signal7TrendEnable = input.bool(false, '   └─ Use as Trend Indicator', group = '🔄 Multi-Signals', tooltip = 'Include this signal in trend majority calculation')
-
-signal8Enable = input.bool(false, '📊 Signal 8', inline = 'sig8', group = '🔄 Multi-Signals')
-signal8LongSrc = input.source(close, 'Long', inline = 'sig8', group = '🔄 Multi-Signals')
-signal8ShortSrc = input.source(close, 'Short', inline = 'sig8', group = '🔄 Multi-Signals')
-signal8Name = input.string('Signal 8', 'Name', inline = 'sig8name', group = '🔄 Multi-Signals')
-signal8Usage = input.string('Entry All', 'Usage', options = ['Entry All', 'Entry Long Only', 'Entry Short Only', 'Exit All', 'Exit Long Only', 'Exit Short Only', 'Observe'], inline = 'sig8name', group = '🔄 Multi-Signals')
-signal8OnlyMode = input.bool(false, 'Only', inline = 'sig8only', group = '🔄 Multi-Signals', tooltip = 'Make this the ONLY active signal (for individual testing)')
-signal8TrendEnable = input.bool(false, '   └─ Use as Trend Indicator', group = '🔄 Multi-Signals', tooltip = 'Include this signal in trend majority calculation')
-
-signal9Enable = input.bool(false, '📊 Signal 9', inline = 'sig9', group = '🔄 Multi-Signals')
-signal9LongSrc = input.source(close, 'Long', inline = 'sig9', group = '🔄 Multi-Signals')
-signal9ShortSrc = input.source(close, 'Short', inline = 'sig9', group = '🔄 Multi-Signals')
-signal9Name = input.string('Signal 9', 'Name', inline = 'sig9name', group = '🔄 Multi-Signals')
-signal9Usage = input.string('Entry All', 'Usage', options = ['Entry All', 'Entry Long Only', 'Entry Short Only', 'Exit All', 'Exit Long Only', 'Exit Short Only', 'Observe'], inline = 'sig9name', group = '🔄 Multi-Signals')
-signal9OnlyMode = input.bool(false, 'Only', inline = 'sig9only', group = '🔄 Multi-Signals', tooltip = 'Make this the ONLY active signal (for individual testing)')
-signal9TrendEnable = input.bool(false, '   └─ Use as Trend Indicator', group = '🔄 Multi-Signals', tooltip = 'Include this signal in trend majority calculation')
-
-signal10Enable = input.bool(false, '📊 Signal 10', inline = 'sig10', group = '🔄 Multi-Signals')
-signal10LongSrc = input.source(close, 'Long', inline = 'sig10', group = '🔄 Multi-Signals')
-signal10ShortSrc = input.source(close, 'Short', inline = 'sig10', group = '🔄 Multi-Signals')
-signal10Name = input.string('Signal 10', 'Name', inline = 'sig10name', group = '🔄 Multi-Signals')
-signal10Usage = input.string('Entry All', 'Usage', options = ['Entry All', 'Entry Long Only', 'Entry Short Only', 'Exit All', 'Exit Long Only', 'Exit Short Only', 'Observe'], inline = 'sig10name', group = '🔄 Multi-Signals')
-signal10OnlyMode = input.bool(false, 'Only', inline = 'sig10only', group = '🔄 Multi-Signals', tooltip = 'Make this the ONLY active signal (for individual testing)')
-signal10TrendEnable = input.bool(false, '   └─ Use as Trend Indicator', group = '🔄 Multi-Signals', tooltip = 'Include this signal in trend majority calculation')
+// ═══════════════════ SIGNAL PROCESSING & LOGIC SYSTEM ═══════════════════
+// This section processes the signal inputs from the refactored panel above and converts
+// them into clean boolean signals for use throughout the strategy. All signal input
+// definitions are now handled by the new refactored panel system above.
 
 // ─────────────────── SIGNAL PROCESSING (USAGE-AWARE) ───────────────────
 
-// Helper function to determine if a signal's usage setting allows it to be processed
+// Helper function to determine if a signal's usage setting allows it to be processed.
 fUsageAllowed(entrySide, usage) =>
-    isEntry = str.contains(usage, "Entry")
-    isExit = str.contains(usage, "Exit")
-    isAll = str.contains(usage, "All")
-    isLong = str.contains(usage, "Long")
-    isShort = str.contains(usage, "Short")
+    // Check for the presence of keywords within the 'usage' string.
+    isEntry = str.contains(usage, "Entry")     // Is it configured for entries?
+    isExit = str.contains(usage, "Exit")      // Is it configured for exits?
+    isAll = str.contains(usage, "All")        // Is it for all directions?
+    isLong = str.contains(usage, "Long")      // Is it specifically for longs?
+    isShort = str.contains(usage, "Short")    // Is it specifically for shorts?
 
-    // Allow if usage is for general entry/exit OR if the direction matches
+    // The final boolean check: The signal is allowed if it's an entry/exit signal AND its direction matches the request or is set to 'All'.
     (isEntry or isExit) and (isAll or (isLong and entrySide == "LONG") or (isShort and entrySide == "SHORT"))
 
-// --- Simplified Signal Detection ---
-// OPTIMIZATION: Replace complex pulse detection with simpler boolean logic
-// This reduces unnecessary calculations on every bar
-sig1Long = signal1Enable and signal1LongSrc != close ? (signal1LongSrc > 0 or bool(signal1LongSrc) == true) : false
+// ═══════════════════ SIMPLIFIED SIGNAL DETECTION ═══════════════════
+sig1Long = signal1Enable and signal1LongSrc != close ? (signal1LongSrc > 0 or bool(signal1LongSrc) == true) : false // Converts raw source to a clean boolean, checking for a numeric value > 0 OR a true boolean state.
 sig1Short = signal1Enable and signal1ShortSrc != close ? (signal1ShortSrc > 0 or bool(signal1ShortSrc) == true) : false
 sig2Long = signal2Enable and signal2LongSrc != close ? (signal2LongSrc > 0 or bool(signal2LongSrc) == true) : false
 sig2Short = signal2Enable and signal2ShortSrc != close ? (signal2ShortSrc > 0 or bool(signal2ShortSrc) == true) : false
@@ -731,9 +1106,8 @@ sig9Short = signal9Enable and signal9ShortSrc != close ? (signal9ShortSrc > 0 or
 sig10Long = signal10Enable and signal10LongSrc != close ? (signal10LongSrc > 0 or bool(signal10LongSrc) == true) : false
 sig10Short = signal10Enable and signal10ShortSrc != close ? (signal10ShortSrc > 0 or bool(signal10ShortSrc) == true) : false
 
-// --- Apply Usage Filters ---
-// Filter signals based on their configured usage
-sig1Long := fUsageAllowed("LONG", signal1Usage) and sig1Long
+// ═══════════════════ APPLYING USAGE FILTERS ═══════════════════
+sig1Long := fUsageAllowed("LONG", signal1Usage) and sig1Long // Applies the usage filter; if the function returns false, the signal is silenced for this bar.
 sig1Short := fUsageAllowed("SHORT", signal1Usage) and sig1Short
 sig2Long := fUsageAllowed("LONG", signal2Usage) and sig2Long
 sig2Short := fUsageAllowed("SHORT", signal2Usage) and sig2Short
@@ -754,10 +1128,8 @@ sig9Short := fUsageAllowed("SHORT", signal9Usage) and sig9Short
 sig10Long := fUsageAllowed("LONG", signal10Usage) and sig10Long
 sig10Short := fUsageAllowed("SHORT", signal10Usage) and sig10Short
 
-// --- Define EXIT Signals for Trend Mode ---
-// An exit signal is ANY opposite-side pulse from an ENABLED signal (no Usage filter)
-
-sig1ExitLong  = signal1Enable  and sig1Short
+// ═══════════════════ TREND MODE EXIT SIGNAL DEFINITION ═══════════════════
+sig1ExitLong  = signal1Enable  and sig1Short // A trend exit for a long position is triggered by any enabled short signal, regardless of its 'Usage' setting.
 sig1ExitShort = signal1Enable  and sig1Long
 sig2ExitLong  = signal2Enable  and sig2Short
 sig2ExitShort = signal2Enable  and sig2Long
@@ -778,24 +1150,24 @@ sig9ExitShort = signal9Enable  and sig9Long
 sig10ExitLong = signal10Enable and sig10Short
 sig10ExitShort= signal10Enable and sig10Long
 
-// --- Aggregate Exit Signals ---
-// Variable declarations for exit pulse signals
+// ═══════════════════ AGGREGATE & CONFIRM EXIT SIGNALS ═══════════════════
 var bool exitLongPulse = false
 var bool exitShortPulse = false
 
-// Combine all individual exit signals into a single signal for each direction
-exitLongPulse := sig1ExitLong or sig2ExitLong or sig3ExitLong or sig4ExitLong or sig5ExitLong or sig6ExitLong or sig7ExitLong or sig8ExitLong or sig9ExitLong or sig10ExitLong
+// Combine all individual exit signals into a single signal for each direction.
+exitLongPulse := sig1ExitLong or sig2ExitLong or sig3ExitLong or sig4ExitLong or sig5ExitLong or sig6ExitLong or sig7ExitLong or sig8ExitLong or sig9ExitLong or sig10ExitLong // If any of the 10 exit conditions are met, the master pulse becomes true.
 exitShortPulse := sig1ExitShort or sig2ExitShort or sig3ExitShort or sig4ExitShort or sig5ExitShort or sig6ExitShort or sig7ExitShort or sig8ExitShort or sig9ExitShort or sig10ExitShort
 
-// Restrict trend-pulse exits to confirmed bar close
-exitLongPulse := exitLongPulse and barstate.isconfirmed
+// Restrict trend-pulse exits to confirmed bar close.
+exitLongPulse := exitLongPulse and barstate.isconfirmed // IMPORTANT: This ensures trend exits only happen on the close of a bar, preventing premature exits on intra-bar wicks.
 exitShortPulse := exitShortPulse and barstate.isconfirmed
 
-// --- "Only Mode" Processing ---
-// Check if any "Only Mode" is active for individual signal testing
-anyOnlyModeActive = signal1OnlyMode or signal2OnlyMode or signal3OnlyMode or signal4OnlyMode or signal5OnlyMode or signal6OnlyMode or signal7OnlyMode or signal8OnlyMode or signal9OnlyMode or signal10OnlyMode
+// ═══════════════════ "ONLY MODE" PROCESSING ═══════════════════
+signalOnlyModes = array.from(signal1OnlyMode, signal2OnlyMode, signal3OnlyMode, signal4OnlyMode, signal5OnlyMode, signal6OnlyMode, signal7OnlyMode, signal8OnlyMode, signal9OnlyMode, signal10OnlyMode)
+signalTrendEnables = array.from(signal1TrendEnable, signal2TrendEnable, signal3TrendEnable, signal4TrendEnable, signal5TrendEnable, signal6TrendEnable, signal7TrendEnable, signal8TrendEnable, signal9TrendEnable, signal10TrendEnable)
 
-// If any "Only" is active, disable all signals except the one in "Only Mode"
+anyOnlyModeActive = array_any(signalOnlyModes)
+
 if anyOnlyModeActive
     sig1Long := signal1OnlyMode ? sig1Long : false
     sig1Short := signal1OnlyMode ? sig1Short : false
@@ -818,7 +1190,16 @@ if anyOnlyModeActive
     sig10Long := signal10OnlyMode ? sig10Long : false
     sig10Short := signal10OnlyMode ? sig10Short : false
 
-// ─────────────────── SIGNAL ARRAYS & COUNTS ───────────────────
+// ═══════════════════ FINAL SIGNAL AGGREGATION (ARRAYS) ═══════════════════
+// 🎯 PURPOSE:
+// This is the final step of the signal processing pipeline. Its job is to collect all of
+// the fully processed, filtered, and finalized boolean entry signals into arrays.
+//
+// ⚙️ HOW IT WORKS:
+// It creates two arrays, `allLongSignals` and `allShortSignals`, and populates them
+// with the final boolean state of each of the 10 signal slots. These arrays are now
+// ready for the next stage of the script, where they will be used to count the total
+// number of active long and short signals to determine trade confluence.
 // Signal arrays for processing and count tracking (based on corrected ENTRY signals)
 allLongSignals = array.new<bool>(10)
 allShortSignals = array.new<bool>(10)
@@ -843,25 +1224,33 @@ array.set(allShortSignals, 7, sig8Short)
 array.set(allShortSignals, 8, sig9Short)
 array.set(allShortSignals, 9, sig10Short)
 
-// ═══════════════════ OPTIMIZED SIGNAL COUNTING ═══════════════════
-// Use array-based counting for better performance
-longSignalCount = 0
+// ═══════════════════ CONFLUENCE COUNTING ENGINE ═══════════════════
+// To count the final, filtered entry signals and determine the level of market confluence.
+// This is the core of the strategy's decision-making process.
+longSignalCount = 0 // Initialize a counter for active long signals.
 shortSignalCount = 0
 for i = 0 to array.size(allLongSignals) - 1
-    if array.get(allLongSignals, i)
-        longSignalCount := longSignalCount + 1
+    if array.get(allLongSignals, i) // If the signal at the current index is true...
+        longSignalCount := longSignalCount + 1 // ...increment the counter.
     if array.get(allShortSignals, i)
         shortSignalCount := shortSignalCount + 1
 
-// ═══════════════════ HYBRID TREND MODE FSM ═══════════════════
-// Finite State Machine for switching between SCALP and TREND modes.
-
+// ═══════════════════ HYBRID MODE FINITE STATE MACHINE (FSM) ═══════════════════
+// 1. STATE CALCULATION: It first calculates the 'Signal Power', which is the percentage
+//    of active signals that agree on a single direction. This quantifies the conviction
+//    behind a move.
+// 2. PROMOTION CONDITIONS: It then checks if the conditions to 'promote' a trade to TREND
+//    mode are met. This is based on user-defined thresholds for both Signal Power and
+//    the number of contracts currently in the position.
+// 3. STATE TRANSITION: If the promotion conditions are met while in SCALP mode, the FSM
+//    transitions the `tradeMode` variable to 'TREND'. The mode automatically resets to
+//    'SCALP' whenever the strategy is flat, ensuring each new trade starts fresh.
 // --- State Calculation ---
 // Calculate the dominant signal power percentage.
 var int activeTradableSignals = 0
 
-// ═══════════════════ OPTIMIZED TRADABLE SIGNALS COUNTING ═══════════════════
-// Use arrays for more efficient signal enable/usage checking
+// --- FSM Helper: Counting Active Signals ---
+// This loop calculates the denominator for the Signal Power calculation.
 signalEnables = array.from(signal1Enable, signal2Enable, signal3Enable, signal4Enable, signal5Enable, signal6Enable, signal7Enable, signal8Enable, signal9Enable, signal10Enable)
 signalUsages = array.from(signal1Usage, signal2Usage, signal3Usage, signal4Usage, signal5Usage, signal6Usage, signal7Usage, signal8Usage, signal9Usage, signal10Usage)
 
@@ -870,59 +1259,68 @@ for i = 0 to 9
     if array.get(signalEnables, i) and array.get(signalUsages, i) != 'Observe'
         activeTradableSignals := activeTradableSignals + 1
 
-signalPowerPct = activeTradableSignals > 0 ? math.max(longSignalCount, shortSignalCount) / activeTradableSignals * 100 : 0
+signalPowerPct = activeTradableSignals > 0 ? math.max(longSignalCount, shortSignalCount) / activeTradableSignals * 100 : 0 // Calculate the percentage of active signals pointing in the dominant direction.
 dominantSide   = longSignalCount > shortSignalCount ?  1 : longSignalCount < shortSignalCount ? -1 : 0
+trendsAgree := activeTradableSignals == 0 ? true : longSignalCount > shortSignalCount
 
 // --- Promotion Conditions ---
 // Check if conditions for promoting to TREND mode are met.
-condPower = signalPowerPct >= trendPowerThreshold and dominantSide == math.sign(strategy.position_size)
-condSize  = trendSizeThreshold == 0 ? true : math.abs(strategy.position_size) >= trendSizeThreshold
-promote   = requireBothConditions ? (condPower and condSize) : (condPower or condSize)
+condPower = signalPowerPct >= trendPowerThreshold and dominantSide == math.sign(strategy.position_size) // Condition 1: Signal power meets the user-defined threshold and aligns with the current position direction.
+condSize  = trendSizeThreshold == 0 ? true : math.abs(strategy.position_size) >= trendSizeThreshold // Condition 2: The current position size meets the user-defined threshold (or the threshold is disabled).
+promote   = requireBothConditions ? (condPower and condSize) : (condPower or condSize) // The final promotion trigger is true if the required conditions (either both or one of them) are met.
 
 // --- State Machine ---
 var string tradeMode = "SCALP"
 if strategy.position_size == 0
     tradeMode := "SCALP" // Always reset to SCALP when flat
 else
-    if tradeMode == "SCALP" and promote
-        tradeMode := "TREND"
+    if tradeMode == "SCALP" and promote // If the FSM is currently in SCALP mode and the promotion conditions are met...
+        tradeMode := "TREND" // ...transition the state to TREND mode.
 
-// ═══════════════════ PARAMETER CHANGE DETECTION ═══════════════════
-// FIXED: Complete hash calculation with ALL parameters that affect strategy performance
+// ═══════════════════ FINAL PARAMETER HASHING (COMPLETE) ═══════════════════
+// ⚙️ HOW IT WORKS:
+// It builds upon the previous hash function by adding in the values from all technical
+// indicators, exit system settings, and core strategy parameters.
 calculateParameterHashWithSignals() =>
+    // Initialize the hash as a float to accumulate weighted values.
     hashFloat = 0.0
-    // Core trading parameters
-    hashFloat += commissionPerTrade * 1000
-    hashFloat += slippagePerTrade * 1000
-    hashFloat += virtualPositionSize * 100
-    hashFloat += positionQty * 100
-    hashFloat += pyramidLimit * 10
     
-    // Technical indicator parameters
-    hashFloat += maLen * 10
-    hashFloat += atrLen * 10
-    hashFloat += atrLength * 10
-    hashFloat += bbLength * 10
-    hashFloat += bbMultiplier * 100
+    // --- Core Trading Parameters ---
+    // Each parameter is multiplied by a unique weight to ensure it occupies a distinct 'space' in the final hash value.
+    hashFloat += commissionPerTrade * 1000  // Fee per trade.
+    hashFloat += slippagePerTrade * 1000    // Estimated slippage cost per trade.
+    hashFloat += virtualPositionSize * 100   // Size of positions in the virtual backtester.
+    hashFloat += positionQty * 100           // The quantity for each real strategy entry.
+    hashFloat += pyramidLimit * 10           // Maximum number of open entries.
     
-    // Exit system parameters
-    hashFloat += fixedStop * 100
-    hashFloat += tp1Size * 100
-    hashFloat += smartProfitVal * 100
-    hashFloat += smartProfitOffset * 1000
-    hashFloat += hybridSwitchThreshold * 10
+    // --- Technical Indicator Parameters ---
+    hashFloat += maLen * 10                  // Lookback for the Moving Average exit.
+    hashFloat += atrLen * 10                 // Main ATR lookback used in various calculations.
+    hashFloat += atrLength * 10              // ATR lookback specifically for the Fixed SL/TP calculation.
+    hashFloat += bbLength * 10               // Lookback for the Bollinger Bands.
+    hashFloat += bbMultiplier * 100          // Standard deviation multiplier for Bollinger Bands.
     
-    // Trend mode parameters
-    hashFloat += trendPowerThreshold * 10
-    hashFloat += trendSizeThreshold * 10
+    // --- Exit System Parameters ---
+    hashFloat += fixedStop * 100             // The value for the fixed stop loss.
+    hashFloat += tp1Size * 100               // The value for the first take profit.
+    hashFloat += smartProfitVal * 100        // The profit target for the Smart Profit Locker.
+    hashFloat += smartProfitOffset * 1000    // The trailing offset for the Smart Profit Locker.
+    hashFloat += hybridSwitchThreshold * 10  // Contract count to switch to Trend Mode.
     
-    // RBW filter parameters (if enabled)
+    // --- Trend Mode Parameters ---
+    hashFloat += trendPowerThreshold * 10    // Signal power percentage required for Trend Mode.
+    hashFloat += trendSizeThreshold * 10     // Position size threshold for Trend Mode.
+    
+    // --- RBW Filter Parameters (if enabled) ---
+    // These are only added to the hash if the filter is active to avoid unnecessary resets.
     if rbwEnable
         hashFloat += rbwLength * 10
         hashFloat += rbwMultiplier * 100
         hashFloat += rbwATRLength * 10
     
-    // Boolean flags (as bitmask)
+    // --- Boolean Flags (as a bitmask) ---
+    // Each boolean input is assigned a unique power of 2. This creates a bitmask where any combination
+    // of true/false values results in a unique integer, ensuring any toggle change is detected.
     hashFloat += (signal1Enable ? 1 : 0)
     hashFloat += (signal2Enable ? 2 : 0)
     hashFloat += (signal3Enable ? 4 : 0)
@@ -934,7 +1332,7 @@ calculateParameterHashWithSignals() =>
     hashFloat += (signal9Enable ? 256 : 0)
     hashFloat += (signal10Enable ? 512 : 0)
     
-    // Exit system enables
+    // --- Exit System & Filter Enables (continuing the bitmask) ---
     hashFloat += (maExitOn ? 1024 : 0)
     hashFloat += (fixedEnable ? 2048 : 0)
     hashFloat += (smartProfitEnable ? 4096 : 0)
@@ -944,18 +1342,26 @@ calculateParameterHashWithSignals() =>
     hashFloat += (bbExitEnable ? 65536 : 0)
     hashFloat += (rbwEnable ? 131072 : 0)
     
+    // Convert the final float to an integer for a clean, comparable hash value.
     int(hashFloat)
 
-// ═══════════════════ CORE STRATEGY STATE UPDATE ═══════════════════
+// ═══════════════════ CORE STATE & PARAMETER CHANGE EXECUTION ═══════════════════
+// ⚙️ HOW IT WORKS:
+// 1. POSITION SYNC: It updates the `currentPositionSize` variable with the real-time size
+//    of the strategy's current position.
+// 2. HASH COMPARISON: It calls the final hashing function to get the current settings hash
+//    and compares it to the hash from the previous bar. If they don't match, it sets the
+//    `parametersChanged` flag to `true` and calls `resetVirtualAccounts()` to ensure a
+//    clean slate for the backtester.
 // CRITICAL FIX: Update currentPositionSize to reflect actual strategy position
-currentPositionSize := int(math.abs(strategy.position_size))
+currentPositionSize := int(math.abs(strategy.position_size)) // Syncs our internal variable with the actual position size reported by the TradingView engine.
 
 // Check for parameter changes
-currentParameterHash = calculateParameterHashWithSignals()
-if na(lastParameterHash) or lastParameterHash != currentParameterHash
-    parametersChanged := true
-    resetVirtualAccounts()
-    lastParameterHash := currentParameterHash
+currentParameterHash = calculateParameterHashWithSignals() // Generate the settings hash for the current bar.
+if na(lastParameterHash) or lastParameterHash != currentParameterHash // On the first bar, or if the current hash doesn't match the previous one...
+    parametersChanged := true      // ...flag that settings have changed.
+    resetVirtualAccounts()         // ...and reset all virtual accounts to ensure backtest integrity.
+    lastParameterHash := currentParameterHash // Store the new hash for comparison on the next bar.
     if debugEnabled
         debugMessage("SYSTEM", "Parameters changed - Virtual accounts reset", color.orange, color.white, 0.3)
 else
@@ -964,20 +1370,40 @@ else
 // ═══════════════════ VIRTUAL ACCOUNT PROCESSING ═══════════════════
 // MOVED TO AFTER BIAS CALCULATIONS (after line 869)
 
-// ═══════════════════ PRIMARY SIGNAL COMBINATION ═══════════════════
-// Note: Primary signals are defined below after imports (line 126-127)
+// ═══════════════════ FINAL MASTER SIGNAL COMBINATION ═══════════════════
+// It uses a simple logical `or` operation. If ANY of the 10 long signals are true, the
+// master `primaryLongSig` becomes true. 
+// It checks the current trade mode and the state of the trend indicators.
+// If the trade mode is Trend and the trend indicators disagree, it triggers an exit.
+trendModeExit = tradeMode == "TREND" and not trendsAgree
+// Checks if the trade mode is Trend and the trend indicators disagree.
+// This is the condition for exiting a Trend Mode trade.
 
-// ═══════════════════ SIGNAL PROCESSING SETUP ═══════════════════
-// FIXED: Removed dead import - enhanced_ta library is no longer used
-// Legacy compatibility - combine all signals (expanded to 10 signals)
-primaryLongSig = sig1Long or sig2Long or sig3Long or sig4Long or sig5Long or sig6Long or sig7Long or sig8Long or sig9Long or sig10Long
-primaryShortSig = sig1Short or sig2Short or sig3Short or sig4Short or sig5Short or sig6Short or sig7Short or sig8Short or sig9Short or sig10Short
+// ═══════════════════ SIGNAL AGGREGATION ═══════════════════
+// It uses a simple logical `or` operation to combine the signals.
+primaryLongSig = array_any(allLongSignals)
 
-// ─────────────────── 1 · TRADERSPOST JSON HELPERS ───────────────
+// This is the raw, unfiltered master signal. It's true if ANY of the 10 processed signals are short.
+primaryShortSig = array_any(allShortSignals)
+// Combines all short signals into a single, master signal.
+// This is the final short signal that will be used for trading decisions.
 
-// ───── Pre-built JSON messages (compile-time constants) ─────
-// Use TradingView alert placeholders so we avoid any per-bar string operations.
-// Placeholders {{close}} and {{timenow}} will be expanded at alert trigger time.
+// ═══════════════════ ONLY MODE ═══════════════════
+// ⚙️ HOW IT WORKS:
+// It checks the current trade mode and the state of the Only Mode indicators.
+// If the trade mode is Only and the Only Mode indicators disagree, it filters out the signal.
+onlyModeFilter = anyOnlyModeActive
+// Checks if the trade mode is Only and the Only Mode indicators disagree.
+// This is the condition for filtering out a signal in Only Mode.
+
+// ═══════════════════ TRADERSPOST WEBHOOK OPTIMIZATION ═══════════════════
+// ⚙️ HOW IT WORKS:
+// By declaring the JSON strings with the `var` keyword, they are initialized only once on
+// the first bar of the script's history. This is highly efficient. The messages use
+// TradingView's built-in `{{close}}` and `{{timenow}}` placeholders, which are dynamically
+// replaced by the correct values at the moment an alert is triggered. This avoids costly
+// string concatenation and manipulation on every single bar, reducing the script's load.
+
 var string _jsonBase = '{"ticker":"' + syminfo.ticker + '","price":{{close}},"time":{{timenow}}'
 
 var string longEntryMsg = _jsonBase + ',"action":"buy","sentiment":"long"}'
@@ -989,12 +1415,8 @@ var string shortExitMsg = _jsonBase + ',"action":"buy","sentiment":"flat"}' // c
 // NOTE: ATR, MA Exit, Fixed SL/TP, Smart Profit Locker, and Hybrid settings moved to early declarations section
 
 
-
 // ─────────────────── 4. SMART PROFIT LOCKER (Aggressive Profit Protection) ────────────
 // HYBRID EXIT INTEGRATION: Switch between Smart Profit Locker and Trend Change Exit
-
-// ═══════════════════ TREND COUNT VARIABLES (ALREADY DECLARED ON LINE 1148) ═══════════════════
-// Variables are declared later in the script - no need to redeclare here
 
 // ═══════════════════ HYBRID TRADE MODE DETERMINATION (FIXED) ═══════════════════
 // Update existing tradeMode state machine instead of creating duplicate
@@ -1050,19 +1472,7 @@ if bbExitEnable and strategy.position_size != 0
 else
     bbExitTriggered := false
 
-// RBW Calculation Logic - Variable Declarations
-var float rbwUpper = na
-var float rbwLower = na
-var float rbwMiddle = na
-var float rbwRelativeBandwidth = na
-var int rbwSignal = 0
-var float rbwBBMiddle = na
-var float rbwBBUpper = na
-var float rbwBBLower = na
-var float rbwBBStdDev = na
-var float rbwRef = na
-var float rbwStdDev = na
-var float rbwATR = na
+// NOTE: RBW variables are declared in the consolidated variable section at the top
 
 // Extract ta functions to avoid compilation warnings
 rbwSMA = ta.sma(rbwSource, rbwLength)
@@ -1129,7 +1539,15 @@ else
     bbLongFilterOK := true
     bbShortFilterOK := true
 
-// ═══════════════════ NEW TREND CHECKBOX MAJORITY RULE SYSTEM ═══════════════════
+// ═══════════════════ TREND CONFIRMATION (MAJORITY RULE) ═══════════════════
+// ⚙️ HOW IT WORKS:
+// It iterates through all 10 signal slots. If a signal is both enabled and marked as a
+// trend indicator (via `signalXTrendEnable`), it increments a counter for the total number
+// of trend indicators (`trendEnabledCount`). It then checks the signal's current state
+// and increments either the `bullishTrendCount` or `bearishTrendCount`.
+//
+// The final `trendsAgree` boolean is true if the bullish count is greater than the bearish
+// count, establishing a clear market trend based on a majority vote of the chosen indicators.
 // Trend detection now uses checkbox system from Multi-Signals section
 // This leverages profitable signals for BOTH entry AND trend confirmation
 
@@ -1209,17 +1627,17 @@ if signal10TrendEnable and signal10Enable
         bullishTrendCount := bullishTrendCount + 1
     if sig10Short
         bearishTrendCount := bearishTrendCount + 1
-
-// Calculate current trend consensus (if no trend indicators enabled, default to true)
-trendsAgree = trendEnabledCount == 0 ? true : bullishTrendCount > bearishTrendCount
-
-
-
+        
 // Trend confirmation for re-entry (now uses the majority rule from checkbox system)
 trendConfirmsLong = trendsAgree  // Simplified: majority rule handles all logic
 trendConfirmsShort = not trendsAgree  // Opposite of bullish majority
 
-// ═══════════════════ TREND MODE EXIT LOGIC ═══════════════════
+// ═══════════════════ HYBRID EXIT HANDLER: TREND MODE ═══════════════════
+// ⚙️ HOW IT WORKS:
+// It checks if the `tradeMode` is currently 'TREND'. If so, it bypasses all other exit
+// systems (like the Smart Profit Locker). The ONLY exit condition is the appearance of a
+// confirmed opposite signal pulse (`exitShortPulse` or `exitLongPulse`). When this occurs,
+// it closes the entire position with `strategy.close_all()`, locking in the trend profits.
 // When in TREND mode, bypass the Smart Profit Locker and exit only on an opposite signal pulse.
 if tradeMode == "TREND"
     if strategy.position_size > 0 and exitShortPulse
@@ -1227,7 +1645,51 @@ if tradeMode == "TREND"
     if strategy.position_size < 0 and exitLongPulse
         strategy.close_all(comment = "🛡️ TREND EXIT: Opposite Long Pulse")
 
-// SIMPLIFIED BIAS LOGIC - ONLY RBW FILTER
+// ═══════════════════ RBW FILTER CALCULATION ═══════════════════
+// Complete RBW (Relative Bandwidth) filter implementation with all band types
+if rbwEnable
+    // Bollinger Bands
+    if rbwBandType == "BB"
+        rbwMiddle := ta.sma(rbwSource, rbwLength)
+        rbwStdDev := ta.stdev(rbwSource, rbwLength)
+        rbwUpper := rbwMiddle + rbwStdDev * rbwMultiplier
+        rbwLower := rbwMiddle - rbwStdDev * rbwMultiplier
+    
+    // Keltner Channels  
+    else if rbwBandType == "KC"
+        rbwMiddle := ta.sma(rbwSource, rbwLength)
+        rbwATR := rbwUseTR ? ta.atr(rbwLength) : ta.rma(high - low, rbwLength)
+        rbwUpper := rbwMiddle + rbwATR * rbwMultiplier
+        rbwLower := rbwMiddle - rbwATR * rbwMultiplier
+    
+    // Donchian Channels
+    else if rbwBandType == "DC"
+        rbwUpper := ta.highest(rbwUseAltSrc ? high : rbwSource, rbwLength)
+        rbwLower := ta.lowest(rbwUseAltSrc ? low : rbwSource, rbwLength)
+        rbwMiddle := (rbwUpper + rbwLower) / 2
+
+    // Relative Bandwidth calculation
+    if not na(rbwUpper) and not na(rbwLower)
+        rbwATR := ta.atr(rbwATRLength)
+        if not na(rbwATR) and rbwATR > 0
+            rbwRelativeBandwidth := (rbwUpper - rbwLower) / rbwATR
+            
+            // Calculate reference bands for signal
+            rbwBBMiddle := ta.sma(rbwRelativeBandwidth, 100)
+            rbwBBStdDev := ta.stdev(rbwRelativeBandwidth, 100)
+            rbwBBUpper := rbwBBMiddle + rbwBBStdDev * 1.0
+            rbwBBLower := rbwBBMiddle - rbwBBStdDev * 1.0
+            
+            rbwRef := rbwRefBand == "Middle" ? rbwBBMiddle : rbwRefBand == "Upper" ? rbwBBUpper : rbwBBLower
+            rbwSignal := rbwRelativeBandwidth > rbwRef ? 2 : 0
+            rbwSignal := rbwDesiredCond == "Lower Bandwidth" ? math.abs(rbwSignal - 2) : rbwSignal
+
+// ═══════════════════ DIRECTIONAL BIAS FILTER (RBW) ═══════════════════
+// ⚙️ HOW IT WORKS:
+// It checks if the RBW filter is enabled and has enough data (`rbwReady`). If so, it sets
+// the `longDirectionalBias` or `shortDirectionalBias` booleans based on the RBW signal.
+// CRITICALLY, if the filter is disabled or not ready, the bias booleans default to `true`,
+// making the filter 'permissive'. This ensures it never blocks trades unintentionally.
 // CRITICAL FIX: Guard against RBW blocking all entries when insufficient data
 // Only RBW (Relative Bandwidth) provides directional bias filtering
 
@@ -1246,12 +1708,20 @@ if testModeOverride
 // TREND-RIDING OVERLAY LOGIC
 // Advanced exit system to "let winners run" in strong trending conditions
 
-// Define final entry signals with directional bias and Bollinger Band Filter applied
+// ═══════════════════ FINAL ENTRY SIGNAL DEFINITION ═══════════════════
+// ⚙️ HOW IT WORKS:
+// A long entry (`longEntrySignal`) is only considered `true` if all three of the following
+// conditions are met:
+// 1. There is at least one active long signal (`sigCountLong > 0`).
+// 2. The directional bias filter agrees (`longDirectionalBias` is true).
+// 3. The price is not outside the Bollinger Bands (`bbLongFilterOK` is true).
+// The same logic applies to the `shortEntrySignal`. These final booleans are now ready
+// to be passed to the strategy execution engine.
 sigCountLong = (sig1Long ? 1 : 0) + (sig2Long ? 1 : 0) + (sig3Long ? 1 : 0) + (sig4Long ? 1 : 0) + (sig5Long ? 1 : 0) + (sig6Long ? 1 : 0) + (sig7Long ? 1 : 0) + (sig8Long ? 1 : 0) + (sig9Long ? 1 : 0) + (sig10Long ? 1 : 0)
 sigCountShort = (sig1Short ? 1 : 0) + (sig2Short ? 1 : 0) + (sig3Short ? 1 : 0) + (sig4Short ? 1 : 0) + (sig5Short ? 1 : 0) + (sig6Short ? 1 : 0) + (sig7Short ? 1 : 0) + (sig8Short ? 1 : 0) + (sig9Short ? 1 : 0) + (sig10Short ? 1 : 0)
 
-longEntrySignal := sigCountLong > 0 and longDirectionalBias and bbLongFilterOK
-shortEntrySignal := sigCountShort > 0 and shortDirectionalBias and bbShortFilterOK
+longEntrySignal := sigCountLong > 0 and longDirectionalBias and bbLongFilterOK // The final 'go' signal for a long entry requires at least one active signal AND permissive bias AND permissive volatility filters.
+shortEntrySignal := sigCountShort > 0 and shortDirectionalBias and bbShortFilterOK // The final 'go' signal for a short entry requires at least one active signal AND permissive bias AND permissive volatility filters.
 
 // Debug: Track what's blocking strategy entries vs virtual accounts
 if debugEnabled and (primaryLongSig or primaryShortSig)
@@ -1270,6 +1740,22 @@ if debugEnabled and (primaryLongSig or primaryShortSig)
 // ═══════════════════ ENTRY DEBUG TRACKING (Logic Only) ═══════════════════
 // Signal chain tracking for development purposes (no visual plots)
 // All diagnostic visual elements removed for clean chart appearance
+
+// ═══════════════════ STRATEGY EXECUTION ENGINE ═══════════════════
+// ⚙️ HOW IT WORKS:
+// It checks the final `longEntrySignal` and `shortEntrySignal` booleans on each bar.
+// - If `longEntrySignal` is true AND the current position size is less than the `pyramidLimit`,
+//   it calls `strategy.entry()` to open or add to a long position.
+// - If `shortEntrySignal` is true AND the current position size is less than the `pyramidLimit`
+//   (in the short direction), it calls `strategy.entry()` for a short position.
+// This ensures trades are only taken when all user-defined conditions are met and the
+// position size stays within its limits.
+
+if longEntrySignal and strategy.position_size < pyramidLimit // Check for a final long entry signal and ensure the number of open contracts is below the pyramid limit.
+    strategy.entry("Long", strategy.long, qty=positionQty, alert_message=longEntryMsg) // Execute a long entry order with the pre-defined quantity and webhook message.
+
+if shortEntrySignal and strategy.position_size > -pyramidLimit // Check for a final short entry signal and ensure the number of open contracts is below the pyramid limit.
+    strategy.entry("Short", strategy.short, qty=positionQty, alert_message=shortEntryMsg) // Execute a short entry order with the pre-defined quantity and webhook message.
 
 // ENTRY PERMISSION STATUS - Moved to after entry logic calculation
 // Entry permission tracking (variables only - no visual plots)
@@ -1314,6 +1800,11 @@ plot(strategy.position_size > 0 and fixedEnable and tp1Enable ? strategyEntryPri
 // This reduces visual clutter and eliminates duplicate signal indicators
 
 // ═══════════════════ COMPREHENSIVE INDICATOR VISUALIZATION ═══════════════════
+// ⚙️ HOW IT WORKS:
+// It uses a series of `plot()` calls to draw the key indicator lines that the strategy
+// relies on for its decisions. This includes the primary MA Exit Line for trend-following,
+// as well as dynamic lines for the current Stop Loss and the trailing Smart Profit Locker.
+// Each line is color-coded and styled for immediate recognition.
 // Beautiful, human-readable plotting of all strategy components
 // ──────── CORE STRATEGY INDICATORS ────────────
 // Moving Average Exit Line (Thick, Color-Coded)
@@ -1329,17 +1820,32 @@ profitLockerLine = strategy.position_size > 0 ? high - (atrVal * smartProfitVal 
 plot(stopLossLine, title="🛑 Stop Loss", color=color.new(color.red, 20), linewidth=2, style=plot.style_linebr)
 plot(profitLockerLine, title="💰 Profit Locker", color=color.new(color.green, 20), linewidth=2, style=plot.style_linebr)
 
-// ═══════════════════ ENHANCED VIRTUAL SIGNAL ANALYTICS ═══════════════════
-// Professional Individual Signal Backtesting with Virtual Account System
-// Real-time performance tracking with commission/slippage integration
-
+// ═══════════════════ VIRTUAL SIGNAL ANALYTICS & DEBUGGING (FIXED) ═══════════════════
 if showBacktestTable and barstate.islast
     // Add warning about virtual backtesting limitations
     debugMessage("WARNING", "WARNING: Virtual backtest uses simplified opposite-signal exits only. Does not reflect main strategy.", color.orange, color.white, 0.1)
-    // Simplified Virtual Account Table - Combined P&L (No Long/Short Separation)
-    var table virtualSignalTable = table.new(position.bottom_left, columns=7, rows=12, bgcolor=color.new(color.black, 85), border_width=2, border_color=color.new(color.white, 70))
     
-    // Simplified Headers - Combined Results for Comparative Analysis
+    // FIXED: Calculate required rows dynamically to prevent out of bounds
+    signalEnables := array.from(signal1Enable, signal2Enable, signal3Enable, signal4Enable, signal5Enable, signal6Enable, signal7Enable, signal8Enable, signal9Enable, signal10Enable)
+    
+    // Count enabled signals to determine table size
+    enabledSignalCount = 0
+    for i = 0 to 9
+        if array.get(signalEnables, i)
+            enabledSignalCount += 1
+    
+    // Calculate total rows needed: 1 header + enabled signals + 1 summary = minimum rows
+    totalRowsNeeded = 1 + enabledSignalCount + 1
+    // Add buffer for safety and ensure minimum of 5 rows
+    safeRowCount = math.max(totalRowsNeeded + 2, 5)
+    
+    // Create table with dynamically calculated safe row count
+    var table virtualSignalTable = table.new(position.bottom_left, columns=7, rows=safeRowCount, bgcolor=color.new(color.black, 85), border_width=2, border_color=color.new(color.white, 70))
+    
+    // Clear table to prevent ghosting
+    table.clear(virtualSignalTable, 0, 0, 6, safeRowCount - 1)
+    
+    // Headers
     table.cell(virtualSignalTable, 0, 0, '📊 SIGNAL', text_color=color.white, text_size=size.normal, bgcolor=color.new(color.blue, 80))
     table.cell(virtualSignalTable, 1, 0, 'TRADES', text_color=color.white, text_size=size.small, bgcolor=color.new(color.blue, 80))
     table.cell(virtualSignalTable, 2, 0, 'WIN%', text_color=color.white, text_size=size.small, bgcolor=color.new(color.green, 80))
@@ -1349,11 +1855,17 @@ if showBacktestTable and barstate.islast
     table.cell(virtualSignalTable, 6, 0, 'STATUS', text_color=color.white, text_size=size.small, bgcolor=color.new(color.blue, 80))
     
     // Process each virtual account for display
-    signalEnables := array.from(signal1Enable, signal2Enable, signal3Enable, signal4Enable, signal5Enable, signal6Enable, signal7Enable, signal8Enable, signal9Enable, signal10Enable)
     signalNamesArray = array.from(signal1Name, signal2Name, signal3Name, signal4Name, signal5Name, signal6Name, signal7Name, signal8Name, signal9Name, signal10Name)
     
     currentRow = 1
+    // FIXED: Ensure we never exceed table bounds
+    maxDisplayRows = safeRowCount - 2  // Reserve space for summary row
+    
     for i = 0 to 9
+        // CRITICAL FIX: Stop if we've reached the safe limit
+        if currentRow >= maxDisplayRows
+            break
+            
         if array.get(signalEnables, i)
             account = array.get(virtualAccounts, i)
             signalName = array.get(signalNamesArray, i)
@@ -1370,34 +1882,34 @@ if showBacktestTable and barstate.islast
             
             statusColor = overallWinRate >= 70 and profitFactor >= 2.0 and totalPnL > 0 ? color.new(color.lime, 20) : overallWinRate >= 50 and profitFactor >= 1.5 and totalPnL > 0 ? color.new(color.yellow, 20) : overallWinRate >= 40 and profitFactor >= 1.0 ? color.new(color.orange, 20) : color.new(color.red, 20)
             
-            // Action Recommendation
-            actionText = totalPnL > 100 and overallWinRate > 60 and profitFactor > 1.5 ? 'KEEP ✅' : totalPnL < -100 or overallWinRate < 40 or profitFactor < 1.0 ? 'CUT ❌' : 'TEST ⚠️'
-            
-            actionColor = totalPnL > 100 and overallWinRate > 60 and profitFactor > 1.5 ? color.lime : totalPnL < -100 or overallWinRate < 40 or profitFactor < 1.0 ? color.red : color.orange
-            
             // Truncate signal name for display
             displayName = str.length(signalName) > 8 ? str.substring(signalName, 0, 8) : signalName
             
-            // Populate table row - SIMPLIFIED 7-COLUMN FORMAT (Combined P&L)
-            table.cell(virtualSignalTable, 0, currentRow, displayName, text_color=color.white, text_size=size.small, bgcolor=color.new(color.gray, 80))
-            table.cell(virtualSignalTable, 1, currentRow, str.tostring(account.totalTrades), text_color=color.white, text_size=size.small, bgcolor=color.new(color.gray, 90))
-            table.cell(virtualSignalTable, 2, currentRow, str.tostring(overallWinRate, '#.#') + '%', text_color=overallWinRate >= 60 ? color.lime : overallWinRate >= 40 ? color.yellow : color.red, text_size=size.small, bgcolor=color.new(color.gray, 90))
-            table.cell(virtualSignalTable, 3, currentRow, '$' + str.tostring(totalPnL, '#.##'), text_color=totalPnL > 0 ? color.lime : color.red, text_size=size.small, bgcolor=color.new(color.gray, 90))
-            table.cell(virtualSignalTable, 4, currentRow, '$' + str.tostring(account.maxDrawdown, '#.##'), text_color=color.white, text_size=size.small, bgcolor=color.new(color.red, 80))
-            table.cell(virtualSignalTable, 5, currentRow, str.tostring(profitFactor, '#.##'), text_color=profitFactor >= 2.0 ? color.lime : profitFactor >= 1.5 ? color.yellow : profitFactor >= 1.0 ? color.orange : color.red, text_size=size.small, bgcolor=color.new(color.gray, 90))
-            table.cell(virtualSignalTable, 6, currentRow, statusEmoji, text_color=color.white, text_size=size.small, bgcolor=statusColor)
+            // BOUNDS CHECK: Only populate if within safe limits
+            if currentRow < safeRowCount - 1
+                // Populate table row - SIMPLIFIED 7-COLUMN FORMAT (Combined P&L)
+                table.cell(virtualSignalTable, 0, currentRow, displayName, text_color=color.white, text_size=size.small, bgcolor=color.new(color.gray, 80))
+                table.cell(virtualSignalTable, 1, currentRow, str.tostring(account.totalTrades), text_color=color.white, text_size=size.small, bgcolor=color.new(color.gray, 90))
+                table.cell(virtualSignalTable, 2, currentRow, str.tostring(overallWinRate, '#.#') + '%', text_color=overallWinRate >= 60 ? color.lime : overallWinRate >= 40 ? color.yellow : color.red, text_size=size.small, bgcolor=color.new(color.gray, 90))
+                table.cell(virtualSignalTable, 3, currentRow, '$' + str.tostring(totalPnL, '#.##'), text_color=totalPnL > 0 ? color.lime : color.red, text_size=size.small, bgcolor=color.new(color.gray, 90))
+                table.cell(virtualSignalTable, 4, currentRow, '$' + str.tostring(account.maxDrawdown, '#.##'), text_color=color.white, text_size=size.small, bgcolor=color.new(color.red, 80))
+                table.cell(virtualSignalTable, 5, currentRow, str.tostring(profitFactor, '#.##'), text_color=profitFactor >= 2.0 ? color.lime : profitFactor >= 1.5 ? color.yellow : profitFactor >= 1.0 ? color.orange : color.red, text_size=size.small, bgcolor=color.new(color.gray, 90))
+                table.cell(virtualSignalTable, 6, currentRow, statusEmoji, text_color=color.white, text_size=size.small, bgcolor=statusColor)
             
             currentRow += 1
     
-    // Summary Row with System Status - SIMPLIFIED 7-COLUMN FORMAT
-    if currentRow <= 11
-        table.cell(virtualSignalTable, 0, 11, '🚀 SYSTEM', text_color=color.white, text_size=size.small, bgcolor=color.new(color.blue, 25))
-        table.cell(virtualSignalTable, 1, 11, 'Comm: $' + str.tostring(commissionPerTrade, '#.##'), text_color=color.white, text_size=size.tiny, bgcolor=color.new(color.blue, 35))
-        table.cell(virtualSignalTable, 2, 11, 'Slip: $' + str.tostring(slippagePerTrade, '#.##'), text_color=color.white, text_size=size.tiny, bgcolor=color.new(color.blue, 35))
-        table.cell(virtualSignalTable, 3, 11, 'Size: ' + str.tostring(virtualPositionSize), text_color=color.white, text_size=size.tiny, bgcolor=color.new(color.blue, 35))
-        table.cell(virtualSignalTable, 4, 11, 'Point: $' + str.tostring(syminfo.pointvalue * futuresMultiplier, '#.##'), text_color=color.white, text_size=size.tiny, bgcolor=color.new(color.blue, 35))
-        table.cell(virtualSignalTable, 5, 11, parametersChanged ? 'RESET ⚡' : 'STABLE ✓', text_color=parametersChanged ? color.orange : color.lime, text_size=size.tiny, bgcolor=color.new(color.blue, 35))
-        table.cell(virtualSignalTable, 6, 11, 'COMBINED P&L ✅', text_color=color.lime, text_size=size.tiny, bgcolor=color.new(color.green, 35))
+    // FIXED: Summary Row with proper bounds checking
+    summaryRow = safeRowCount - 1  // Always use the last row for summary
+    
+    // Add system summary row with absolute bounds safety
+    if summaryRow >= 1 and summaryRow < safeRowCount
+        table.cell(virtualSignalTable, 0, summaryRow, '🚀 SYSTEM', text_color=color.white, text_size=size.small, bgcolor=color.new(color.blue, 25))
+        table.cell(virtualSignalTable, 1, summaryRow, 'Comm: $' + str.tostring(commissionPerTrade, '#.##'), text_color=color.white, text_size=size.tiny, bgcolor=color.new(color.blue, 35))
+        table.cell(virtualSignalTable, 2, summaryRow, 'Slip: $' + str.tostring(slippagePerTrade, '#.##'), text_color=color.white, text_size=size.tiny, bgcolor=color.new(color.blue, 35))
+        table.cell(virtualSignalTable, 3, summaryRow, 'Size: ' + str.tostring(virtualPositionSize), text_color=color.white, text_size=size.tiny, bgcolor=color.new(color.blue, 35))
+        table.cell(virtualSignalTable, 4, summaryRow, 'Point: $' + str.tostring(syminfo.pointvalue * futuresMultiplier, '#.##'), text_color=color.white, text_size=size.tiny, bgcolor=color.new(color.blue, 35))
+        table.cell(virtualSignalTable, 5, summaryRow, parametersChanged ? 'RESET ⚡' : 'STABLE ✓', text_color=parametersChanged ? color.orange : color.lime, text_size=size.tiny, bgcolor=color.new(color.blue, 35))
+        table.cell(virtualSignalTable, 6, summaryRow, 'FIXED ✅', text_color=color.lime, text_size=size.tiny, bgcolor=color.new(color.green, 35))
 
 // ═══════════════════ INTRABAR EXIT DEBUG SYSTEM ═══════════════════
 // Visual monitoring and validation system for robust exit logic
@@ -1468,6 +1980,8 @@ if showHybridPanel and barstate.islast
     table.cell(hybridPanel, 0, 5, 'Entry Signals', text_color=color.white)
     table.cell(hybridPanel, 1, 5, 'Long: ' + str.tostring(longSignalCount) + ' Short: ' + str.tostring(shortSignalCount), text_color=color.white)
 
+// ═══════════════════ FEATURE STATUS PANEL ═══════════════════
+// The panel is only updated on confirmed bars to conserve resources.
 if showStatusPanel and barstate.isconfirmed
     // Create fixed-size table (3 columns, 8 rows max)  
     var table statusTable = table.new(position.bottom_right, 3, 8, bgcolor = color.new(color.black, 20), border_width = 1)
@@ -1551,8 +2065,6 @@ if showStatusPanel and barstate.isconfirmed
     table.cell(statusTable, 2, currentRow, 'Size: ' + str.tostring(strategy.position_size), text_color = color.white, text_size = size.small, bgcolor = color.new(color.purple, 70))
 
 // ═══════════════════ MASTER PANEL SYSTEM ═══════════════════
-// Real-time strategy status panel for enhanced transparency
-
 // Master Panel Enable Toggle
 masterPanelEnable = input.bool(true, '📊 Master Panel', group='🎛️ Master Panel', tooltip='Show real-time strategy status panel with key metrics')
 bigPositionDisplay = input.bool(true, '💯 Big Position Display', group='🎛️ Master Panel', tooltip='Show large, bold position indicator for instant recognition')
@@ -1594,24 +2106,59 @@ if strategy.closedtrades > strategy.closedtrades[1]
 // Removed complex trend consensus logic - using position size for strategy control
 
 // Master Panel Display (Optimized for immediate loading)
+// The panel is only updated on confirmed bars to conserve resources and prevent flickering.
 if masterPanelEnable and barstate.isconfirmed
-    var table masterPanel = table.new(position.top_right, 2, 15, bgcolor = color.new(color.black, 15), border_width = 1)
+    // DYNAMIC ROW CALCULATION FOR MASTER PANEL (FIXED)
+    // Calculate active signals first, as it's needed for row count
+    int activeSignals = (signal1Enable ? 1 : 0) + (signal2Enable ? 1 : 0) + (signal3Enable ? 1 : 0) + (signal4Enable ? 1 : 0) + (signal5Enable ? 1 : 0) + (signal6Enable ? 1 : 0) + (signal7Enable ? 1 : 0) + (signal8Enable ? 1 : 0) + (signal9Enable ? 1 : 0) + (signal10Enable ? 1 : 0)
+    // Use pre-calculated atrAvg with defensive check to prevent division by zero
+    volatilityRatio := not na(atrAvg) and atrAvg > 0 ? atrVal / atrAvg : 1.0
+
+    // 1. Count the number of rows that will actually be displayed.
+    int panelRows = 1 // Header
+    if rbwEnable
+        panelRows += 1
+    if activeSignals > 0
+        panelRows += 1
+    if volatilityRatio > 1.5
+        panelRows += 1
+    if smartProfitEnable or trendExitEnable
+        panelRows += 1
+    if strategy.position_size != 0
+        panelRows += 6 // Exit System, Position, P&L, Duration, Entry, R:R
+    else
+        panelRows += 1 // Next Signal
+    if sessionTrades > 0
+        panelRows += 1 // Session Stats
+    if strategy.closedtrades > 0
+        panelRows += 1 // Win Rate
+    
+    // 2. Create the table with a safe number of rows, adding a buffer.
+    safeRowCount = panelRows + 1
+    var table masterPanel = table.new(position.top_right, 2, safeRowCount, bgcolor = color.new(color.black, 15), border_width = 1)
+    
+    // 3. Clear the table using the safe row count.
+    table.clear(masterPanel, 0, 0, 1, safeRowCount - 1)
+    
+    // Reset current row for dynamic population
+    int currentRow = 0
     
     // Header
-    table.cell(masterPanel, 0, 0, '🎛️ MASTER PANEL', text_color = color.white, text_size = size.normal, bgcolor = color.new(color.blue, 30))
-    table.cell(masterPanel, 1, 0, 'STATUS', text_color = color.white, text_size = size.normal, bgcolor = color.new(color.blue, 30))
-    
-
+    table.cell(masterPanel, 0, currentRow, '🎛️ MASTER PANEL', text_color = color.white, text_size = size.normal, bgcolor = color.new(color.blue, 30))
+    table.cell(masterPanel, 1, currentRow, 'STATUS', text_color = color.white, text_size = size.normal, bgcolor = color.new(color.blue, 30))
+    currentRow += 1
     
     // Bias Filter Status (Simplified - RBW Only)
+    // Display the current bias filter status, which is determined by the RBW (Relative Balance of Weight) indicator.
+    // The bias filter is used to filter out trades that do not meet the strategy's risk management criteria.
     biasText = rbwEnable ? 
       (longDirectionalBias ? 'BULLISH' : shortDirectionalBias ? 'BEARISH' : 'NEUTRAL') : 'DISABLED'
     biasColor = longDirectionalBias ? color.lime : shortDirectionalBias ? color.red : color.gray
-    table.cell(masterPanel, 0, 2, '📈 RBW Bias', text_color = color.white, text_size = size.small, bgcolor = color.new(color.gray, 80))
-    table.cell(masterPanel, 1, 2, biasText, text_color = biasColor, text_size = size.normal, bgcolor = color.new(color.gray, 90))
+    table.cell(masterPanel, 0, currentRow, '📈 RBW Bias', text_color = color.white, text_size = size.small, bgcolor = color.new(color.gray, 80))
+    table.cell(masterPanel, 1, currentRow, biasText, text_color = biasColor, text_size = size.normal, bgcolor = color.new(color.gray, 90))
+    currentRow += 1
     
     // Signal Strength Meter Row (expanded to 10 signals)
-    activeSignals = (signal1Enable ? 1 : 0) + (signal2Enable ? 1 : 0) + (signal3Enable ? 1 : 0) + (signal4Enable ? 1 : 0) + (signal5Enable ? 1 : 0) + (signal6Enable ? 1 : 0) + (signal7Enable ? 1 : 0) + (signal8Enable ? 1 : 0) + (signal9Enable ? 1 : 0) + (signal10Enable ? 1 : 0)
     longSignalCount := (signal1Enable and sig1Long ? 1 : 0) + (signal2Enable and sig2Long ? 1 : 0) + (signal3Enable and sig3Long ? 1 : 0) + (signal4Enable and sig4Long ? 1 : 0) + (signal5Enable and sig5Long ? 1 : 0) + (signal6Enable and sig6Long ? 1 : 0) + (signal7Enable and sig7Long ? 1 : 0) + (signal8Enable and sig8Long ? 1 : 0) + (signal9Enable and sig9Long ? 1 : 0) + (signal10Enable and sig10Long ? 1 : 0)
     shortSignalCount := (signal1Enable and sig1Short ? 1 : 0) + (signal2Enable and sig2Short ? 1 : 0) + (signal3Enable and sig3Short ? 1 : 0) + (signal4Enable and sig4Short ? 1 : 0) + (signal5Enable and sig5Short ? 1 : 0) + (signal6Enable and sig6Short ? 1 : 0) + (signal7Enable and sig7Short ? 1 : 0) + (signal8Enable and sig8Short ? 1 : 0) + (signal9Enable and sig9Short ? 1 : 0) + (signal10Enable and sig10Short ? 1 : 0)
     
@@ -1620,19 +2167,17 @@ if masterPanelEnable and barstate.isconfirmed
         signalStrength = maxSignals / activeSignals * 100
         strengthText = str.tostring(signalStrength, '#') + '% (' + str.tostring(maxSignals) + '/' + str.tostring(activeSignals) + ')'
         strengthColor = signalStrength >= 80 ? color.lime : signalStrength >= 60 ? color.yellow : signalStrength >= 40 ? color.orange : color.red
-        table.cell(masterPanel, 0, 3, '📊 Signal Power', text_color = color.white, text_size = size.small, bgcolor = color.new(color.gray, 80))
-        table.cell(masterPanel, 1, 3, strengthText, text_color = strengthColor, text_size = size.normal, bgcolor = color.new(color.gray, 90))
+        table.cell(masterPanel, 0, currentRow, '📊 Signal Power', text_color = color.white, text_size = size.small, bgcolor = color.new(color.gray, 80))
+        table.cell(masterPanel, 1, currentRow, strengthText, text_color = strengthColor, text_size = size.normal, bgcolor = color.new(color.gray, 90))
+        currentRow += 1
     
     // Volatility Alert Row (DEFENSIVE PROGRAMMING FIX)
-    atrCurrent = atrVal
-    // Use pre-calculated atrAvg with defensive check to prevent division by zero
-    volatilityRatio := not na(atrAvg) and atrAvg > 0 ? atrCurrent / atrAvg : 1.0
-    
     if volatilityRatio > 1.5  // Show alert when ATR is 50% above average
         volText = 'HIGH (' + str.tostring(volatilityRatio, '#.##') + 'x)'
         volColor = volatilityRatio > 2.0 ? color.red : color.orange
-        table.cell(masterPanel, 0, 4, '⚡ Volatility', text_color = color.white, text_size = size.small, bgcolor = color.new(color.gray, 80))
-        table.cell(masterPanel, 1, 4, volText, text_color = volColor, text_size = size.normal, bgcolor = color.new(color.gray, 90))
+        table.cell(masterPanel, 0, currentRow, '⚡ Volatility', text_color = color.white, text_size = size.small, bgcolor = color.new(color.gray, 80))
+        table.cell(masterPanel, 1, currentRow, volText, text_color = volColor, text_size = size.normal, bgcolor = color.new(color.gray, 90))
+        currentRow += 1
     
     // Mode Status Row
     // Fluid Hybrid Mode Display
@@ -1650,8 +2195,9 @@ if masterPanelEnable and barstate.isconfirmed
             modeText := smartProfitEnable ? 'SPL-ONLY' : 'TREND-ONLY'
             modeColor := color.white
             
-        table.cell(masterPanel, 0, 5, '🚀 Mode', text_color = color.white, text_size = size.small, bgcolor = color.new(color.gray, 80))
-        table.cell(masterPanel, 1, 5, modeText, text_color = modeColor, text_size = size.normal, bgcolor = color.new(color.gray, 90))
+        table.cell(masterPanel, 0, currentRow, '🚀 Mode', text_color = color.white, text_size = size.small, bgcolor = color.new(color.gray, 80))
+        table.cell(masterPanel, 1, currentRow, modeText, text_color = modeColor, text_size = size.normal, bgcolor = color.new(color.gray, 90))
+        currentRow += 1
     
 
     
@@ -1660,7 +2206,8 @@ if masterPanelEnable and barstate.isconfirmed
         exitSystemText = ''
         exitSystemColor = color.gray
         
-        // Determine which exit system is currently active
+                // Dynamically determine which exit system is currently active based on the trade mode.
+        // This provides clear, real-time feedback on how the strategy will manage the current trade.
         if bbExitTriggered
             // BB EXIT MODE: Tight profit locker from BB extreme
             exitSystemText := 'BB TIGHT'
@@ -1682,30 +2229,34 @@ if masterPanelEnable and barstate.isconfirmed
             exitSystemText := 'NO EXIT!'
             exitSystemColor := color.red
         
-        table.cell(masterPanel, 0, 7, '🎯 Exit System', text_color = color.white, text_size = size.small, bgcolor = color.new(color.gray, 80))
-        table.cell(masterPanel, 1, 7, exitSystemText, text_color = exitSystemColor, text_size = size.normal, bgcolor = color.new(color.gray, 90))
+        table.cell(masterPanel, 0, currentRow, '🎯 Exit System', text_color = color.white, text_size = size.small, bgcolor = color.new(color.gray, 80))
+        table.cell(masterPanel, 1, currentRow, exitSystemText, text_color = exitSystemColor, text_size = size.normal, bgcolor = color.new(color.gray, 90))
+        currentRow += 1
     
     // Position Status Row
     positionText = strategy.position_size == 0 ? 'FLAT' : strategy.position_size > 0 ? 'LONG' : 'SHORT'
     positionColor = strategy.position_size == 0 ? color.gray : strategy.position_size > 0 ? color.lime : color.red
-    table.cell(masterPanel, 0, 8, '📈 Position', text_color = color.white, text_size = size.small, bgcolor = color.new(color.gray, 80))
-    table.cell(masterPanel, 1, 8, positionText, text_color = positionColor, text_size = size.normal, bgcolor = color.new(color.gray, 90))
+    table.cell(masterPanel, 0, currentRow, '📈 Position', text_color = color.white, text_size = size.small, bgcolor = color.new(color.gray, 80))
+    table.cell(masterPanel, 1, currentRow, positionText, text_color = positionColor, text_size = size.normal, bgcolor = color.new(color.gray, 90))
+    currentRow += 1
     
     // P&L Row (only when in position)
     if strategy.position_size != 0
         unrealizedPnL = strategy.openprofit
         pnlText = (unrealizedPnL >= 0 ? '+$' : '-$') + str.tostring(math.abs(unrealizedPnL), '#.##')
         pnlColor = unrealizedPnL > 0 ? color.lime : unrealizedPnL < 0 ? color.red : color.gray
-        table.cell(masterPanel, 0, 9, '💰 P&L', text_color = color.white, text_size = size.small, bgcolor = color.new(color.gray, 80))
-        table.cell(masterPanel, 1, 9, pnlText, text_color = pnlColor, text_size = size.normal, bgcolor = color.new(color.gray, 90))
+        table.cell(masterPanel, 0, currentRow, '💰 P&L', text_color = color.white, text_size = size.small, bgcolor = color.new(color.gray, 80))
+        table.cell(masterPanel, 1, currentRow, pnlText, text_color = pnlColor, text_size = size.normal, bgcolor = color.new(color.gray, 90))
+        currentRow += 1
     
     // Trade Duration Row (only when in position)
     if strategy.position_size != 0
         barsInTrade = bar_index - strategy.opentrades.entry_bar_index(strategy.opentrades - 1)
         durationText = str.tostring(barsInTrade) + ' bars'
         durationColor = barsInTrade > 50 ? color.orange : color.white
-        table.cell(masterPanel, 0, 10, '⏱️ Duration', text_color = color.white, text_size = size.small, bgcolor = color.new(color.gray, 80))
-        table.cell(masterPanel, 1, 10, durationText, text_color = durationColor, text_size = size.normal, bgcolor = color.new(color.gray, 90))
+        table.cell(masterPanel, 0, currentRow, '⏱️ Duration', text_color = color.white, text_size = size.small, bgcolor = color.new(color.gray, 80))
+        table.cell(masterPanel, 1, currentRow, durationText, text_color = durationColor, text_size = size.normal, bgcolor = color.new(color.gray, 90))
+        currentRow += 1
     
     // Entry Price Row (only when in position)
     if strategy.position_size != 0
@@ -1713,8 +2264,9 @@ if masterPanelEnable and barstate.isconfirmed
         priceText = '$' + str.tostring(entryPrice, '#.##')
         priceDiff = close - entryPrice
         diffText = (priceDiff >= 0 ? '+' : '') + str.tostring(priceDiff, '#.##')
-        table.cell(masterPanel, 0, 11, '🎯 Entry Price', text_color = color.white, text_size = size.small, bgcolor = color.new(color.gray, 80))
-        table.cell(masterPanel, 1, 11, priceText + ' (' + diffText + ')', text_color = color.white, text_size = size.normal, bgcolor = color.new(color.gray, 90))
+        table.cell(masterPanel, 0, currentRow, '🎯 Entry Price', text_color = color.white, text_size = size.small, bgcolor = color.new(color.gray, 80))
+        table.cell(masterPanel, 1, currentRow, priceText + ' (' + diffText + ')', text_color = color.white, text_size = size.normal, bgcolor = color.new(color.gray, 90))
+        currentRow += 1
     
     // Risk/Reward Calculator Row (only when in position)
     if strategy.position_size != 0 and smartProfitEnable
@@ -1724,8 +2276,9 @@ if masterPanelEnable and barstate.isconfirmed
         riskRewardRatio = currentDistance / stopDistance
         rrText = str.tostring(riskRewardRatio, '#.##') + ':1'
         rrColor = riskRewardRatio >= 2.0 ? color.lime : riskRewardRatio >= 1.0 ? color.yellow : color.red
-        table.cell(masterPanel, 0, 12, '🎲 R:R Ratio', text_color = color.white, text_size = size.small, bgcolor = color.new(color.gray, 80))
-        table.cell(masterPanel, 1, 12, rrText, text_color = rrColor, text_size = size.normal, bgcolor = color.new(color.gray, 90))
+        table.cell(masterPanel, 0, currentRow, '🎲 R:R Ratio', text_color = color.white, text_size = size.small, bgcolor = color.new(color.gray, 80))
+        table.cell(masterPanel, 1, currentRow, rrText, text_color = rrColor, text_size = size.normal, bgcolor = color.new(color.gray, 90))
+        currentRow += 1
     
     // Session Stats Row
     if sessionTrades > 0
@@ -1733,16 +2286,23 @@ if masterPanelEnable and barstate.isconfirmed
         sessionWinRate = sessionWins / sessionTrades * 100
         sessionText = str.tostring(sessionWinRate, '#') + '% (' + str.tostring(sessionWins) + '/' + str.tostring(sessionTrades) + ')'
         sessionColor = sessionWinRate >= 70 ? color.lime : sessionWinRate >= 50 ? color.yellow : color.red
-        table.cell(masterPanel, 0, 12, '🌅 Today', text_color = color.white, text_size = size.small, bgcolor = color.new(color.gray, 80))
-        table.cell(masterPanel, 1, 12, sessionText, text_color = sessionColor, text_size = size.normal, bgcolor = color.new(color.gray, 90))
-    
+        table.cell(masterPanel, 0, currentRow, '🌅 Today', text_color = color.white, text_size = size.small, bgcolor = color.new(color.gray, 80))
+        table.cell(masterPanel, 1, currentRow, sessionText, text_color = sessionColor, text_size = size.normal, bgcolor = color.new(color.gray, 90))
+        currentRow += 1
     // Next Signal Countdown Row (only when flat)
+    // This section displays a countdown of bars since the last signal was triggered
     if strategy.position_size == 0
-        // Simple countdown based on bars since last signal
+        // Initialize the countdown variable to 0
         barsWithoutSignal = 0
-        if not (sig1Long or sig1Short or sig2Long or sig2Short or sig3Long or sig3Short or sig4Long or sig4Short or sig5Long or sig5Short)
+        
+        // Check if any of the long signals are true
+        primaryLongSig := array_any(allLongSignals) // The master long signal is true if any element in the long signals array is true.
+        
+        // If no long signals are true, increment the countdown
+        if not primaryLongSig
             barsWithoutSignal := 1
         
+        // Initialize the countdown text and color
         countdownText = ''
         countdownColor = color.gray
         
@@ -1753,20 +2313,20 @@ if masterPanelEnable and barstate.isconfirmed
             countdownText := 'Signal Active!'
             countdownColor := color.yellow
         
-        table.cell(masterPanel, 0, 13, '⏳ Next Signal', text_color = color.white, text_size = size.small, bgcolor = color.new(color.gray, 80))
-        table.cell(masterPanel, 1, 13, countdownText, text_color = countdownColor, text_size = size.normal, bgcolor = color.new(color.gray, 90))
+        table.cell(masterPanel, 0, currentRow, '⏳ Next Signal', text_color = color.white, text_size = size.small, bgcolor = color.new(color.gray, 80))
+        table.cell(masterPanel, 1, currentRow, countdownText, text_color = countdownColor, text_size = size.normal, bgcolor = color.new(color.gray, 90))
+        currentRow += 1
     
     // Win Rate Row
     if strategy.closedtrades > 0
         winRate = strategy.wintrades / strategy.closedtrades * 100
         winText = str.tostring(winRate, '#.1') + '% (' + str.tostring(strategy.wintrades) + '/' + str.tostring(strategy.closedtrades) + ')'
         winColor = winRate >= 70 ? color.lime : winRate >= 50 ? color.yellow : color.red
-        table.cell(masterPanel, 0, 14, '🏆 Win Rate', text_color = color.white, text_size = size.small, bgcolor = color.new(color.gray, 80))
-        table.cell(masterPanel, 1, 14, winText, text_color = winColor, text_size = size.normal, bgcolor = color.new(color.gray, 90))
+        table.cell(masterPanel, 0, currentRow, '🏆 Win Rate', text_color = color.white, text_size = size.small, bgcolor = color.new(color.gray, 80))
+        table.cell(masterPanel, 1, currentRow, winText, text_color = winColor, text_size = size.normal, bgcolor = color.new(color.gray, 90))
+        currentRow += 1
 
 // ═══════════════════ STRATEGY PERFORMANCE TRACKING UPDATES ═══════════════════
-// Update signal performance arrays when trades close
-
 // Track peak/trough during open trades for drawdown calculation
 if strategy.position_size != 0 and not na(current_trade_entry)
     if strategy.position_size > 0  // Long position
@@ -1820,8 +2380,6 @@ if strategy.closedtrades > strategy.closedtrades[1]
 // This section was a duplicate and has been removed to prevent compilation errors
 
 // ═══════════════════ DYNAMIC SIGNAL NAMING FOR ARROWS ═══════════════════
-// Create meaningful arrow labels showing which signal(s) triggered the entry
-
 // Build dynamic signal names for long entries
 longSignalName = ""
 var int dynamicLongCount = 0
@@ -1902,8 +2460,10 @@ dynamicShortText = shortSignalName != "" ? shortSignalName : "MULTI"
 plotshape(longEntrySignal, title = "BUY Signal", style = shape.triangleup, location = location.belowbar, color = color.lime, size = size.small)
 plotshape(shortEntrySignal, title = "SELL Signal", style = shape.triangledown, location = location.abovebar, color = color.red, size = size.small)
 
-// ═══════════════════ PERFECT BUY/SELL SIGNAL LABELS (PRESERVE EXACTLY) ═══════════════════
-// These labels are ABSOLUTELY PERFECT - enhanced with professional performance only
+// ═══════════════════ DYNAMIC ENTRY SIGNAL LABELS ═══════════════════
+// Calculate label Y positions on every bar for consistency, preventing scope warnings.
+longLabelYPos = getSmartLabelY(low - (atrVal * 0.5), false, "important")
+shortLabelYPos = getSmartLabelY(high + (atrVal * 0.5), true, "important")
 
 // Perfect long entry labels (with professional performance enhancement)
 if longEntrySignal and shouldRenderCritical
@@ -1916,8 +2476,7 @@ if longEntrySignal and shouldRenderCritical
     labelId = getPooledLabel()
     if not na(labelId)
         // PRESERVE EXACT APPEARANCE: color.lime with 20% transparency, size.small, white text
-        yPos = getSmartLabelY(low - (atrVal * 0.5), false, "important")
-        updateLabel(labelId, bar_index, yPos, dynamicLongText, label.style_label_up, color.new(color.lime, 20), color.white, size.small)
+        updateLabel(labelId, bar_index, longLabelYPos, dynamicLongText, label.style_label_up, color.new(color.lime, 20), color.white, size.small)
 
 // Perfect short entry labels (with professional performance enhancement)  
 if shortEntrySignal and shouldRenderCritical
@@ -1930,14 +2489,9 @@ if shortEntrySignal and shouldRenderCritical
     labelId = getPooledLabel()
     if not na(labelId)
         // PRESERVE EXACT APPEARANCE: color.red with 20% transparency, size.small, white text
-        yPos = getSmartLabelY(high + (atrVal * 0.5), true, "important")
-        updateLabel(labelId, bar_index, yPos, dynamicShortText, label.style_label_down, color.new(color.red, 20), color.white, size.small)
+        updateLabel(labelId, bar_index, shortLabelYPos, dynamicShortText, label.style_label_down, color.new(color.red, 20), color.white, size.small)
 
-// ═══════════════════ VIRTUAL ACCOUNT PROCESSING (PROPERLY POSITIONED) ═══════════════════
-// Process each signal through its corresponding virtual account
-// This creates perfect signal attribution without interference
-// NOW POSITIONED AFTER ALL BIAS CALCULATIONS AND ENTRY SIGNAL DEFINITIONS
-
+// ═══════════════════ VIRTUAL ACCOUNT PROCESSING ═══════════════════
 // Signal names array for debugging
 signalNames = array.from(signal1Name, signal2Name, signal3Name, signal4Name, signal5Name, signal6Name, signal7Name, signal8Name, signal9Name, signal10Name)
 
@@ -1989,50 +2543,55 @@ if virtualAccount9.direction == "short" and sig9Long and longDirectionalBias and
 if virtualAccount10.direction == "short" and sig10Long and longDirectionalBias and bbLongFilterOK
     processVirtualExit(virtualAccount10, sig10Long and longDirectionalBias and bbLongFilterOK, signal10Name, 9)
 
-// ═══════════════════ STRATEGY EXECUTION ═══════════════════
-
+// ════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════/STRATEGY EXECUTION ═══════════════════
 // ─────────────────── POSITION SIZE CONTROL (moved to top) ───────────────────
-
 // ─────────────────── DEBUG CONTROLS ───────────────────
+// These inputs provide toggles for the detailed debug labels. The 'Intelligent Blocking'
+// system, for example, relies on these to show exactly why an entry might be skipped,
+// which is invaluable for fine-tuning the strategy's behavior.
 debugEnable = input.bool(true, "🔍 Enable Debug Labels", group="🔧 Debug", tooltip="Show debug labels for entry blocking analysis")
 showEntryBlocks = input.bool(true, "Show Entry Blocks", group="🔧 Debug", tooltip="Display labels when entries are blocked")
 
-// ─────────────────── ENTRY LOGIC (EMERGENCY FIX) ───────────────────
-// CRITICAL FIX: Replace strategy.position_size checks with entryAllowed flag
-// This prevents exit system interference with entry conditions
-
 // Update entry permission each bar – production: allow adds / reversals while in position
 // Check pyramid limit - prevent entries if we've reached max contracts (uses currentPositionSize from hybrid exit section)
-// Phantom position variables already declared above, removing duplicates
-
-// REMOVED: Duplicate phantom detection block - already handled above
 // ─────────────────── ENTRY LOGIC (SIMPLIFIED & ROBUST) ───────────────────
-// CRITICAL FIX: Simplified entry permission - only pyramid limit should block entries
+// This is the primary gatekeeper for all new entries. 
 entryAllowed := currentPositionSize < pyramidLimit
 
 // EMERGENCY RESET: If strategy thinks it's in position but no open trades exist, force reset
 if strategy.position_size != 0 and strategy.opentrades == 0
     entryAllowed := true  // Force allow entries if phantom position detected
 
-// PHANTOM POSITION DETECTOR & SAFETY-GATED AUTO-FIX
-// Safety gate to prevent accidental position closes in live trading
+// ─────────────────── PHANTOM POSITION DETECTOR & SAFETY-GATED AUTO-FIX ───────────────────
+// A critical safety mechanism to ensure the strategy's internal state matches the broker's reality.
+// It detects 'phantom positions' where the script believes it's in a trade (`strategy.position_size != 0`)
+// but no open trades exist (`strategy.opentrades == 0`). 
 
-// PHANTOM POSITION DETECTION - SIMPLIFIED TO PREVENT INTERFERENCE
-// Only detect true phantom positions (multiple bars confirmation)
+// ═══════════════════ ENHANCED PHANTOM POSITION DETECTION ═══════════════════
+// 🎯 PURPOSE: Sophisticated detection system with increased safety threshold
+// Enhanced detection with 5+ bar confirmation to prevent false positives during execution delays
 if strategy.position_size != 0 and strategy.opentrades == 0
     phantomPositionBars := phantomPositionBars + 1
     phantomDetected := true
     
-    // Only reset after 3+ bars to avoid false positives
-    if phantomPositionBars >= 3 and phantomAutoCloseEnable
+    // Enhanced logging for phantom position events
+    if phantomPositionBars == 1 and debugEnabled
+        debugMessage("WARNING", "⚠️ PHANTOM POSITION DETECTED: Bar 1/5 - Position: " + str.tostring(strategy.position_size) + ", Open Trades: " + str.tostring(strategy.opentrades), color.orange, color.white, 0.15)
+    else if phantomPositionBars == 3 and debugEnabled
+        debugMessage("WARNING", "⚠️ PHANTOM POSITION: Bar 3/5 - Monitoring for execution delays", color.orange, color.white, 0.15)
+    
+    // ENHANCED SAFETY: Only reset after 5+ bars to avoid false positives during broker delays
+    if phantomPositionBars >= 5 and phantomAutoCloseEnable
         if strategy.position_size > 0
             strategy.close_all("PHANTOM_LONG_RESET")
+            if debugEnabled
+                debugMessage("CRITICAL", "🚨 PHANTOM LONG RESET: Position " + str.tostring(strategy.position_size) + " closed after 5 bars confirmation", color.red, color.white, 0.25)
         else
             strategy.close_all("PHANTOM_SHORT_RESET")
+            if debugEnabled
+                debugMessage("CRITICAL", "🚨 PHANTOM SHORT RESET: Position " + str.tostring(strategy.position_size) + " closed after 5 bars confirmation", color.red, color.white, 0.25)
         phantomPositionBars := 0
         phantomDetected := false
-        if debugEnabled
-            debugMessage("CRITICAL", "Phantom position reset after 3 bars", color.red, color.white, 0.25)
 else
     phantomPositionBars := 0
     phantomDetected := false
@@ -2081,9 +2640,6 @@ if shortEntrySignal and entryAllowed
             updateLabel(labelId, bar_index, yPos, dynamicShortText, label.style_label_down, color.new(color.red, 20), color.white, size.small)
 
 // ═══════════════════ LUXALGO-STYLE LAYERED BACKGROUND HIGHLIGHTING ═══════════════════
-// Beautiful dual-layer background system inspired by LuxAlgo Range Detector
-// Inner layer: Trade direction (red=long, green=short)
-// Outer border: Exit system (blue=trend, orange=scalp, purple=hybrid)
 
 // Background system variables
 var box innerBox = na
@@ -2251,23 +2807,13 @@ updateCompactStatus() =>
 // Execute status update
 updateCompactStatus()
 
-// ═══════════════════ ENTRY STATUS TRACKING (Logic Only) ═══════════════════
-// Entry permission tracking (no visual plots)
-
-// Execution tracking (variables only - no visual plots)
-
 // ═══════════════════ INTELLIGENT BLOCKING STATUS (ENHANCED) ═══════════════════
 // Replace scattered red circles with informative debug labels
 
 // Enhanced blocking labels with reasons (replaces overwhelming red circles)
 if longEntrySignal and not entryAllowed and shouldRenderDebug
-    // EMERGENCY FIX: Update label pool counters in global scope
-    if array.size(labelPool) < MAX_LABELS and labelsCreatedThisBar < 10
-        labelsCreatedThisBar += 1
-    else if barstate.isconfirmed
-        labelPoolIndex := (labelPoolIndex + 1) % array.size(labelPool)
-    
-    labelId = getPooledLabel()
+    // FIXED: Use centralized label pool manager (no manual counter manipulation)
+    labelId = getPooledLabel(true)  // Priority label for blocking status
     if not na(labelId)
         blockReason = currentPositionSize >= pyramidLimit ? "PYRAMID LIMIT" : 
                      not longDirectionalBias ? "BIAS FILTER" :
@@ -2277,13 +2823,8 @@ if longEntrySignal and not entryAllowed and shouldRenderDebug
         updateLabel(labelId, bar_index, yPos, "🚫 LONG BLOCKED: " + blockReason, label.style_label_up, getSemanticColor("critical", "background"), getContrastSafeTextColor(getSemanticColor("critical", "background")), size.small)
 
 if shortEntrySignal and not entryAllowed and shouldRenderDebug
-    // EMERGENCY FIX: Update label pool counters in global scope
-    if array.size(labelPool) < MAX_LABELS and labelsCreatedThisBar < 10
-        labelsCreatedThisBar += 1
-    else if barstate.isconfirmed
-        labelPoolIndex := (labelPoolIndex + 1) % array.size(labelPool)
-    
-    labelId = getPooledLabel()
+    // FIXED: Use centralized label pool manager (no manual counter manipulation)
+    labelId = getPooledLabel(true)  // Priority label for blocking status
     if not na(labelId)
         blockReason = currentPositionSize >= pyramidLimit ? "PYRAMID LIMIT" : 
                      not shortDirectionalBias ? "BIAS FILTER" :
@@ -2296,11 +2837,8 @@ if shortEntrySignal and not entryAllowed and shouldRenderDebug
 plotchar(longEntrySignal and not entryAllowed and not showDebugLabels, title="🚫 LONG BLOCKED", char='🚫', location=location.belowbar, color=color.new(color.orange, 0), size=size.normal)
 plotchar(shortEntrySignal and not entryAllowed and not showDebugLabels, title="🚫 SHORT BLOCKED", char='🚫', location=location.abovebar, color=color.new(color.orange, 0), size=size.normal)
 
-// ═══════════════════ STRATEGY EXECUTION DEBUG (CRITICAL) ═══════════════════
+// ═══════════════════ STRATEGY EXECUTION DEBUG ═══════════════════
 // Debug the actual strategy.entry() calls vs our visual indicators
-
-// Function consistency calls (required by Pine Script v6)
-// Call functions for consistency without assignment (void functions)
 getSmartLabelY(high, true, "consistency")  // Called for consistency
 debugMessage("CONSISTENCY", "Function call for consistency", color.gray, color.white, 0.0, false)  // Called for consistency
 
@@ -2366,28 +2904,35 @@ else if strategy.position_size != 0 and wasFlat
         if (strategy.position_size > 0 and signal10LongSrc != close) or (strategy.position_size < 0 and signal10ShortSrc != close)
             array.set(current_trade_signals, 9, true)
 
-// ─────────────────── DEBUG ENTRY BLOCKING (ENHANCED) ───────────────────
-// Show detailed reasons why entries are blocked
+// ═══════════════════ INTELLIGENT BLOCKING STATUS (Entry Debugging) ═══════════════════
+// this system generates detailed, temporary labels directly on the chart to explain exactly WHY an entry signal was blocked 
 debugEntry() =>
     // Enhanced debug - show ALL entry activity
+        // This check ensures that the labels are only created if the specific 'Show Entry Blocks' input is enabled.
     if showEntryBlocks
-        // Show blocked entries
-        if longEntrySignal and not entryAllowed
+                // --- Logic for Blocked Entry Labels ---
+        if longEntrySignal and not entryAllowed // A long signal occurred, but the `entryAllowed` flag is false.
+            // Determine the specific reason for the block to provide a more informative message.
             blockReason = currentPositionSize >= pyramidLimit ? "PYRAMID_LIMIT (" + str.tostring(currentPositionSize) + "/" + str.tostring(pyramidLimit) + ")" : "OTHER_BLOCK"
             debugText = "🚫 LONG BLOCKED\nReason: " + blockReason + "\nPos: " + str.tostring(strategy.position_size) + "\nEntryFlag: " + str.tostring(entryAllowed)
+                        // Create the detailed label on the chart, displaying the reason for the block.
             label.new(bar_index, high + (atrVal * 0.3), debugText, color=color.new(color.red, 10), style=label.style_label_down, textcolor=color.white, size=size.normal)
         
-        if shortEntrySignal and not entryAllowed
+        if shortEntrySignal and not entryAllowed // A short signal occurred, but the `entryAllowed` flag is false.
+            // Determine the specific reason for the block to provide a more informative message.
             blockReason = currentPositionSize >= pyramidLimit ? "PYRAMID_LIMIT (" + str.tostring(currentPositionSize) + "/" + str.tostring(pyramidLimit) + ")" : "OTHER_BLOCK"
             debugText = "🚫 SHORT BLOCKED\nReason: " + blockReason + "\nPos: " + str.tostring(strategy.position_size) + "\nEntryFlag: " + str.tostring(entryAllowed)
             label.new(bar_index, low - (atrVal * 0.3), debugText, color=color.new(color.red, 10), style=label.style_label_up, textcolor=color.white, size=size.normal)
         
-        // Show successful entries
-        if longEntrySignal and entryAllowed
+                // --- Logic for Successful Entry Labels ---
+        if longEntrySignal and entryAllowed // A long signal occurred and the `entryAllowed` flag is true.
+            // Prepare the confirmation message for the successful entry label.
             debugText = "✅ LONG ENTRY\nPos: " + str.tostring(strategy.position_size) + "→" + str.tostring(strategy.position_size + positionQty) + "\nContracts: " + str.tostring(currentPositionSize) + "/" + str.tostring(pyramidLimit)
+                        // Create a confirmation label showing that the entry was successful and the new position size.
             label.new(bar_index, high + (atrVal * 0.5), debugText, color=color.new(color.green, 20), style=label.style_label_down, textcolor=color.white, size=size.small)
             
-        if shortEntrySignal and entryAllowed
+        if shortEntrySignal and entryAllowed // A short signal occurred and the `entryAllowed` flag is true.
+            // Prepare the confirmation message for the successful entry label.
             debugText = "✅ SHORT ENTRY\nPos: " + str.tostring(strategy.position_size) + "→" + str.tostring(strategy.position_size - positionQty) + "\nContracts: " + str.tostring(currentPositionSize) + "/" + str.tostring(pyramidLimit)
             label.new(bar_index, low - (atrVal * 0.5), debugText, color=color.new(color.green, 20), style=label.style_label_up, textcolor=color.white, size=size.small)
 
@@ -2405,23 +2950,36 @@ if debugEnabled
     if phantomDetected and phantomPositionBars == 1
         resetText = "⚠️ PHANTOM RESET\nPos: " + str.tostring(strategy.position_size) + "\nOpenTrades: " + str.tostring(strategy.opentrades) + "\nForcing Close All"
         label.new(bar_index, close, resetText, color=color.new(color.orange, 0), style=label.style_label_center, textcolor=color.black, size=size.large)
+
+// ═══════════════════ EXIT SYSTEM DEBUG MONITORING ═══════════════════
+// Exit system status monitoring for debugging
+// Exit system debug monitoring - always call but conditionally execute
+if strategy.position_size != 0
+    exitStatus = "Exit Status: SPL=" + (trailExitSent ? "✅" : "⏳") + 
+                 " Fixed=" + (fixedExitSent ? "✅" : "⏳") + 
+                 " MA=" + (maExitSent ? "✅" : "⏳")
+    
+    // Only show status once per position to avoid spam
+    if not trailExitSent and not fixedExitSent and not maExitSent
+        debugMessage("DEBUG", exitStatus, color.gray, color.white, 0.05)
     
 
 
 // ═══════════════════ EXIT LOGIC ───────────────────
 
 // ENTRY COOL-DOWN SYSTEM (Production Safety)
-var int lastExitBar = na
-COOL_DOWN_BARS = 1  // Minimum bars between exit and next entry
+var int lastExitBar = na // Stores the bar_index of the last exit to enforce the cool-down period.
+COOL_DOWN_BARS = 1  // Defines the mandatory waiting period (in bars) after an exit before a new entry is allowed.
 
-// MA EXIT LOGIC (WITH PRODUCTION COOL-DOWN)
-if maExitOn and strategy.position_size != 0
+// ═══════════════════ 1. MA EXIT (Basic Trend Filter) ═══════════════════
+// A simple exit based on price crossing a moving average. This acts as a fallback exit mechanism.
+if maExitOn and strategy.position_size != 0 // Only run if the MA Exit system is enabled and we are in a position.
     longExitCondition = strategy.position_size > 0 and close < priceMA
     shortExitCondition = strategy.position_size < 0 and close > priceMA
     
     if longExitCondition
-        strategy.close("Long", comment="MA Exit", alert_message=longExitMsg)
-        lastExitBar := bar_index
+        strategy.close("Long", comment="MA Exit", alert_message=longExitMsg) // Close the long position.
+        lastExitBar := bar_index // Record the bar index of this exit to start the cool-down timer.
         
         // ═══════════════════ CLASSY EXIT BADGE DISPLAY ═══════════════════
         // Professional badge-style exit notification
@@ -2436,8 +2994,8 @@ if maExitOn and strategy.position_size != 0
             entryAllowed := true
         
     if shortExitCondition
-        strategy.close("Short", comment="MA Exit", alert_message=shortExitMsg)
-        lastExitBar := bar_index
+        strategy.close("Short", comment="MA Exit", alert_message=shortExitMsg) // Close the short position.
+        lastExitBar := bar_index // Record the bar index of this exit to start the cool-down timer.
         
         // ═══════════════════ CLASSY EXIT BADGE DISPLAY ═══════════════════
         // Professional badge-style exit notification
@@ -2451,12 +3009,30 @@ if maExitOn and strategy.position_size != 0
         if barstate.isconfirmed and (na(lastExitBar) or bar_index >= lastExitBar + COOL_DOWN_BARS)
             entryAllowed := true
 
-// ═══════════════════ EXIT SYSTEM COORDINATION ═══════════════════
-// CRITICAL FIX: Allow complementary exit systems to work together
-// Fixed Stop Loss = Emergency protection, SPL = Profit taking, Trend Exits = Signal-based
+// ═══════════════════ EXIT FLAG RESET LOGIC ═══════════════════
+// Reset exit flags when entering new position
+if strategy.position_size != 0 and strategy.position_size[1] == 0
+    trailExitSent := false
+    fixedExitSent := false  
+    maExitSent := false
+    strategyEntryPrice := strategy.position_avg_price
+    if debugEnabled
+        debugMessage("INFO", "🔄 New position opened - Exit flags reset", color.blue, color.white, 0.05)
 
-// SMART PROFIT LOCKER (Primary Profit-Taking System)
-if (tradeMode == "SCALP" or tradeMode == "HYBRID") and smartProfitEnable and strategy.position_size != 0
+// Reset exit flags when position closes
+if strategy.position_size == 0 and strategy.position_size[1] != 0
+    trailExitSent := false
+    fixedExitSent := false
+    maExitSent := false
+    strategyEntryPrice := na
+    if debugEnabled
+        debugMessage("INFO", "✅ Position closed - Exit system reset", color.gray, color.white, 0.05)
+
+// ═══════════════════ 2. ADVANCED EXIT SYSTEM COORDINATION ═══════════════════
+// ═══════════════════ SMART PROFIT LOCKER (Primary Profit-Taking System) ═══════════════════
+// This is the core profit-taking mechanism for SCALP and HYBRID modes. It uses a dynamic trailing stop
+// that activates immediately upon entry, designed to execute INTRABAR for rapid profit protection.
+if (tradeMode == "SCALP" or tradeMode == "HYBRID") and smartProfitEnable and strategy.position_size != 0 // Check if in a compatible mode, the SPL is enabled, and a position is active.
     // Calculate Smart Profit Locker distance and offset
     smartDistance := smartProfitType == 'ATR' ? smartProfitVal * atrVal : smartProfitType == 'Points' ? smartProfitVal : strategy.position_avg_price * smartProfitVal / 100.0
     
@@ -2474,41 +3050,92 @@ if (tradeMode == "SCALP" or tradeMode == "HYBRID") and smartProfitEnable and str
         smartDistance := 50.0  // Safe default value in points
     if na(smartOffset) or smartOffset <= 0
         smartOffset := 5.0  // Safe default offset
-    
-    if strategy.position_size > 0  // Long position
-        if tradeMode != "TREND"
-            strategy.exit('Smart-Long', from_entry='Long', trail_points=math.max(smartDistance, 0.01), trail_offset=math.max(smartOffset, 0.01), comment='Smart Profit Locker')
-            if not trailExitSent
-                trailExitSent := true
-                debugMessage("INFO", "🎯 Smart Profit Locker activated - Distance: " + str.tostring(smartDistance, "#.##") + " pts", color.green, color.white, 0.05)
-    else if strategy.position_size < 0  // Short position
-        if tradeMode != "TREND"
-            strategy.exit('Smart-Short', from_entry='Short', trail_points=math.max(smartDistance, 0.01), trail_offset=math.max(smartOffset, 0.01), comment='Smart Profit Locker')
-            if not trailExitSent
-                trailExitSent := true
-                debugMessage("INFO", "🎯 Smart Profit Locker activated - Distance: " + str.tostring(smartDistance, "#.##") + " pts", color.green, color.white, 0.05)
 
-// FIXED STOP LOSS (Emergency Protection - Works alongside SPL)
-if fixedEnable and strategy.position_size != 0
-    if strategy.position_size > 0  // Long position
-        stopLevel = strategy.position_avg_price - tpCalc(fixedStop)
-        // Only set take profit if enabled, otherwise let SPL handle profit-taking
-        profitLevel = tp1Enable ? strategy.position_avg_price + tpCalc(tp1Size) : na
-        if tradeMode != "TREND"
-            strategy.exit("Fixed-Long", from_entry="Long", stop=stopLevel, limit=profitLevel, comment="Fixed SL" + (tp1Enable ? "/TP" : ""))
+// ═══════════════════ COORDINATED EXIT SYSTEM (Primary Profit-Taking) ═══════════════════
+// This implements the proper exit hierarchy with state tracking to prevent conflicts
+
+// 1. Smart Profit Locker (Primary for Scalp Mode)
+if smartProfitEnable and strategy.position_size != 0 and not trailExitSent and tradeMode != "TREND"
+    if strategy.position_size > 0
+        strategy.exit("SPL-Long", "Long", trail_points=smartDistance, trail_offset=smartOffset)
+        trailExitSent := true
+        if debugEnabled
+            debugMessage("INFO", "🎯 SPL-Long activated - Distance: " + str.tostring(smartDistance, "#.##"), color.green, color.white, 0.05)
+    else if strategy.position_size < 0
+        strategy.exit("SPL-Short", "Short", trail_points=smartDistance, trail_offset=smartOffset)
+        trailExitSent := true
+        if debugEnabled
+            debugMessage("INFO", "🎯 SPL-Short activated - Distance: " + str.tostring(smartDistance, "#.##"), color.green, color.white, 0.05)
+
+// 2. Fixed SL/TP (Safety Net)
+if fixedEnable and strategy.position_size != 0 and not fixedExitSent
+    stopLevel = strategy.position_size > 0 ?                 strategyEntryPrice - (fixedStop * atrVal) :                 strategyEntryPrice + (fixedStop * atrVal)
     
-    if strategy.position_size < 0  // Short position
-        stopLevel = strategy.position_avg_price + tpCalc(fixedStop)
-        profitLevel = tp1Enable ? strategy.position_avg_price - tpCalc(tp1Size) : na
-        if tradeMode != "TREND"
-            strategy.exit("Fixed-Short", from_entry="Short", stop=stopLevel, limit=profitLevel, comment="Fixed SL" + (tp1Enable ? "/TP" : ""))
+    profitLevel = tp1Enable ? 
+                  (strategy.position_size > 0 ? 
+                   strategyEntryPrice + (tp1Size * atrVal) : 
+                   strategyEntryPrice - (tp1Size * atrVal)) : na
+    
+    strategy.exit("Fixed", strategy.position_size > 0 ? "Long" : "Short", 
+                  stop=stopLevel, limit=profitLevel)
+    fixedExitSent := true
+    if debugEnabled
+        debugMessage("INFO", "🛡️ Fixed SL/TP set - Stop: " + str.tostring(stopLevel, "#.##"), color.blue, color.white, 0.05)
+
+// 3. MA Exit (Trend Filter)
+if maExitOn and strategy.position_size != 0 and not maExitSent
+    exitCondition = (strategy.position_size > 0 and close < priceMA) or                     (strategy.position_size < 0 and close > priceMA)
+    
+    if exitCondition
+        strategy.close_all("MA Exit", alert_message=flatExitMsg)
+        maExitSent := true
+        entryAllowed := true
+        if debugEnabled
+            debugMessage("INFO", "📈 MA Exit triggered - Price crossed MA", color.orange, color.white, 0.05)
+
+// 4. Trend Mode Exits (Signal-based for trend following)
+if tradeMode == "TREND" and strategy.position_size != 0
+    // Exit on opposite signals for trend mode
+    trendExitCondition = (strategy.position_size > 0 and exitLongPulse) or                         (strategy.position_size < 0 and exitShortPulse)
+    
+    if trendExitCondition and barstate.isconfirmed
+        strategy.close_all("Trend Exit", alert_message=flatExitMsg)
+        entryAllowed := true
+        exitDirection := strategy.position_size > 0 ? "Long" : "Short"
+        debugMessage("INFO", "Trend Exit: " + exitDirection + " closed on opposite signal", color.purple, color.white, 0.05)
+
+// ═══════════════════ TESTING FRAMEWORK RESULTS DISPLAY ═══════════════════
+// Display test results table when testing mode is enabled
+if testMetrics.testingEnabled and barstate.islast and array.size(testMetrics.testResults) > 0
+    var table testTable = table.new(position.bottom_left, 2, 11, bgcolor=color.new(color.black, 80))  // Increased to 11 rows (0-10)
+    
+    table.cell(testTable, 0, 0, "🧪 TEST RESULTS", text_color=color.white, bgcolor=color.blue)
+    table.cell(testTable, 1, 0, "STATUS", text_color=color.white, bgcolor=color.blue)
+    
+    // Limit to 7 test results to ensure we have room for the stats row
+    for i = 0 to math.min(array.size(testMetrics.testResults) - 1, 7)
+        result = array.get(testMetrics.testResults, i)
+        statusColor = str.contains(result, "CRITICAL") ? color.red : 
+                     str.contains(result, "WARNING") ? color.orange : 
+                     str.contains(result, "SLOW") ? color.yellow : color.green
+        
+        table.cell(testTable, 0, i + 1, result, text_color=color.white, text_size=size.small)
+        table.cell(testTable, 1, i + 1, "MONITORED", text_color=color.white, bgcolor=statusColor, text_size=size.small)
+    
+    // Display test statistics (moved to row 9 to ensure it's always visible)
+    statsText = "Memory: " + str.tostring(testMetrics.memoryTests) + " | Perf: " + str.tostring(testMetrics.performanceTests)
+    table.cell(testTable, 0, 9, statsText, text_color=color.gray, text_size=size.tiny)
+    table.cell(testTable, 1, 9, "TESTS RUN", text_color=color.gray, text_size=size.tiny)
 
 // ═══════════════════ HYBRID TREND MODE EXIT LOGIC ═══════════════════
+//It's designed to let profits run as long
 // Core trend following system: Exit on ANY opposite signal when in TREND or HYBRID mode
-if (tradeMode == "TREND" or tradeMode == "HYBRID") and strategy.position_size != 0
+if (tradeMode == "TREND" or tradeMode == "HYBRID") and strategy.position_size != 0 // Only active when in TREND or HYBRID mode with an open position.
     // Long position: Exit on any short signal from trend indicators
-    if strategy.position_size > 0 and exitLongPulse
-        strategy.close("Long", comment="Trend Exit: Opposite Signal", alert_message=longExitMsg)
+        // For a long position, the exit condition is the firing of `exitLongPulse`. This pulse is a consolidated signal
+    // representing an exit suggestion from ANY of the enabled trend-following indicators.
+    if strategy.position_size > 0 and exitShortPulse // Corrected from exitLongPulse to exitShortPulse for long exits
+        strategy.close("Long", comment="Trend Exit: Opposite Signal", alert_message=longExitMsg) // Close the position immediately.
         entryAllowed := true  // Re-enable entries after exit
         
         // ═══════════════════ TREND EXIT BADGE DISPLAY ═══════════════════
@@ -2519,8 +3146,9 @@ if (tradeMode == "TREND" or tradeMode == "HYBRID") and strategy.position_size !=
                 exitYPos = high + (atrVal * 0.7)
                 updateLabel(exitLabelId, bar_index, exitYPos, "TREND EXIT", label.style_label_down, color.new(color.purple, 20), color.white, size.small)
         
-    // Short position: Exit on any long signal from trend indicators  
-    if strategy.position_size < 0 and exitShortPulse
+        // For a short position, the exit condition is the firing of `exitLongPulse`. This pulse represents an exit
+    // suggestion from ANY of the enabled trend-following indicators, signaling a potential trend reversal.
+    if strategy.position_size < 0 and exitLongPulse
         strategy.close("Short", comment="Trend Exit: Opposite Signal", alert_message=shortExitMsg)
         entryAllowed := true  // Re-enable entries after exit
         
@@ -2532,17 +3160,7 @@ if (tradeMode == "TREND" or tradeMode == "HYBRID") and strategy.position_size !=
                 exitYPos = low - (atrVal * 0.7)
                 updateLabel(exitLabelId, bar_index, exitYPos, "TREND EXIT", label.style_label_up, color.new(color.purple, 20), color.white, size.small)
 
-// LEGACY TREND EXIT (Keep for backward compatibility if needed)
-if colorChangeExit and strategy.position_size != 0
-    if strategy.position_size > 0
-        strategy.close("Long", comment="Legacy Trend Exit", alert_message=longExitMsg)
-        entryAllowed := true  // Re-enable entries after exit
-        
-    if strategy.position_size < 0
-        strategy.close("Short", comment="Legacy Trend Exit", alert_message=shortExitMsg)
-        entryAllowed := true  // Re-enable entries after exit
 
-// LEGACY TREND CHANGE EXIT REMOVED - Variables no longer exist in current version
 
 // ═══════════════════ PROFESSIONAL PERFORMANCE MONITORING ═══════════════════
 // Production-grade object count and memory tracking

@@ -155,12 +155,41 @@ Drive the per-signal virtual-account back-tester.
 8. **Emergency Exit Section** – Placeholder to be added after Filters (future feature).
 
 
-### Proposed Clean-Up Roadmap
-1. **Single Declaration Block** – Move *all* `input.*` calls to the top of the script in the desired order.
-2. **Consistent Naming** – Use a uniform prefix emoji or none (per user preference) and Camel-Case variable names.
-3. **Logical Sections** – Arrange as: General → Visuals → Risk/Exit → Hybrid/Trend → Filters → Advanced/Debug → Back-testing.
-4. **Tooltips Everywhere** – Ensure each input has a concise tooltip.
-5. **Panel Version Tag** – Add a readonly label `Panel Version` so we can track future migrations.
+### Implementation Roadmap (v2.0 target)
+Phase 1 – Input Extraction & Tagging  
+• Copy every `input.*()` to a single block at top (feature-flag branch).  
+• Comment each with its original group + `// TODO newOrder:X`.
+
+Phase 2 – Re-order & Rename  
+• Re-arrange to match *Desired Final Panel Order*.  
+• Insert placeholder **Emergency Exits** group (behind `showEmergencyInputs` flag).  
+• Add per-signal **Required-for-Trend** checkbox to Multi-Signal matrix.
+
+Phase 3 – Enhanced Controls  
+• Extend `tablePosition` dropdown with *Middle-Left* / *Middle-Right*.  
+• Add auto-detected `futuresMultiplier` (tickSize * tickValue) fallback.  
+• Start RBW / BB filter code audit and sync tooltips.
+
+Phase 4 – Tooltip & Emoji Audit  
+• Ensure all 188 inputs have concise tooltips.  
+• Decide on minimal emoji style (section-header only).  
+• Update labels accordingly.
+
+Phase 5 – Legacy Code Cleanup  
+• Remove **Hybrid System** variables & dead trend-exit flags.  
+• Compile, run lint check (no unused var warnings).
+
+Phase 6 – QA & Performance  
+• Visual diff vs. pre-refactor panel.  
+• Back-test BTCUSDT 1 h, compare equity curve (±0.1%).  
+• Memory profile: keep objects <1200.  
+• Confirm debug objects gated by `debugLevel`.
+
+Deliverables:  
+• Panel Version label `v2.0` with change-log.  
+• Updated docs & screenshots.
+
+> Timeline ~2.5 dev days assuming smooth compile passes.
 
 ---
 
