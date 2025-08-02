@@ -1068,30 +1068,30 @@ fUsageAllowed(entrySide, usage) =>
     usage == "All Entries" or (usage == "Long Only" and entrySide == "LONG") or (usage == "Short Only" and entrySide == "SHORT")
     // "Observe" returns false (no trading allowed)
 
-// ═══════════════════ PROPER PULSE DETECTION (FIXED FOR SINGLE SIGNALS) ═══════════════════
-// CRITICAL FIX: Use proper pulse detection that only fires ONCE per signal
-// When source equals close, use crossover detection for single pulses
+// ═══════════════════ EXTERNAL INDICATOR ONLY SIGNAL DETECTION ═══════════════════
+// CRITICAL FIX: Signals ONLY fire when external indicators are connected
+// When source equals close (default), signals are DISABLED - no trading allowed
 // When external indicator connected, use proper change detection for pulses
-sig1Long = signal1Enable ? (signal1LongSrc != close ? ta.change(signal1LongSrc) > 0 : ta.crossover(close, close[1])) : false
-sig1Short = signal1Enable ? (signal1ShortSrc != close ? ta.change(signal1ShortSrc) > 0 : ta.crossunder(close, close[1])) : false
-sig2Long = signal2Enable ? (signal2LongSrc != close ? ta.change(signal2LongSrc) > 0 : ta.crossover(close, close[1])) : false
-sig2Short = signal2Enable ? (signal2ShortSrc != close ? ta.change(signal2ShortSrc) > 0 : ta.crossunder(close, close[1])) : false
-sig3Long = signal3Enable ? (signal3LongSrc != close ? ta.change(signal3LongSrc) > 0 : ta.crossover(close, close[1])) : false
-sig3Short = signal3Enable ? (signal3ShortSrc != close ? ta.change(signal3ShortSrc) > 0 : ta.crossunder(close, close[1])) : false
-sig4Long = signal4Enable ? (signal4LongSrc != close ? ta.change(signal4LongSrc) > 0 : ta.crossover(close, close[1])) : false
-sig4Short = signal4Enable ? (signal4ShortSrc != close ? ta.change(signal4ShortSrc) > 0 : ta.crossunder(close, close[1])) : false
-sig5Long = signal5Enable ? (signal5LongSrc != close ? ta.change(signal5LongSrc) > 0 : ta.crossover(close, close[1])) : false
-sig5Short = signal5Enable ? (signal5ShortSrc != close ? ta.change(signal5ShortSrc) > 0 : ta.crossunder(close, close[1])) : false
-sig6Long = signal6Enable ? (signal6LongSrc != close ? ta.change(signal6LongSrc) > 0 : ta.crossover(close, close[1])) : false
-sig6Short = signal6Enable ? (signal6ShortSrc != close ? ta.change(signal6ShortSrc) > 0 : ta.crossunder(close, close[1])) : false
-sig7Long = signal7Enable ? (signal7LongSrc != close ? ta.change(signal7LongSrc) > 0 : ta.crossover(close, close[1])) : false
-sig7Short = signal7Enable ? (signal7ShortSrc != close ? ta.change(signal7ShortSrc) > 0 : ta.crossunder(close, close[1])) : false
-sig8Long = signal8Enable ? (signal8LongSrc != close ? ta.change(signal8LongSrc) > 0 : ta.crossover(close, close[1])) : false
-sig8Short = signal8Enable ? (signal8ShortSrc != close ? ta.change(signal8ShortSrc) > 0 : ta.crossunder(close, close[1])) : false
-sig9Long = signal9Enable ? (signal9LongSrc != close ? ta.change(signal9LongSrc) > 0 : ta.crossover(close, close[1])) : false
-sig9Short = signal9Enable ? (signal9ShortSrc != close ? ta.change(signal9ShortSrc) > 0 : ta.crossunder(close, close[1])) : false
-sig10Long = signal10Enable ? (signal10LongSrc != close ? ta.change(signal10LongSrc) > 0 : ta.crossover(close, close[1])) : false
-sig10Short = signal10Enable ? (signal10ShortSrc != close ? ta.change(signal10ShortSrc) > 0 : ta.crossunder(close, close[1])) : false
+sig1Long = signal1Enable ? (signal1LongSrc != close ? ta.change(signal1LongSrc) > 0 : false) : false
+sig1Short = signal1Enable ? (signal1ShortSrc != close ? ta.change(signal1ShortSrc) > 0 : false) : false
+sig2Long = signal2Enable ? (signal2LongSrc != close ? ta.change(signal2LongSrc) > 0 : false) : false
+sig2Short = signal2Enable ? (signal2ShortSrc != close ? ta.change(signal2ShortSrc) > 0 : false) : false
+sig3Long = signal3Enable ? (signal3LongSrc != close ? ta.change(signal3LongSrc) > 0 : false) : false
+sig3Short = signal3Enable ? (signal3ShortSrc != close ? ta.change(signal3ShortSrc) > 0 : false) : false
+sig4Long = signal4Enable ? (signal4LongSrc != close ? ta.change(signal4LongSrc) > 0 : false) : false
+sig4Short = signal4Enable ? (signal4ShortSrc != close ? ta.change(signal4ShortSrc) > 0 : false) : false
+sig5Long = signal5Enable ? (signal5LongSrc != close ? ta.change(signal5LongSrc) > 0 : false) : false
+sig5Short = signal5Enable ? (signal5ShortSrc != close ? ta.change(signal5ShortSrc) > 0 : false) : false
+sig6Long = signal6Enable ? (signal6LongSrc != close ? ta.change(signal6LongSrc) > 0 : false) : false
+sig6Short = signal6Enable ? (signal6ShortSrc != close ? ta.change(signal6ShortSrc) > 0 : false) : false
+sig7Long = signal7Enable ? (signal7LongSrc != close ? ta.change(signal7LongSrc) > 0 : false) : false
+sig7Short = signal7Enable ? (signal7ShortSrc != close ? ta.change(signal7ShortSrc) > 0 : false) : false
+sig8Long = signal8Enable ? (signal8LongSrc != close ? ta.change(signal8LongSrc) > 0 : false) : false
+sig8Short = signal8Enable ? (signal8ShortSrc != close ? ta.change(signal8ShortSrc) > 0 : false) : false
+sig9Long = signal9Enable ? (signal9LongSrc != close ? ta.change(signal9LongSrc) > 0 : false) : false
+sig9Short = signal9Enable ? (signal9ShortSrc != close ? ta.change(signal9ShortSrc) > 0 : false) : false
+sig10Long = signal10Enable ? (signal10LongSrc != close ? ta.change(signal10LongSrc) > 0 : false) : false
+sig10Short = signal10Enable ? (signal10ShortSrc != close ? ta.change(signal10ShortSrc) > 0 : false) : false
 
 // ═══════════════════ APPLYING USAGE FILTERS ═══════════════════
 sig1Long := fUsageAllowed("LONG", signal1Usage) and sig1Long // Applies the usage filter; if the function returns false, the signal is silenced for this bar.

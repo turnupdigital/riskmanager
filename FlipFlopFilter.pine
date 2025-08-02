@@ -1,0 +1,154 @@
+//@version=5
+indicator("Range-Breakout FlipFlop • v2.1", overlay = true,
+          max_labels_count = 500, max_bars_back = 500, explicit_plot_zorder = true)
+
+// ─────────────────── 0 · PRIMARY REVERSAL (external) SIGNALS ───────────────
+grpSig  = "PRIMARY REVERSAL SIGNAL (pick any plot)"
+longEntSrc   = input.source(close,  "Long-ENTRY plot (+→buy)",    group = grpSig)
+longExitSrc  = input.source(close,  "Long-EXIT  plot (+→exit)",   group = grpSig)
+shortEntSrc  = input.source(close,  "Short-ENTRY plot (+→sell)",  group = grpSig)
+shortExitSrc = input.source(close,  "Short-EXIT  plot (+→cover)", group = grpSig)
+
+// ─────────────────── DEBUG ──────────────────
+grpDbg     = "DEBUG"
+showRaw    = input.bool(false, "Show raw pulses", group = grpDbg, tooltip = "Plots tiny grey dots whenever the chosen external plot fires")
+
+// ─────────────────── SIGNAL SOURCE SELECTION ─────────────────────────
+grpSel     = "SIGNAL SOURCE"
+sigSrc     = input.string("Any", "Signal Source", options=["Breakout", "Reversal", "Any"], group=grpSel)
+
+// Helper: treats ANY non-zero value as a pulse (edge trigger)
+isPulse(sig) => nz(sig, 0) != 0 and nz(sig[1], 0) == 0
+
+// ─────────────────── RANGE / BREAK-OUT SETTINGS  (unchanged) ┇ ATR CALC ──
+atrLen         = input.int(400,  "ATR length")
+useAbsolute    = input.bool(true,  "Absolute small-run test (< AbsMax)")
+absMax         = input.float(2.0,  " • AbsMax (×ATR)",      minval = 0.5, step = 0.1)
+useRelative    = input.bool(false, "Relative small-run test (< RelFactor×mean)")
+relFactor      = input.float(1.25, " • RelFactor",    minval = 0.5, step = 0.05)
+lookbackRuns   = input.int(20,   " • Look-back runs", minval = 5,   step = 1)
+minFlips       = input.int(3,    "Min consecutive small flips for RANGE", minval = 2)
+useDynBreak    = input.bool(true,  "Dynamic breakout (range expansion)")
+BreakK         = input.float(0.60, " • BreakK (×ATR)", minval = 0.1, step = 0.05)
+useRunATRBreak = input.bool(true,  "Fixed breakout (runATR > threshold)")
+runThres       = input.float(2.0,  " • runATR threshold", minval = 0.5, step = 0.1)
+useHAextremes  = input.bool(true,  "Use Heiken-Ashi highs/lows for breakout?")
+tagTightRange  = input.bool(false, "Flag a 'tight' range (< TightPct×ATR)")
+tightPct       = input.float(0.70, " • TightPct",     minval = 0.3, step = 0.05)
+
+// ATR & Heiken-Ashi series
+a = ta.atr(atrLen)
+haC = (open + high + low + close)/4
+var float haO = na
+haO := na(haO[1]) ? (open+close)/2 : (haO[1]+haC[1])/2
+haH = math.max(high, math.max(haO, haC))
+haL = math.min(low , math.min(haO, haC))
+hi = useHAextremes ? haH : high
+lo = useHAextremes ? haL : low
+cls = useHAextremes ? haC : close
+opn = useHAextremes ? haO : open
+
+// RUN detection
+barDir   = cls >= opn ? 1 : -1
+dirFlip  = ta.change(barDir) != 0
+var int runID = 0
+runID := dirFlip ? runID + 1 : runID
+runMove  = math.abs(cls - ta.valuewhen(dirFlip, cls[1], 0))
+runATR   = runMove / a
+lastInRun = ta.barssince(dirFlip[1]) == 0
+
+// Buffer for meanSmall
+var float[] buf = array.new_float()
+if lastInRun
+    array.unshift(buf, runATR)
+    if array.size(buf) > lookbackRuns
+        array.pop(buf)
+meanSmall = array.size(buf) > 0 ? array.sum(buf)/array.size(buf) : 0.0
+isSmall   = (useAbsolute and runATR < absMax) or (useRelative and runATR < relFactor*meanSmall)
+
+// ───────────────────  RANGE FSM & BREAKOUTS  ───────────────────────────
+var bool inRange = false
+var float rangeHi = na
+var float rangeLo = na
+var int   smallCnt = 0
+var bool  tightFlg = false
+bool brkLong = false
+bool brkShort= false
+if not inRange
+    if lastInRun
+        smallCnt := isSmall ? smallCnt + 1 : 0
+    if smallCnt >= minFlips
+        inRange  := true
+        rangeHi  := hi
+        rangeLo  := lo
+        tightFlg := isSmall and runATR < tightPct
+else
+    dynUp = useDynBreak   and (hi - rangeHi > BreakK * a)
+    dynDn = useDynBreak   and (rangeLo - lo > BreakK * a)
+    atrUp = useRunATRBreak and runATR > runThres and barDir ==  1 and lastInRun
+    atrDn = useRunATRBreak and runATR > runThres and barDir == -1 and lastInRun
+    if dynUp or atrUp
+        brkLong  := true
+        inRange  := false
+        smallCnt := 0
+    else if dynDn or atrDn
+        brkShort := true
+        inRange  := false
+        smallCnt := 0
+    else
+        rangeHi := math.max(rangeHi, hi)
+        rangeLo := math.min(rangeLo, lo)
+        if isSmall and lastInRun and tagTightRange
+            tightFlg := tightFlg and runATR < tightPct
+
+// ─────────────────── TREND MODE SWITCH ────────────────────────────────
+var bool trendMode = false
+if brkLong or brkShort
+    trendMode := true
+if inRange
+    trendMode := false
+
+// ─────────────────── REVERSAL ENTRY / EXIT PULSES ─────────────────────
+revLongEntry  = trendMode and isPulse(longEntSrc)
+revLongExit   = trendMode and isPulse(longExitSrc)
+revShortEntry = trendMode and isPulse(shortEntSrc)
+revShortExit  = trendMode and isPulse(shortExitSrc)
+
+// ─────────────────── AGGREGATED SIGNALS ───────────────────────────────
+buySignal  = (sigSrc == "Breakout" and brkLong) or (sigSrc == "Reversal" and revLongEntry) or (sigSrc == "Any" and (brkLong or revLongEntry))
+sellSignal = (sigSrc == "Breakout" and brkShort) or (sigSrc == "Reversal" and revShortEntry) or (sigSrc == "Any" and (brkShort or revShortEntry))
+
+// ─────────────────── VISUAL MARKERS ────────────────────────────────
+// range background
+bgcolor(inRange ? (tightFlg ? color.new(color.orange,85) : color.new(color.blue,90)) : na)
+// breakout labels
+if brkLong
+    label.new(bar_index, lo,  "BUY",    xloc.bar_index, yloc.belowbar, color.lime,  label.style_label_up,   color.black)
+if brkShort
+    label.new(bar_index, hi,  "SELL",   xloc.bar_index, yloc.abovebar, color.red,   label.style_label_down, color.white)
+// filtered reversal labels
+if revLongEntry
+    label.new(bar_index, lo,  "BUY*",   xloc.bar_index, yloc.belowbar, color.blue,  label.style_label_up,   color.white, size.small)
+if revShortEntry
+    label.new(bar_index, hi,  "SELL*",  xloc.bar_index, yloc.abovebar, color.fuchsia,label.style_label_down, color.white, size.small)
+// aggregated signal shapes
+plotshape(buySignal,  title="Buy Signal",  style=shape.triangleup,   location=location.belowbar, color=color.yellow, size=size.small)
+plotshape(sellSignal, title="Sell Signal", style=shape.triangledown, location=location.abovebar, color=color.purple, size=size.small)
+// optional debug dots
+plotshape(showRaw and isPulse(longEntSrc),  title="raw-LongEnt",  style=shape.circle, location=location.belowbar, color=color.gray, size=size.tiny)
+plotshape(showRaw and isPulse(shortEntSrc), title="raw-ShortEnt", style=shape.circle, location=location.abovebar, color=color.gray, size=size.tiny)
+
+// ─────────────────── DATA-WINDOW HELPERS ─────────────────────────────
+plot(brkLong  ? 1 : brkShort  ? -1 : 0, "breakDir",    display=display.data_window)
+plot(revLongEntry  ? 1 : revShortEntry  ? -1 : 0, "revEntryDir", display=display.data_window)
+plot(rangeHi,  "rangeHigh", display=display.data_window, color=na)
+plot(rangeLo,  "rangeLow",  display=display.data_window, color=na)
+plot(runATR,   "runATR",     display=display.data_window, color=na)
+
+// ─────────────────── ALERTS ─────────────────────────
+alertcondition(buySignal,  "Any BUY Signal",  "ANY_BUY_SIGNAL")
+alertcondition(sellSignal, "Any SELL Signal", "ANY_SELL_SIGNAL")
+alertcondition(brkLong,  "FlipFlop BREAKOUT LONG",  "BREAKOUT_LONG")
+alertcondition(brkShort, "FlipFlop BREAKOUT SHORT", "BREAKOUT_SHORT")
+alertcondition(revLongEntry,  "FlipFlop REV ENTRY LONG",  "REV_ENTRY_LONG")
+alertcondition(revShortEntry, "FlipFlop REV ENTRY SHORT", "REV_ENTRY_SHORT")
