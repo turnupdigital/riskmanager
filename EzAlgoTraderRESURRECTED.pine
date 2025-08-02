@@ -169,21 +169,33 @@ signal5ShortSrc = input.source(close, 'Short', inline = 'sig5', group = '🔄 Mu
 signal5Name = input.string('Wonder', 'Name', inline = 'sig5name', group = '🔄 Multi-Signals')
 signal5Usage = input.string('Entry All', 'Usage', options = ['Entry All', 'Entry Long Only', 'Entry Short Only', 'Exit All', 'Exit Long Only', 'Exit Short Only', 'Observe'], inline = 'sig5name', group = '🔄 Multi-Signals')
 
-// ─────────────────── SIGNAL PROCESSING ───────────────────
-// Process signals directly - most indicators (UTBot, LuxAlgo) output pulse signals
-// Handle both boolean and numeric signal types
-// IMPORTANT: Only process real signals, not default 'close' values
-// Simple direct signal detection - no complex change detection needed
-sig1Long = signal1Enable and signal1LongSrc != close ? (signal1LongSrc > 0 or bool(signal1LongSrc) == true) : false
-sig1Short = signal1Enable and signal1ShortSrc != close ? (signal1ShortSrc > 0 or bool(signal1ShortSrc) == true) : false
-sig2Long = signal2Enable and signal2LongSrc != close ? (signal2LongSrc > 0 or bool(signal2LongSrc) == true) : false
-sig2Short = signal2Enable and signal2ShortSrc != close ? (signal2ShortSrc > 0 or bool(signal2ShortSrc) == true) : false
-sig3Long = signal3Enable and signal3LongSrc != close ? (signal3LongSrc > 0 or bool(signal3LongSrc) == true) : false
-sig3Short = signal3Enable and signal3ShortSrc != close ? (signal3ShortSrc > 0 or bool(signal3ShortSrc) == true) : false
-sig4Long = signal4Enable and signal4LongSrc != close ? (signal4LongSrc > 0 or bool(signal4LongSrc) == true) : false
-sig4Short = signal4Enable and signal4ShortSrc != close ? (signal4ShortSrc > 0 or bool(signal4ShortSrc) == true) : false
-sig5Long = signal5Enable and signal5LongSrc != close ? (signal5LongSrc > 0 or bool(signal5LongSrc) == true) : false
-sig5Short = signal5Enable and signal5ShortSrc != close ? (signal5ShortSrc > 0 or bool(signal5ShortSrc) == true) : false
+// ─────────────────── ENHANCED SIGNAL PROCESSING (BUG FIX) ───────────────────
+// CRITICAL SAFETY: Signals must NEVER fire when source equals default close price
+// This prevents false signals from unconnected inputs and ensures only real indicators fire
+// Enhanced validation with explicit rejection of default sources
+
+// Helper function to validate signal sources (prevents default close from generating signals)
+isValidSignalSource(src) =>
+    not na(src) and src != close and src != open and src != high and src != low
+
+// Enhanced signal detection with strengthened validation
+// Only fires when: 1) Signal enabled, 2) Source is NOT default close, 3) Valid signal value detected
+sig1Long = signal1Enable and isValidSignalSource(signal1LongSrc) ? (signal1LongSrc > 0 or bool(signal1LongSrc) == true) : false
+sig1Short = signal1Enable and isValidSignalSource(signal1ShortSrc) ? (signal1ShortSrc > 0 or bool(signal1ShortSrc) == true) : false
+sig2Long = signal2Enable and isValidSignalSource(signal2LongSrc) ? (signal2LongSrc > 0 or bool(signal2LongSrc) == true) : false
+sig2Short = signal2Enable and isValidSignalSource(signal2ShortSrc) ? (signal2ShortSrc > 0 or bool(signal2ShortSrc) == true) : false
+sig3Long = signal3Enable and isValidSignalSource(signal3LongSrc) ? (signal3LongSrc > 0 or bool(signal3LongSrc) == true) : false
+sig3Short = signal3Enable and isValidSignalSource(signal3ShortSrc) ? (signal3ShortSrc > 0 or bool(signal3ShortSrc) == true) : false
+sig4Long = signal4Enable and isValidSignalSource(signal4LongSrc) ? (signal4LongSrc > 0 or bool(signal4LongSrc) == true) : false
+sig4Short = signal4Enable and isValidSignalSource(signal4ShortSrc) ? (signal4ShortSrc > 0 or bool(signal4ShortSrc) == true) : false
+sig5Long = signal5Enable and isValidSignalSource(signal5LongSrc) ? (signal5LongSrc > 0 or bool(signal5LongSrc) == true) : false
+sig5Short = signal5Enable and isValidSignalSource(signal5ShortSrc) ? (signal5ShortSrc > 0 or bool(signal5ShortSrc) == true) : false
+
+// Debug validation: Alert when signals are blocked due to default sources
+if debugEnabled and signal1Enable and not isValidSignalSource(signal1LongSrc)
+    debugWarn("Signal 1 Long blocked: Source equals default close price. Connect external indicator.")
+if debugEnabled and signal1Enable and not isValidSignalSource(signal1ShortSrc)
+    debugWarn("Signal 1 Short blocked: Source equals default close price. Connect external indicator.")
 
 // ─────────────────── SIGNAL ARRAYS FOR PROCESSING ───────────────────
 // Combine all signals for confluence analysis
@@ -274,30 +286,30 @@ backtestLookback = input.string('7 Days', 'Backtest Lookback Period', options = 
 // Strategy execution logic preserved in protected sections
 
 
-// ═══════════════════ ENTRY SIGNALS (PLACEHOLDER) ═══════════════════
-// Entry signals will be properly defined after RBW filter calculation
+// ═══════════════════ ENTRY SIGNAL DECLARATIONS (BUG FIX) ═══════════════════
+// CRITICAL FIX: Declare entry signal variables here, assign values after filter calculations
+// This fixes the circular dependency where signals were used before being calculated
+
+// Entry signal variable declarations (assigned later after all filters are calculated)
 var bool longEntrySignal = false
 var bool shortEntrySignal = false
-
-
-// ═══════════════════ ENTRY LOGIC ═══════════════════
-// Simplified entry logic without Smart Filter
 
 // Initialize debug logging on first bar
 if barstate.isfirst
     debugInfo('EZAlgoTrader initialized with debug logging')
 
-// Long Entry - direct signal
-if longEntrySignal
-    entryComment = 'Long' + (longSignalCount > 1 ? ' C:' + str.tostring(longSignalCount) : '')
-    strategy.entry('Long', strategy.long, qty = positionQty, comment = entryComment, alert_message = longEntryMsg)
-    debugInfo('Long entry triggered: ' + entryComment + ' at price: ' + str.tostring(close))
+// ═══════════════════ ENTRY LOGIC (FIXED - MOVED TO PROPER LOCATION) ═══════════════════
+// CRITICAL FIX: Entry signals are now calculated at the end of the script (line ~1400+)
+// This section is a placeholder - actual entry logic moved to after all calculations
 
-// Short Entry - direct signal
-if shortEntrySignal
-    entryComment = 'Short' + (shortSignalCount > 1 ? ' C:' + str.tostring(shortSignalCount) : '')
-    strategy.entry('Short', strategy.short, qty = positionQty, comment = entryComment, alert_message = shortEntryMsg)
-    debugInfo('Short entry triggered: ' + entryComment + ' at price: ' + str.tostring(close))
+// Entry logic is now handled at the end of the script after all filters are calculated
+// This fixes the circular dependency where entry signals were used before being defined
+
+// The actual entry conditions are:
+// longEntrySignal := primaryLongSig and longDirectionalBias and entryProbabilityOK  
+// shortEntrySignal := primaryShortSig and shortDirectionalBias and entryProbabilityOK
+
+// Entry execution happens via strategy.entry() calls at the end of the script
 
 // ═══════════════════ REAL STRATEGY EXIT LOGIC (CRITICAL FIX) ═══════════════════
 // This section bridges the gap between combo backtesting and actual strategy execution
@@ -997,25 +1009,28 @@ mtfZigzagShortBias = mtfZigzagEnable ? (not mtfZigzagBullish) : true  // If enab
 // Reversal Probability Bias Logic (6th Filter)
 // Note: reversalProbLongBias/reversalProbShortBias already calculated above
 
-// Confluence Logic Implementation - UPDATED WITH 6TH FILTER
-// Count only enabled filters and their actual signals (now includes reversal probability)
-enabledFilters = (rbwEnable ? 1 : 0) + (hullEnable ? 1 : 0) + (supertrendEnable ? 1 : 0) + (quadrantEnable ? 1 : 0) + (mtfZigzagEnable ? 1 : 0) + (reversalProbEnable ? math.round(reversalProbWeight) : 0)
+// Confluence Logic Implementation - FIXED WEIGHTED VOTING BUG
+// CRITICAL FIX: Use consistent decimal weighting instead of math.round() to prevent unbalanced voting
+// This fixes the bug where math.round() created inconsistent filter weights
 
-// Count bullish votes from enabled filters only (weighted for reversal probability)
-bullishVotes = (rbwEnable and rbwSignal == 2 ? 1 : 0) + 
-              (hullEnable and hullBullish ? 1 : 0) + 
-              (supertrendEnable and supertrendBullish ? 1 : 0) + 
-              (quadrantEnable and quadrantBullish ? 1 : 0) + 
-              (mtfZigzagEnable and mtfZigzagBullish ? 1 : 0) +
-              (reversalProbEnable and reversalProbLongBias ? math.round(reversalProbWeight) : 0)
+// Count enabled filters with proper decimal weighting (BUG FIX)
+enabledFilters = (rbwEnable ? 1.0 : 0.0) + (hullEnable ? 1.0 : 0.0) + (supertrendEnable ? 1.0 : 0.0) + (quadrantEnable ? 1.0 : 0.0) + (mtfZigzagEnable ? 1.0 : 0.0) + (reversalProbEnable ? reversalProbWeight : 0.0)
 
-// Count bearish votes from enabled filters only (weighted for reversal probability)
-bearishVotes = (rbwEnable and rbwSignal == 0 ? 1 : 0) + 
-              (hullEnable and not hullBullish ? 1 : 0) + 
-              (supertrendEnable and not supertrendBullish ? 1 : 0) + 
-              (quadrantEnable and not quadrantBullish ? 1 : 0) + 
-              (mtfZigzagEnable and not mtfZigzagBullish ? 1 : 0) +
-              (reversalProbEnable and reversalProbShortBias ? math.round(reversalProbWeight) : 0)
+// Count bullish votes with consistent decimal weighting (BUG FIX)
+bullishVotes = (rbwEnable and rbwSignal == 2 ? 1.0 : 0.0) + 
+              (hullEnable and hullBullish ? 1.0 : 0.0) + 
+              (supertrendEnable and supertrendBullish ? 1.0 : 0.0) + 
+              (quadrantEnable and quadrantBullish ? 1.0 : 0.0) + 
+              (mtfZigzagEnable and mtfZigzagBullish ? 1.0 : 0.0) +
+              (reversalProbEnable and reversalProbLongBias ? reversalProbWeight : 0.0)
+
+// Count bearish votes with consistent decimal weighting (BUG FIX)
+bearishVotes = (rbwEnable and rbwSignal == 0 ? 1.0 : 0.0) + 
+              (hullEnable and not hullBullish ? 1.0 : 0.0) + 
+              (supertrendEnable and not supertrendBullish ? 1.0 : 0.0) + 
+              (quadrantEnable and not quadrantBullish ? 1.0 : 0.0) + 
+              (mtfZigzagEnable and not mtfZigzagBullish ? 1.0 : 0.0) +
+              (reversalProbEnable and reversalProbShortBias ? reversalProbWeight : 0.0)
 
 // Apply confluence mode - SIMPLIFIED LOGIC
 longDirectionalBias = enabledFilters == 0 ? true :  // No filters = allow all
@@ -1227,6 +1242,24 @@ momentumExitTriggered = momentumExitEnable and adverseBars >= impulsiveMomentumB
 // Define final entry signals with directional bias and Entry Probability Filter applied
 longEntrySignal := primaryLongSig and longDirectionalBias and entryProbabilityOK
 shortEntrySignal := primaryShortSig and shortDirectionalBias and entryProbabilityOK
+
+// ═══════════════════ ACTUAL STRATEGY ENTRY EXECUTION (CRITICAL FIX) ═══════════════════
+// CRITICAL: Execute the actual trades using strategy.entry() calls
+// This was the missing piece - signals were calculated but trades weren't executed!
+
+// Long Entry Execution
+if longEntrySignal
+    entryComment = 'Long' + (longSignalCount > 1 ? ' C:' + str.tostring(longSignalCount) : '')
+    strategy.entry('Long', strategy.long, qty = positionQty, comment = entryComment, alert_message = longEntryMsg)
+    if debugEnabled
+        debugInfo('Long entry triggered: ' + entryComment + ' at price: ' + str.tostring(close))
+
+// Short Entry Execution  
+if shortEntrySignal
+    entryComment = 'Short' + (shortSignalCount > 1 ? ' C:' + str.tostring(shortSignalCount) : '')
+    strategy.entry('Short', strategy.short, qty = positionQty, comment = entryComment, alert_message = shortEntryMsg)
+    if debugEnabled
+        debugInfo('Short entry triggered: ' + entryComment + ' at price: ' + str.tostring(close))
 
 // NOTE: Individual signal backtest processing is handled later in the script
 
