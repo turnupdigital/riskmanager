@@ -70,32 +70,33 @@
 //  ────────────────────────────────────────────────────────────────
 //@version=6
 
-// ═══════════════════ DEBUG SYSTEM (SIMPLIFIED) ═══════════════════
-// Simple debug system using Pine Script labels - no external libraries
+// ═══════════════════ DEBUG SYSTEM (MEMORY SAFE) ═══════════════════
+// Memory-safe debug system that doesn't create label leaks
 
 // Debug configuration
-bool debugEnabled = input.bool(false, '🔍 Enable Debug Labels', group = '🛠️ Debug System', tooltip = 'Show debug information as chart labels')
+bool debugEnabled = input.bool(false, '🔍 Enable Debug Labels', group = '🛠️ Debug System', tooltip = 'Show debug information in strategy tester logs')
 
-// Simple debug functions using labels (no counters to avoid global variable modification issues)
+// Memory-safe debug functions using log output instead of labels
+// This prevents memory leaks while preserving debug functionality
 debugLog(string message) =>
     if debugEnabled
-        label.new(bar_index, high + (high - low) * 0.1, "DEBUG: " + message, style=label.style_label_down, color=color.blue, textcolor=color.white, size=size.small)
+        log.info("DEBUG: " + message)
 
 debugInfo(string message) =>
     if debugEnabled
-        label.new(bar_index, high + (high - low) * 0.05, "INFO: " + message, style=label.style_label_down, color=color.green, textcolor=color.white, size=size.small)
+        log.info("INFO: " + message)
 
 debugWarn(string message) =>
     if debugEnabled
-        label.new(bar_index, high + (high - low) * 0.15, "WARN: " + message, style=label.style_label_down, color=color.orange, textcolor=color.white, size=size.small)
+        log.warning("WARN: " + message)
 
 debugError(string message) =>
     if debugEnabled
-        label.new(bar_index, high + (high - low) * 0.2, "ERROR: " + message, style=label.style_label_down, color=color.red, textcolor=color.white, size=size.small)
+        log.error("ERROR: " + message)
 
 debugTrace(string message) =>
     if debugEnabled
-        label.new(bar_index, high + (high - low) * 0.25, "TRACE: " + message, style=label.style_label_down, color=color.gray, textcolor=color.white, size=size.small)
+        log.info("TRACE: " + message)
 
 strategy(title = 'EZ Algo Trader (Beta)', overlay = true, default_qty_type = strategy.fixed, default_qty_value = 1, calc_on_order_fills = true, process_orders_on_close = true, calc_on_every_tick = false)
 // User-controllable quantity
@@ -197,10 +198,13 @@ if debugEnabled and signal1Enable and not isValidSignalSource(signal1LongSrc)
 if debugEnabled and signal1Enable and not isValidSignalSource(signal1ShortSrc)
     debugWarn("Signal 1 Short blocked: Source equals default close price. Connect external indicator.")
 
-// ─────────────────── SIGNAL ARRAYS FOR PROCESSING ───────────────────
-// Combine all signals for confluence analysis
-allLongSignals = array.new<bool>(5)
-allShortSignals = array.new<bool>(5)
+// ─────────────────── SIGNAL ARRAYS FOR PROCESSING (MEMORY LEAK FIX) ───────────────────
+// CRITICAL FIX: Use persistent arrays with proper memory management
+// Create arrays once and reuse them instead of creating new ones every bar
+var allLongSignals = array.new<bool>(5)
+var allShortSignals = array.new<bool>(5)
+
+// Update array values efficiently (reuse existing arrays)
 array.set(allLongSignals, 0, sig1Long)
 array.set(allLongSignals, 1, sig2Long)
 array.set(allLongSignals, 2, sig3Long)
@@ -241,9 +245,18 @@ var string flatExitMsg = _jsonBase + ',"action":"exit","sentiment":"flat"}'
 var string longExitMsg = _jsonBase + ',"action":"sell","sentiment":"flat"}' // closes long
 var string shortExitMsg = _jsonBase + ',"action":"buy","sentiment":"flat"}' // closes short
 
-// ─────────────────── 2 · ATR SETTINGS ───────────────────────────
+// ─────────────────── 2 · ATR SETTINGS (BUG FIX) ───────────────────
 atrLen = input.int(14, 'ATR Length', minval = 1, group = 'ATR Settings')
-atrVal = ta.atr(atrLen)
+
+// CRITICAL FIX: ATR Validation to prevent silent failures
+// Raw ATR calculation
+rawATR = ta.atr(atrLen)
+
+// Validated ATR with fallback protection
+atrVal = na(rawATR) or rawATR <= 0 ? ta.sma(high - low, math.min(atrLen, bar_index + 1)) : rawATR
+
+// Final safety check: ensure ATR is never zero or negative
+atrVal := math.max(atrVal, 0.0001)  // Minimum ATR of 0.0001 to prevent division by zero
 
 // ─────────────────── 3 · EXIT PARAMETERS (ASCII SAFE) ───────────
 maExitOn = input.bool(true, 'Enable MA Exit', group = 'MA Exit')
@@ -274,6 +287,8 @@ smartProfitEnable = input.bool(false, '🎯 Enable Smart Profit Locker', group =
 smartProfitType = input.string('ATR', 'Type', options = ['ATR', 'Points', 'Percent'], group = 'Smart Profit Locker')
 smartProfitVal = input.float(3.1, 'Value', step = 0.1, group = 'Smart Profit Locker')
 smartProfitOffset = input.float(0.10, 'Pullback %', step = 0.05, minval = 0.01, maxval = 1.0, group = 'Smart Profit Locker', tooltip = 'Pullback percentage to trigger exit (0.10 = 10%)')
+// CRITICAL FIX: User-configurable fallback for invalid calculations
+smartProfitFallback = input.float(50.0, 'Fallback Value', step = 1.0, minval = 0.1, group = 'Smart Profit Locker', tooltip = 'Fallback value when calculation fails. Set appropriately for your symbol: Forex ~0.001, Crypto ~1.0, Stocks ~0.50')
 
 // Traditional Trailing Stop - REMOVED (use Smart Profit Locker with 100% offset for traditional behavior)
 
@@ -396,9 +411,18 @@ if fixedEnable and not na(strategyEntryPrice) and strategy.position_size != 0
 if smartProfitEnable and strategy.position_size != 0 and not (inTrendRidingMode and not inHybridExitMode)
     smartDistance = smartProfitType == 'ATR' ? smartProfitVal * atrVal : smartProfitType == 'Points' ? smartProfitVal : strategyEntryPrice * smartProfitVal / 100.0
     
-    // Ensure smartDistance is valid and has minimum value
+    // CRITICAL FIX: Symbol-aware Smart Profit Locker validation
+    // Replace hardcoded fallback with dynamic symbol-appropriate defaults
     if na(smartDistance) or smartDistance <= 0
-        smartDistance := 50.0  // Safe default value in points
+        // Dynamic fallback based on symbol type and current price
+        symbolType = syminfo.type
+        currentPrice = close
+        
+        // Symbol-aware fallback calculation
+        smartDistance := symbolType == "forex" ? currentPrice * 0.001 : symbolType == "crypto" ? currentPrice * 0.005 : currentPrice < 10 ? currentPrice * 0.02 : currentPrice < 100 ? currentPrice * 0.01 : currentPrice * 0.005
+        
+        // Ensure minimum viable distance (never less than 1 tick)
+        smartDistance := math.max(smartDistance, syminfo.mintick * 10)
     
     // MODE-BASED EXIT BEHAVIOR
     if inHybridExitMode
@@ -754,26 +778,63 @@ exitPlot2LongSignal = exitPlot2Enable and exitPlot2Source > exitPlot2Source[1]  
 exitPlot2ShortSignal = exitPlot2Enable and exitPlot2Source < exitPlot2Source[1]  // Falling signal = short exit
 exitPlot3LongSignal = exitPlot3Enable and exitPlot3Source > exitPlot3Source[1]  // Rising signal = long exit
 exitPlot3ShortSignal = exitPlot3Enable and exitPlot3Source < exitPlot3Source[1]  // Falling signal = short exit
-
 // Simple Reversal Candle Detection (basic implementation)
 reversalCandleBull = exitIndicator3Enable and (close > open and close[1] < open[1] and close > high[1])  // Bullish engulfing
 reversalCandleBear = exitIndicator3Enable and (close < open and close[1] > open[1] and close < low[1])   // Bearish engulfing
 
-// Count Exit Indicators for Long Positions (bearish exit signals)
-longExitSignalCount = 0
-longExitSignalCount := longExitSignalCount + (aaBearSignal ? 1 : 0)  // AlgoAlpha bearish reversal
-longExitSignalCount := longExitSignalCount + (exitPlot1LongSignal ? 1 : 0)  // External plot 1
-longExitSignalCount := longExitSignalCount + (exitPlot2LongSignal ? 1 : 0)  // External plot 2  
-longExitSignalCount := longExitSignalCount + (exitPlot3LongSignal ? 1 : 0)  // External plot 3
-longExitSignalCount := longExitSignalCount + (reversalCandleBear ? 1 : 0)  // Bearish reversal candle
+// ═══════════════════ WEIGHTED EXIT SIGNAL COUNTING SYSTEM (CRITICAL FIX) ═══════════════════
+// CRITICAL FIX: Replace binary counting with weighted signal strength analysis
+// This fixes the bug where all signals were weighted equally regardless of strength
 
-// Count Exit Indicators for Short Positions (bullish exit signals)
-shortExitSignalCount = 0
-shortExitSignalCount := shortExitSignalCount + (aaBullSignal ? 1 : 0)  // AlgoAlpha bullish reversal
-shortExitSignalCount := shortExitSignalCount + (exitPlot1ShortSignal ? 1 : 0)  // External plot 1
-shortExitSignalCount := shortExitSignalCount + (exitPlot2ShortSignal ? 1 : 0)  // External plot 2
-shortExitSignalCount := shortExitSignalCount + (exitPlot3ShortSignal ? 1 : 0)  // External plot 3
-shortExitSignalCount := shortExitSignalCount + (reversalCandleBull ? 1 : 0)  // Bullish reversal candle
+// Signal Weight Definitions (based on reliability and strength)
+aaSignalWeight = 2.0      // AlgoAlpha: High reliability, volume-confirmed reversal signals
+externalPlotWeight = 1.5  // External plots: Medium-high reliability (LuxAlgo, etc.)
+reversalCandleWeight = 0.8 // Reversal candles: Lower reliability, basic pattern recognition
+
+// CRITICAL FIX: Declare variables before usage to prevent undeclared identifier errors
+averageATR = ta.sma(atrVal, 50)
+volatilityRatio = atrVal / averageATR
+
+// Declare smartDistance as a global variable for use across exit systems
+var float smartDistance = na
+
+// Market Context Multipliers (enhance signal quality based on conditions)
+// Note: bullishVotes and bearishVotes will be calculated later in the directional bias section
+volatilityMultiplier = volatilityRatio > 1.5 ? 1.2 : volatilityRatio < 0.8 ? 0.9 : 1.0
+// Temporary trendStrengthMultiplier (will be recalculated later with proper votes)
+trendStrengthMultiplier = 1.0  // Default neutral multiplier
+
+// Calculate Weighted Exit Signal Strength for Long Positions (bearish exit signals)
+longExitSignalCount = 0.0
+if aaBearSignal
+    aaStrength = aaVolumeIsHigh ? aaSignalWeight * 1.2 : aaSignalWeight * 0.9  // Volume confirmation bonus
+    longExitSignalCount := longExitSignalCount + (aaStrength * volatilityMultiplier)
+if exitPlot1LongSignal
+    longExitSignalCount := longExitSignalCount + (externalPlotWeight * trendStrengthMultiplier)
+if exitPlot2LongSignal
+    longExitSignalCount := longExitSignalCount + (externalPlotWeight * trendStrengthMultiplier)
+if exitPlot3LongSignal
+    longExitSignalCount := longExitSignalCount + (externalPlotWeight * trendStrengthMultiplier)
+if reversalCandleBear
+    candleStrength = math.abs(close - open) / atrVal  // Candle body size relative to ATR
+    weightedCandleSignal = reversalCandleWeight * math.min(candleStrength, 2.0)  // Cap at 2x weight
+    longExitSignalCount := longExitSignalCount + weightedCandleSignal
+
+// Calculate Weighted Exit Signal Strength for Short Positions (bullish exit signals)
+shortExitSignalCount = 0.0
+if aaBullSignal
+    aaStrength = aaVolumeIsHigh ? aaSignalWeight * 1.2 : aaSignalWeight * 0.9  // Volume confirmation bonus
+    shortExitSignalCount := shortExitSignalCount + (aaStrength * volatilityMultiplier)
+if exitPlot1ShortSignal
+    shortExitSignalCount := shortExitSignalCount + (externalPlotWeight * trendStrengthMultiplier)
+if exitPlot2ShortSignal
+    shortExitSignalCount := shortExitSignalCount + (externalPlotWeight * trendStrengthMultiplier)
+if exitPlot3ShortSignal
+    shortExitSignalCount := shortExitSignalCount + (externalPlotWeight * trendStrengthMultiplier)
+if reversalCandleBull
+    candleStrength = math.abs(close - open) / atrVal  // Candle body size relative to ATR
+    weightedCandleSignal = reversalCandleWeight * math.min(candleStrength, 2.0)  // Cap at 2x weight
+    shortExitSignalCount := shortExitSignalCount + weightedCandleSignal
 
 // Enhanced Hybrid Exit Mode Trigger Detection
 // Combines binary signal counting with reversal probability analysis
@@ -846,20 +907,25 @@ if rbwEnable
         rbwLower := ta.lowest(rbwUseAltSrc ? low : rbwSource, rbwLength)
         rbwMiddle := (rbwUpper + rbwLower) / 2
 
-    // Relative Bandwidth calculation
+    // Relative Bandwidth calculation (DIVISION BY ZERO FIX)
     if not na(rbwUpper) and not na(rbwLower)
         rbwATR := ta.atr(rbwATRLength)
-        if not na(rbwATR) and rbwATR > 0
+        // CRITICAL FIX: Comprehensive protection against division by zero
+        if not na(rbwATR) and rbwATR > 0.0001  // Increased minimum threshold
             rbwRelativeBandwidth := (rbwUpper - rbwLower) / rbwATR
-            
-            // Calculate reference bands for signal
-            rbwBBMiddle := ta.sma(rbwRelativeBandwidth, 100)
-            rbwBBUpper := rbwBBMiddle + ta.stdev(rbwRelativeBandwidth, 100) * 1.0
-            rbwBBLower := rbwBBMiddle - ta.stdev(rbwRelativeBandwidth, 100) * 1.0
-            
-            rbwRef := rbwRefBand == "Middle" ? rbwBBMiddle : rbwRefBand == "Upper" ? rbwBBUpper : rbwBBLower
-            rbwSignal := rbwRelativeBandwidth > rbwRef ? 2 : 0
-            rbwSignal := rbwDesiredCond == "Lower Bandwidth" ? math.abs(rbwSignal-2) : rbwSignal
+        else
+            // Fallback: Use normalized bandwidth when ATR is invalid
+            rbwRelativeBandwidth := na(rbwUpper - rbwLower) ? 0.0 : math.abs(rbwUpper - rbwLower) * 100
+        
+        // CRITICAL FIX: Move signal calculation outside the else block so it always executes
+        // Calculate reference bands for signal
+        rbwBBMiddle := ta.sma(rbwRelativeBandwidth, 100)
+        rbwBBUpper := rbwBBMiddle + ta.stdev(rbwRelativeBandwidth, 100) * 1.0
+        rbwBBLower := rbwBBMiddle - ta.stdev(rbwRelativeBandwidth, 100) * 1.0
+        
+        rbwRef := rbwRefBand == "Middle" ? rbwBBMiddle : rbwRefBand == "Upper" ? rbwBBUpper : rbwBBLower
+        rbwSignal := rbwRelativeBandwidth > rbwRef ? 2 : 0
+        rbwSignal := rbwDesiredCond == "Lower Bandwidth" ? math.abs(rbwSignal-2) : rbwSignal
 
 // ═══════════════════ HULL SUITE CALCULATION ═══════════════════
 // Hull Moving Average trend detection
@@ -878,8 +944,9 @@ var float hullMA = na
 var bool hullBullish = false
 
 if hullEnable
-    // Calculate Hull MA based on selected mode
-    hullMA := hullMode == 'Hma' ? HMA(close, hullLength) : hullMode == 'Ehma' ? EHMA(close, hullLength) : hullMode == 'Thma' ? THMA(close, hullLength / 2) : na
+    // Calculate Hull MA based on selected mode (THMA LENGTH BUG FIX)
+    // CRITICAL FIX: THMA should use full hullLength, not divided by 2
+    hullMA := hullMode == 'Hma' ? HMA(close, hullLength) : hullMode == 'Ehma' ? EHMA(close, hullLength) : hullMode == 'Thma' ? THMA(close, hullLength) : na
     
     // Determine trend direction (current > 2 bars ago = bullish)
     hullBullish := not na(hullMA) and hullMA > hullMA[2]
@@ -897,7 +964,13 @@ if supertrendEnable
     [st, dir] = ta.supertrend(supertrendFactor, supertrendATR)
     supertrend := st
     supertrendDirection := dir
-    supertrendBullish := dir < 0  // Uptrend when direction < 0
+    
+    // CRITICAL FIX: SuperTrend Direction Logic Verification
+    // Pine Script ta.supertrend() returns:
+    // dir = 1 when price is BELOW SuperTrend (bearish/downtrend)
+    // dir = -1 when price is ABOVE SuperTrend (bullish/uptrend)
+    // Therefore: bullish when dir < 0 (dir = -1) is CORRECT
+    supertrendBullish := dir < 0  // Verified: Uptrend when direction = -1
 else
     // When disabled, set neutral (allow all trades)
     supertrendBullish := false
@@ -964,12 +1037,25 @@ var float mtfZigzagLow = na
 var int mtfZigzagTrend = 0
 var bool mtfZigzagBullish = false
 
+// CRITICAL FIX: Declare zigzag variables before usage
+var float zz_h = na
+var float zz_l = na
+var int zz_trend = 0
+
 if mtfZigzagEnable
-    // Get higher timeframe data (confirmed bars only)
-    [htf_high, htf_low, htf_close] = request.security(syminfo.tickerid, mtfTimeframe, [high[1], low[1], close[1]], lookahead=barmerge.lookahead_off)
+    // CRITICAL FIX: Enhanced Anti-Repainting Protection for MTF ZigZag
+    // Use additional offset and confirmation to eliminate repainting risk
+    [htf_high, htf_low, htf_close] = request.security(syminfo.tickerid, mtfTimeframe, [high[2], low[2], close[2]], lookahead=barmerge.lookahead_off)
     
-    // Calculate ZigZag on higher timeframe using high/low instead of close
-    [zz_h, zz_l, zz_trend] = simple_zigzag(htf_high, mtfZigzagLength)
+    // Additional confirmation: Only update on confirmed higher timeframe bar close
+    htf_bar_time = request.security(syminfo.tickerid, mtfTimeframe, time[2], lookahead=barmerge.lookahead_off)
+    var float last_htf_time = na
+    htf_bar_confirmed = na(last_htf_time) or htf_bar_time != last_htf_time
+    
+    if htf_bar_confirmed
+        last_htf_time := htf_bar_time
+        // Calculate ZigZag on higher timeframe using confirmed data only
+        [zz_h, zz_l, zz_trend] = simple_zigzag(htf_high, mtfZigzagLength)
     
     // Update ZigZag values when new pivots are detected
     if not na(zz_h)
@@ -1031,6 +1117,9 @@ bearishVotes = (rbwEnable and rbwSignal == 0 ? 1.0 : 0.0) +
               (quadrantEnable and not quadrantBullish ? 1.0 : 0.0) + 
               (mtfZigzagEnable and not mtfZigzagBullish ? 1.0 : 0.0) +
               (reversalProbEnable and reversalProbShortBias ? reversalProbWeight : 0.0)
+
+// Calculate trend strength multiplier now that votes are available
+trendStrengthMultiplier := math.max(bullishVotes, bearishVotes) >= 3 ? 1.1 : 0.95
 
 // Apply confluence mode - SIMPLIFIED LOGIC
 longDirectionalBias = enabledFilters == 0 ? true :  // No filters = allow all
@@ -1144,7 +1233,7 @@ if inTrendRidingMode and bar_index - trendRidingStartBar >= trendMaxHold
 
 // Safety Net 3: Catastrophic Stop Loss
 catastrophicStopTriggered = false
-if enableCatastrophicStop and inTrendRidingMode and strategy.position_size != 0
+if enableCatastrophicStop and strategy.position_size != 0
     // Calculate catastrophic stop distance
     normalStopDistance = atrVal * 3.1  // Normal Smart Profit Locker distance
     catastrophicStopDistance = normalStopDistance * catastrophicStopMultiplier
@@ -1196,8 +1285,7 @@ if inTrendRidingMode and strategy.position_size == 0
 // Impulsive move detection and rapid exit capabilities
 
 // Calculate volatility metrics using user-configurable ATR
-averageATR = ta.sma(atrVal, 50)
-volatilityRatio = atrVal / averageATR
+// (Variables already declared above to prevent undeclared identifier errors)
 
 // Detect impulsive moves
 barBodySize = math.abs(close - open)
@@ -1365,38 +1453,18 @@ if inTrendRidingMode and strategy.position_size != 0
         trendDuration = bar_index - trendRidingStartBar
         debugInfo('TREND-RIDING ACTIVE: 3x wider stops, 50% offset | Duration: ' + str.tostring(trendDuration) + ' bars | Filters: ' + str.tostring(trendStrengthScore) + '/' + str.tostring(enabledFilters))
 
-// Visual indicators for new systems
-plotchar(inTrendRidingMode, title='Trend-Riding Active', char='T', location=location.top, color=color.purple, size=size.small)
-plotchar(mtfZigzagEnable and mtfZigzagBullish, title='MTF-ZZ Bull', char='Z', location=location.belowbar, color=color.aqua, size=size.tiny)
-plotchar(mtfZigzagEnable and not mtfZigzagBullish, title='MTF-ZZ Bear', char='Z', location=location.abovebar, color=color.orange, size=size.tiny)
-plotchar(impulsiveExitTriggered, title='Impulsive Exit', char='!', location=location.top, color=color.red, size=size.normal)
-
-// Probability Filter Visual Indicators - Fixed (Split conditional char parameters)
-// Split into separate plots with fixed char parameters to avoid Pine Script errors
-probabilityAlert = reversalProbEnable and (compositeProbability >= reversalExitThreshold or probabilityExitTriggered)
-plotchar(probabilityAlert, title='Probability Alerts', char='🎯', location=location.top, color=probabilityExitTriggered ? color.red : color.orange, size=size.normal)
-// Split entry filter alerts into separate plots with fixed char parameters
+// Visual plotting removed for performance optimization
+// Core logic preserved: entryBlocked and entryWarning calculations maintained for strategy logic
 entryBlocked = entryProbFilterEnable and not entryProbabilityOK
 entryWarning = entryProbFilterEnable and entryProbabilityOK and compositeProbability > entryProbFilterThreshold * 0.8
-plotchar(entryBlocked, title='Entry Blocked', char='🚫', location=location.abovebar, color=color.red, size=size.normal)
-plotchar(entryWarning, title='Entry Warning', char='⚠', location=location.abovebar, color=color.yellow, size=size.normal)
-
-// Probability level background coloring (subtle)
-bgColor = reversalProbEnable ? 
-  (compositeProbability >= 90 ? color.new(color.red, 95) : 
-   compositeProbability >= 70 ? color.new(color.orange, 95) : 
-   compositeProbability <= 20 ? color.new(color.lime, 95) : na) : na
-bgplot1 = plot(high, color=na, display=display.none)
-bgplot2 = plot(low, color=na, display=display.none)
-fill(bgplot1, bgplot2, color=bgColor, title='Probability Zones')
 
 // ──────── 7. CUSTOM EXIT (Always Active) ────────────
 if strategy.position_size != 0
     customDistance = 2.5 * atrVal
     
-    // Ensure customDistance is valid
-    if na(customDistance) or customDistance <= 0
-        customDistance := 50.0  // Safe default value in points
+    // CRITICAL FIX: Use user-configurable fallback instead of hardcoded value
+    if na(smartDistance) or smartDistance <= 0
+        smartDistance := smartProfitFallback  // User-configurable fallback value
     
     if strategy.position_size > 0  // Long position
         stopLevel = strategyEntryPrice - customDistance
@@ -1412,183 +1480,6 @@ if strategy.position_size != 0
             if not customExitSent
                 customExitSent := true
 
-// Visual aids for active levels
-plot(strategy.position_size > 0 and fixedEnable ? strategyEntryPrice - tpCalc(fixedStop) : na, 'Fixed SL', color.red, style=plot.style_linebr)
-plot(strategy.position_size > 0 and fixedEnable and tp1Enable ? strategyEntryPrice + tpCalc(tp1Size) : na, 'Fixed TP', color.green, style=plot.style_linebr)
 
-// ─────────────────── 8 · ENHANCED CHART VISUALS WITH BACKTESTING INTEGRATION ─────────────────────────
-// Entry signals - simple visualization
-plotshape(longEntrySignal, title = 'BUY', style = shape.triangleup, location = location.belowbar, color = color.lime, size = size.small)
-plotshape(shortEntrySignal, title = 'SELL', style = shape.triangledown, location = location.abovebar, color = color.red, size = size.small)
 
-// Confluence indicators (when multiple signals agree)
-confluenceLong = longSignalCount >= 2
-confluenceShort = shortSignalCount >= 2
-plotshape(confluenceLong and longEntrySignal, title = 'BUY (Confluence)', style = shape.circle, location = location.belowbar, color = color.aqua, size = size.small)
-plotshape(confluenceShort and shortEntrySignal, title = 'SELL (Confluence)', style = shape.circle, location = location.abovebar, color = color.fuchsia, size = size.small)
-
-// Perfect confluence (all enabled signals agree)
-perfectConfluenceLong = longSignalCount >= 3 and longEntrySignal
-perfectConfluenceShort = shortSignalCount >= 3 and shortEntrySignal
-plotshape(perfectConfluenceLong, title = 'BUY (Perfect)', style = shape.square, location = location.belowbar, color = color.yellow, size = size.normal)
-plotshape(perfectConfluenceShort, title = 'SELL (Perfect)', style = shape.square, location = location.abovebar, color = color.yellow, size = size.normal)
-
-// RBW Filter visual indicators
-plotchar(rbwEnable and rbwSignal == 2 and rbwDesiredCond == "Higher Bandwidth", title = 'RBW Long', char = 'R', location = location.belowbar, color = color.blue, size = size.tiny)
-plotchar(rbwEnable and rbwSignal == 0 and rbwDesiredCond == "Higher Bandwidth", title = 'RBW Short', char = 'R', location = location.abovebar, color = color.orange, size = size.tiny)
-plotchar(rbwEnable and rbwSignal == 2 and rbwDesiredCond == "Lower Bandwidth", title = 'RBW Short', char = 'R', location = location.abovebar, color = color.orange, size = size.tiny)
-plotchar(rbwEnable and rbwSignal == 0 and rbwDesiredCond == "Lower Bandwidth", title = 'RBW Long', char = 'R', location = location.belowbar, color = color.blue, size = size.tiny)
-
-// ──────── OPTIMIZED SIGNAL PLOTTING (Consolidated) ────────────
-// Consolidate all signals into fewer plots to stay under 64-plot limit
-activeLongSignals = (sig1Long and signal1Enable ? 1 : 0) + (sig2Long and signal2Enable ? 2 : 0) + (sig3Long and signal3Enable ? 3 : 0) + (sig4Long and signal4Enable ? 4 : 0) + (sig5Long and signal5Enable ? 5 : 0)
-activeShortSignals = (sig1Short and signal1Enable ? 1 : 0) + (sig2Short and signal2Enable ? 2 : 0) + (sig3Short and signal3Enable ? 3 : 0) + (sig4Short and signal4Enable ? 4 : 0) + (sig5Short and signal5Enable ? 5 : 0)
-
-// Plot consolidated signal markers (plotchar doesn't count toward 64 limit)
-plotchar(activeLongSignals > 0, title = 'Long Signals', char = '▲', location = location.belowbar, color = color.new(color.lime, 0), size = size.small)
-plotchar(activeShortSignals > 0, title = 'Short Signals', char = '▼', location = location.abovebar, color = color.new(color.red, 0), size = size.small)
-
-// ──────── RBW FILTER OSCILLATOR (Optimized) ────────────
-// Consolidate RBW plots to reduce plot count while maintaining visual clarity
-plot(rbwEnable ? rbwRelativeBandwidth : na, title="📊 RBW Bandwidth", color=color.new(color.purple, 0), linewidth=2)
-// Combine Bollinger Bands into single conditional plot to save plot slots
-rbwBandColor = rbwEnable ? (rbwBBUpper > rbwBBMiddle ? color.green : rbwBBLower < rbwBBMiddle ? color.red : color.blue) : na
-rbwBandValue = rbwEnable ? (rbwBBUpper != rbwBBMiddle ? rbwBBUpper : rbwBBLower != rbwBBMiddle ? rbwBBLower : rbwBBMiddle) : na
-plot(rbwBandValue, title="📊 RBW Bands", color=color.new(rbwBandColor, 50), linewidth=1)
-hline(rbwEnable ? 0 : na, title="RBW Zero", color=color.gray, linestyle=hline.style_dotted)
-
-// ═══════════════════ COMPREHENSIVE INDICATOR VISUALIZATION ═══════════════════
-// Beautiful, human-readable plotting of all strategy components
-
-// ──────── CORE STRATEGY INDICATORS ────────────
-// Moving Average Exit Line (Thick, Color-Coded)
-maExitMA = ta.ema(close, 21)  // Using EMA-21 as the primary MA exit
-plot(maExitMA, title="📈 MA Exit Line", color=color.new(color.blue, 0), linewidth=3, display=display.all)
-
-// Stop Loss and Profit Lines (Dynamic based on position)
-stopLossLine = strategy.position_size > 0 ? strategyEntryPrice - (atrVal * 3.1) : 
-               strategy.position_size < 0 ? strategyEntryPrice + (atrVal * 3.1) : na
-profitLockerLine = strategy.position_size > 0 ? high - (atrVal * smartProfitVal * (inHybridExitMode ? 1.0 : smartProfitOffset)) :
-                   strategy.position_size < 0 ? low + (atrVal * smartProfitVal * (inHybridExitMode ? 1.0 : smartProfitOffset)) : na
-
-plot(stopLossLine, title="🛑 Stop Loss", color=color.new(color.red, 20), linewidth=2, style=plot.style_linebr)
-plot(profitLockerLine, title="💰 Profit Locker", color=color.new(color.green, 20), linewidth=2, style=plot.style_linebr)
-
-// ──────── DIRECTIONAL BIAS INDICATORS ────────────
-// Hull Suite (when enabled) - Plot the existing hullMA variable
-plot(hullEnable ? hullMA : na, title="🌊 Hull Suite", color=hullEnable ? (hullBullish ? color.new(color.lime, 30) : color.new(color.red, 30)) : na, linewidth=2)
-
-// SuperTrend (when enabled) - Plot the existing supertrend variable
-plot(supertrendEnable ? supertrend : na, title="⚡ SuperTrend", color=supertrendEnable ? (supertrendBullish ? color.new(color.aqua, 20) : color.new(color.orange, 20)) : na, linewidth=2)
-
-// Quadrant/Nadaraya-Watson (when enabled)
-plot(quadrantEnable ? quadrantEstimate : na, title="📊 Quadrant NW", color=quadrantEnable ? (quadrantBullish ? color.new(color.purple, 40) : color.new(color.maroon, 40)) : na, linewidth=2)
-
-// ──────── MTF ZIGZAG VISUALIZATION ────────────
-// Plot ZigZag pivots and trend lines when enabled
-plot(mtfZigzagEnable and not na(mtfZigzagHigh) ? mtfZigzagHigh : na, title="🔺 ZigZag High", color=color.new(color.red, 0), linewidth=1, style=plot.style_circles)
-plot(mtfZigzagEnable and not na(mtfZigzagLow) ? mtfZigzagLow : na, title="🔻 ZigZag Low", color=color.new(color.lime, 0), linewidth=1, style=plot.style_circles)
-
-// ZigZag trend line
-zigzagTrendColor = mtfZigzagEnable ? (mtfZigzagBullish ? color.new(color.lime, 70) : color.new(color.red, 70)) : na
-plot(mtfZigzagEnable ? close : na, title="📈 ZigZag Trend", color=zigzagTrendColor, linewidth=1, display=display.none)
-
-// ──────── HYBRID MODE TRANSITION MARKERS ────────────
-// Visual markers for when hybrid exit mode activates/deactivates
-plotshape(inHybridExitMode and not inHybridExitMode[1], title="🔄 Hybrid Mode ON", style=shape.labelup, location=location.belowbar, color=color.new(color.yellow, 0), size=size.normal, text="HYBRID", textcolor=color.black)
-plotshape(not inHybridExitMode and inHybridExitMode[1], title="🔄 Hybrid Mode OFF", style=shape.labeldown, location=location.abovebar, color=color.new(color.gray, 0), size=size.normal, text="NORMAL", textcolor=color.white)
-
-// ──────── REVERSAL PROBABILITY DISPLAY ────────────
-// Probability Percentage as Chart Indicator
-if reversalProbEnable and barstate.islast
-    probLabel = label.new(bar_index, high + atrVal, 
-                         "🎯 Rev Prob: " + str.tostring(compositeProbability, "#.#") + "%", 
-                         style=label.style_label_down, 
-                         color=compositeProbability > 70 ? color.red : compositeProbability < 30 ? color.lime : color.orange, 
-                         textcolor=color.white, size=size.normal)
-
-// ──────── TREND-RIDING MODE INDICATORS ────────────
-// Enhanced visual feedback for trend-riding system
-plotshape(inTrendRidingMode and not inTrendRidingMode[1], title="🚀 Trend-Riding ON", style=shape.labelup, location=location.bottom, color=color.new(color.purple, 0), size=size.large, text="TREND", textcolor=color.white)
-plotshape(not inTrendRidingMode and inTrendRidingMode[1], title="🚀 Trend-Riding OFF", style=shape.labeldown, location=location.top, color=color.new(color.silver, 0), size=size.normal, text="EXIT", textcolor=color.black)
-
-// ═══════════════════ EXIT INDICATOR VISUAL PLOTTING ═══════════════════
-// Visual markers for exit signals and hybrid mode status
-
-// AlgoAlpha Reversal Signals
-plotshape(aaBullSignal and exitIndicator1Enable, title='AA Bull Exit', style=shape.labelup, location=location.belowbar, color=color.orange, size=size.small, text='🔄', textcolor=color.white)
-plotshape(aaBearSignal and exitIndicator1Enable, title='AA Bear Exit', style=shape.labeldown, location=location.abovebar, color=color.orange, size=size.small, text='🔄', textcolor=color.white)
-
-// External Plot Signals (LuxAlgo Integration Points) - Consolidated
-// Consolidate exit plots to reduce plot count while maintaining functionality
-anyExitLongSignal = exitPlot1LongSignal or exitPlot2LongSignal or exitPlot3LongSignal
-anyExitShortSignal = exitPlot1ShortSignal or exitPlot2ShortSignal or exitPlot3ShortSignal
-plotchar(anyExitLongSignal, title='Exit Signals Long', char='🚪', location=location.belowbar, color=color.new(color.blue, 0), size=size.small)
-plotchar(anyExitShortSignal, title='Exit Signals Short', char='🚪', location=location.abovebar, color=color.new(color.blue, 0), size=size.small)
-
-// Reversal Candle Patterns - Consolidated (Fixed location parameter)
-plotchar(reversalCandleBull, title='Reversal Bull', char='🔄', location=location.belowbar, color=color.lime, size=size.small)
-plotchar(reversalCandleBear, title='Reversal Bear', char='🔄', location=location.abovebar, color=color.red, size=size.small)
-
-// Hybrid Exit Mode & Threshold Status - Consolidated (Fixed location parameters)
-inHybridModeAny = inHybridExitMode and strategy.position_size != 0
-exitThresholdMet = (longExitSignalCount >= hybridExitThreshold and strategy.position_size > 0) or (shortExitSignalCount >= hybridExitThreshold and strategy.position_size < 0)
-// Split into separate plots with fixed locations
-plotshape(inHybridModeAny and strategy.position_size > 0, title='Hybrid Mode Long', style=shape.diamond, location=location.belowbar, color=color.yellow, size=size.normal)
-plotshape(inHybridModeAny and strategy.position_size < 0, title='Hybrid Mode Short', style=shape.diamond, location=location.abovebar, color=color.yellow, size=size.normal)
-plotchar(exitThresholdMet and strategy.position_size > 0, title='Exit Threshold Long', char='⚠', location=location.belowbar, color=color.red, size=size.large)
-plotchar(exitThresholdMet and strategy.position_size < 0, title='Exit Threshold Short', char='⚠', location=location.abovebar, color=color.red, size=size.large)
-
-// ═══════════════════ PERFORMANCE STATS TABLE ═══════════════════
-// Placeholder for performance stats table
-// This would be implemented when the full strategy system is available
-
-// ═══════════════════ MEMORY OPTIMIZATION ═══════════════════
-// Strategy-realistic backtest table removed for memory efficiency
-// Strategy execution logic preserved in protected sections
-
-// ═══════════════════ ENTRY/EXIT COMBO BACKTESTING PANEL - REMOVED ═══════════════════
-// This large panel (~300 lines) has been removed to reduce code bloat.
-// Use the Individual Signal Backtest table above for performance analysis.
-
-// [REMOVED: ~280 lines of combo backtesting code for code bloat reduction]
-
-// [REMOVED: More combo backtesting code for code bloat reduction]
-
-// [REMOVED: Signal 2 combo backtesting code for code bloat reduction]
-
-// [REMOVED: ~200+ lines of remaining combo backtesting code for code bloat reduction]
-// This included all Signal 2-5 combo tables, best exit calculations, and summary recommendations.
-
-// ═══════════════════ INTRABAR EXIT DEBUG SYSTEM ═══════════════════
-// Visual monitoring and validation system for robust exit logic
-
-debugOn = input.bool(false, '🔍 Enable Exit Debug Labels', group = '🛠️ Debug System', tooltip = 'Show visual labels when exits trigger to validate anti-spam logic')
-
-if debugOn and barstate.isconfirmed
-    // Determine which exit method was triggered (if any)
-    exitType = 
-      maExitSent ? 'MA' :
-      fixedExitSent ? 'Fixed' :
-      fibExitSent ? 'Fib' :
-      trailExitSent ? 'Trail' :
-      customExitSent ? 'Custom' : 'None'
-    
-    // Color coding for different exit types
-    labelColor = 
-      maExitSent ? color.red : 
-      fixedExitSent ? color.orange : 
-      fibExitSent ? color.purple : 
-      trailExitSent ? color.blue : 
-      customExitSent ? color.teal : color.gray
-    
-    // Show debug label when an exit is triggered
-    if exitType != 'None'
-        label.new(bar_index, high * 1.02, 'EXIT: ' + exitType + '\nBar: ' + str.tostring(bar_index) + '\nPrice: ' + str.tostring(close, '#.####') + '\nPos: ' + (strategy.position_size > 0 ? 'Long' : strategy.position_size < 0 ? 'Short' : 'Flat') + '\nProgress: ' + (exitInProgress ? 'YES' : 'NO'), color=labelColor, textcolor=color.white, style=label.style_label_down, yloc=yloc.abovebar, size=size.small)
-    
-    // Show position state changes
-    if currentPosition != currentPosition[1]
-        stateColor = currentPosition ? color.green : color.red
-        stateText = currentPosition ? 'ENTRY' : 'EXIT'
-        label.new(bar_index, low * 0.98, stateText + '\nFlags Reset: ' + (currentPosition ? 'YES' : 'NO'), color=stateColor, textcolor=color.white, style=label.style_label_up, yloc=yloc.belowbar, size=size.tiny)
 

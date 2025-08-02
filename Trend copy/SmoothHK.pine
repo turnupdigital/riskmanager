@@ -1,0 +1,25 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © wallneradam
+
+//@version=6
+indicator('Smoothed Heiken Ashi', 'Smooth HK', overlay = true, timeframe = '', timeframe_gaps = true)
+
+import wallneradam/TAExt/8
+
+//
+// User inputs
+//
+ha_smooth_length = input.int(10, 'Smooth Length', minval = 1, group = 'Before HA')
+ha_smooth_ma_type = input.string('EMA', 'MA Type', options = ['SMA', 'EMA', 'WMA', 'VWMA', 'RMA', 'DEMA', 'TEMA', 'ZLEMA', 'HMA', 'ALMA', 'LSMA', 'SWMA', 'SMMA', 'JMA', 'DONCHIAN', 'ATRWSMA', 'ATRWEMA', 'ATRWRMA', 'ATRWWMA'], group = 'Before HA')
+ha_after_smooth_length = input.int(10, 'After Smooth Length', minval = 1, group = 'After HA')
+ha_after_smooth_ma_type = input.string('EMA', 'After MA Type', options = ['SMA', 'EMA', 'WMA', 'VWMA', 'RMA', 'DEMA', 'TEMA', 'ZLEMA', 'HMA', 'ALMA', 'LSMA', 'SWMA', 'SMMA', 'JMA', 'DONCHIAN', 'ATRWSMA', 'ATRWEMA', 'ATRWRMA', 'ATRWWMA'], group = 'After HA')
+
+//
+// Calculation
+//
+[o, h, l, c] = TAExt.heiken_ashi(smooth_length = ha_smooth_length, smooth_ma_type = ha_smooth_ma_type, after_smooth_length = ha_after_smooth_length, after_smooth_ma_type = ha_after_smooth_ma_type)
+
+//
+// Plotting
+//
+plotcandle(o, h, l, c, title = 'Smoothed Heiken Ashi', color = o > c ? color.new(color.red, 60) : color.new(color.lime, 60), wickcolor = o > c ? color.new(color.red, 20) : color.new(color.lime, 20), bordercolor = o > c ? color.new(color.red, 10) : color.new(color.lime, 10))
