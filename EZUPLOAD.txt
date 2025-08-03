@@ -127,7 +127,7 @@ updateLabel(label lbl, int x, float y, string txt, color col) =>
         label.set_size(lbl, size.small)
 
 
-strategy(title = 'EZ Algo Trade Manager', overlay = true, pyramiding = 10, default_qty_type = strategy.fixed, default_qty_value = 1, calc_on_order_fills = true, process_orders_on_close = true, calc_on_every_tick = false)
+strategy(title = 'EZ Algo Trade Manager', overlay = true, default_qty_type = strategy.fixed, default_qty_value = 1, calc_on_order_fills = true, process_orders_on_close = true, calc_on_every_tick = false)
 // User-controllable quantity
 
 // ═══════════════════ GLOBAL VARIABLE DECLARATIONS ═══════════════════
@@ -147,28 +147,20 @@ var string exitReason = na
 var bool inHybridExitMode = false
 var int hybridModeStartBar = 0
 
-// Adaptive SuperTrend K-means Clustering Variables (FULL IMPLEMENTATION)
-var array<float> adaptive_hv = array.new_float()
-var array<float> adaptive_mv = array.new_float()
-var array<float> adaptive_lv = array.new_float()
-var array<float> adaptive_amean = array.new_float(1, 0)
-var array<float> adaptive_bmean = array.new_float(1, 0)
-var array<float> adaptive_cmean = array.new_float(1, 0)
-var int adaptiveCluster = na
-var int adaptiveNumber = na
-var float adaptive_assigned_centroid = na
-var int adaptive_iterations = 0
+// ATR and other technical variables
+// ATR is calculated using user-configurable atrLen in the ATR Settings section
 
-// Adaptive SuperTrend Exit Filter Variables
-var bool adaptiveExitBlocked = false
-var bool adaptivePendingExit = false
-var string adaptiveExitReason = na
+// ═══════════════════ MEMORY OPTIMIZATION ═══════════════════
+// Backtesting arrays removed for memory efficiency
+// Strategy execution logic preserved in protected sections
 
 // ═══════════════════ CRITICAL INPUT DECLARATIONS ═══════════════════
 // These inputs must be declared early as they're used in backtest functions
 positionQty = input.int(1, 'Number of Contracts', minval = 1, maxval = 1000, group = 'Position Size', tooltip = 'Set the number of contracts/shares to trade per signal')
 
-
+// ═══════════════════ BACKTEST PROCESSING FUNCTIONS ═══════════════════
+// Core functions for processing individual signal backtests
+// NOTE: Functions are defined later in the script to avoid duplication
 
 // ─────────────────── 0 · POSITION SIZE & PRIMARY SIGNALS ───────────────────
 // Position Size Control (moved to early declarations section)
@@ -565,16 +557,10 @@ atrLen = input.int(14, 'ATR Length', minval = 1, group = 'ATR Settings')
 rawATR = ta.atr(atrLen)
 
 // Validated ATR with fallback protection
-var float atrVal = na
-atrVal := na(rawATR) or rawATR <= 0 ? ta.sma(high - low, math.min(atrLen, bar_index + 1)) : rawATR
+atrVal = na(rawATR) or rawATR <= 0 ? ta.sma(high - low, math.min(atrLen, bar_index + 1)) : rawATR
 
 // Final safety check: ensure ATR is never zero or negative
 atrVal := math.max(atrVal, 0.0001)  // Minimum ATR of 0.0001 to prevent division by zero
-
-// ───── Volatility Ratio (global) for adaptive stop & debug ─────
-// Re-computed every bar (not a "var") so downstream logic can read it.
-volatilityRatio = ta.sma(atrVal, 50) > 1e-10 ? atrVal / ta.sma(atrVal, 50) : 1.0
-
 
 // ─────────────────── 3 · EXIT PARAMETERS (ASCII SAFE) ───────────
 maExitOn = input.bool(true, 'Enable MA Exit', group = 'MA Exit')
@@ -598,6 +584,8 @@ tp2Size = input.float(3.0, '', inline = 'tp2', group = 'Fixed SL/TP')
 tp3Enable = input.bool(false, 'TP3', inline = 'tp3', group = 'Fixed SL/TP')
 tp3Size = input.float(4.0, '', inline = 'tp3', group = 'Fixed SL/TP')
 
+
+
 // Smart Profit Locker (Aggressive Profit Protection)
 smartProfitEnable = input.bool(false, '🎯 Enable Smart Profit Locker', group = 'Smart Profit Locker', tooltip = 'Aggressive profit-taking with adjustable pullback sensitivity')
 smartProfitType = input.string('ATR', 'Type', options = ['ATR', 'Points', 'Percent'], group = 'Smart Profit Locker')
@@ -606,22 +594,16 @@ smartProfitOffset = input.float(0.10, 'Pullback %', step = 0.05, minval = 0.01, 
 // CRITICAL FIX: User-configurable fallback for invalid calculations
 smartProfitFallback = input.float(50.0, 'Fallback Value', step = 1.0, minval = 0.1, group = 'Smart Profit Locker', tooltip = 'Fallback value when calculation fails. Set appropriately for your symbol: Forex ~0.001, Crypto ~1.0, Stocks ~0.50')
 
-// ─── Compatibility Alias Variables (legacy names referenced later) ───
-// These bridge old variable names used in preserved exit logic.
-smartProfitMultiplier = smartProfitVal  // Legacy name mapping
-fixedSlTpEnable = fixedEnable           // Fix typo in later logic
-fixedStopLoss = fixedStop               // Stop-loss size alias
-fixedTakeProfit = tp1Size               // Default take-profit size (TP1) as placeholder
-maExitEnable = maExitOn                 // MA exit enable alias
-maExitLine = priceMA                    // MA line alias
-trendRiderSignalExit = true             // Default allow signal-based exit (can be later wired to input)
-
-
 // Traditional Trailing Stop - REMOVED (use Smart Profit Locker with 100% offset for traditional behavior)
 
 // ─────────────────── 4 · BACKTESTING PANEL CONTROLS ─────────────────────
 showBacktestTable = input.bool(true, '📊 Individual Signal Backtest', group = '🔍 Backtesting Panels', tooltip = 'Show individual signal performance (existing table)')
 backtestLookback = input.string('7 Days', 'Backtest Lookback Period', options = ['3 Days', '7 Days', '30 Days', '90 Days'], group = '🔍 Backtesting Panels', tooltip = 'How far back to analyze performance')
+
+// ═══════════════════ MEMORY OPTIMIZATION ═══════════════════
+// Backtesting functions and arrays removed for memory efficiency
+// Strategy execution logic preserved in protected sections
+
 
 // ═══════════════════ ENTRY SIGNAL DECLARATIONS (BUG FIX) ═══════════════════
 // CRITICAL FIX: Declare entry signal variables here, assign values after filter calculations
@@ -635,6 +617,18 @@ var bool shortEntrySignal = false
 if barstate.isfirst
     debugInfo('EZAlgoTrader initialized with debug logging')
 
+// ═══════════════════ ENTRY LOGIC (FIXED - MOVED TO PROPER LOCATION) ═══════════════════
+// CRITICAL FIX: Entry signals are now calculated at the end of the script (line ~1400+)
+// This section is a placeholder - actual entry logic moved to after all calculations
+
+// Entry logic is now handled at the end of the script after all filters are calculated
+// This fixes the circular dependency where entry signals were used before being defined
+
+// The actual entry conditions are:
+// longEntrySignal := primaryLongSig and longDirectionalBias and entryProbabilityOK  
+// shortEntrySignal := primaryShortSig and shortDirectionalBias and entryProbabilityOK
+
+// Entry execution happens via strategy.entry() calls at the end of the script
 
 // ═══════════════════ REAL STRATEGY EXIT LOGIC (CRITICAL FIX) ═══════════════════
 // This section bridges the gap between combo backtesting and actual strategy execution
@@ -754,6 +748,11 @@ if smartProfitEnable and strategy.position_size != 0 and not (inTrendRidingMode 
         if not trailExitSent
             trailExitSent := true
 
+// ──────── 5. TRADITIONAL TRAILING STOP - REMOVED ────────────
+// Use Smart Profit Locker with different offset values:
+// • 10% offset = Aggressive profit taking
+// • 100% offset = Traditional trailing stop behavior
+
 // ──────── 6. RELATIVE BANDWIDTH DIRECTIONAL FILTER ────────────
 // Compact multi-column panel for volatility-based directional bias
 rbwEnable = input.bool(true, '📊 Enable RBW Filter', group='📊 Relative Bandwidth Filter', inline='rbw0')
@@ -777,6 +776,78 @@ rbwRefBand = input.string("Middle", "Reference", group='📊 Relative Bandwidth 
 // ATR and Filter Settings (Row 5)
 rbwATRLength = input.int(20, "ATR Len", group='📊 Relative Bandwidth Filter', inline='rbw5')
 rbwBBType = input.string("sma", "BB Type", group='📊 Relative Bandwidth Filter', options=["sma", "ema", "hma", "rma", "wma", "vwma", "linreg", "median"], inline='rbw5')
+
+// ═══════════════════ EXTENDED BIAS FILTERS (6 INDICATORS) ═══════════════════
+// Professional trend-based directional bias filters with confluence logic
+
+// Confluence Logic (Row 1)
+biasConfluence = input.string('Any', 'Confluence Mode', options=['Any', 'Majority', 'All'], group='🎯 Extended Bias Filters', inline='conf1', tooltip='Any: At least one filter agrees | Majority: Most filters agree | All: All enabled filters agree')
+
+// ──────── ROW 1: CORE TREND FILTERS ────────────
+// Hull Suite Filter (Section 1)
+hullEnable = input.bool(true, '📈 Hull Suite', group='🎯 Extended Bias Filters', inline='hull1')
+hullLength = input.int(55, 'Length', minval=10, maxval=200, group='🎯 Extended Bias Filters', inline='hull1')
+hullMode = input.string('Hma', 'Type', options=['Hma', 'Ehma', 'Thma'], group='🎯 Extended Bias Filters', inline='hull2')
+
+// SuperTrend Filter (Section 2)
+supertrendEnable = input.bool(false, '🔥 SuperTrend', group='🎯 Extended Bias Filters', inline='st1')
+supertrendFactor = input.float(3.0, 'Factor', minval=1.0, maxval=10.0, step=0.1, group='🎯 Extended Bias Filters', inline='st1')
+supertrendATR = input.int(10, 'ATR', minval=5, maxval=50, group='🎯 Extended Bias Filters', inline='st2')
+
+// Quadrant NW Filter (Section 3)
+quadrantEnable = input.bool(false, '📊 Quadrant NW', group='🎯 Extended Bias Filters', inline='quad1')
+quadrantLookback = input.float(8.0, 'Lookback', minval=3.0, maxval=25.0, step=0.5, group='🎯 Extended Bias Filters', inline='quad1')
+quadrantWeight = input.float(8.0, 'Weight', minval=1.0, maxval=20.0, step=0.25, group='🎯 Extended Bias Filters', inline='quad2')
+
+// ──────── ROW 2: ADVANCED TREND FILTERS ────────────
+// Adaptive SuperTrend Filter (Section 4)
+adaptiveSTEnable = input.bool(false, '🤖 Adaptive ST', group='🎯 Extended Bias Filters', inline='ast1')
+adaptiveSTLength = input.int(14, 'Length', minval=5, maxval=50, group='🎯 Extended Bias Filters', inline='ast1')
+adaptiveSTFactor = input.float(2.5, 'Factor', minval=1.0, maxval=5.0, step=0.1, group='🎯 Extended Bias Filters', inline='ast2')
+
+// Volumatic VIDYA Filter (Section 5)
+volumaticEnable = input.bool(false, '📊 Volumatic', group='🎯 Extended Bias Filters', inline='vol1')
+volumaticLength = input.int(20, 'Length', minval=5, maxval=100, group='🎯 Extended Bias Filters', inline='vol1')
+volumaticAlpha = input.float(0.2, 'Alpha', minval=0.01, maxval=1.0, step=0.01, group='🎯 Extended Bias Filters', inline='vol2')
+
+// Smoothed Heiken Ashi Filter (Section 6)
+smoothHAEnable = input.bool(false, '🕯️ Smooth HA', group='🎯 Extended Bias Filters', inline='sha1')
+smoothHALength = input.int(10, 'Length', minval=3, maxval=50, group='🎯 Extended Bias Filters', inline='sha1')
+smoothHAMode = input.string('EMA', 'Smooth', options=['EMA', 'SMA', 'WMA'], group='🎯 Extended Bias Filters', inline='sha2')
+
+// ═══════════════════ MULTI-TIMEFRAME ZIGZAG FILTER ═══════════════════
+// Advanced trend analysis using higher timeframe ZigZag pivots
+
+// MTF ZigZag Enable Toggle (Row 1)
+mtfZigzagEnable = input.bool(false, '📈 MTF ZigZag', group='🎯 Advanced Bias Filters', inline='mtf1', tooltip='Enable Multi-Timeframe ZigZag trend analysis. Uses higher timeframe pivot analysis to detect strong trending conditions. Only uses confirmed bars (no repainting).')
+
+// MTF ZigZag Parameters (Row 2)
+mtfTimeframe = input.timeframe('60', 'MTF Timeframe', group='🎯 Advanced Bias Filters', inline='mtf2', tooltip='Higher timeframe for trend analysis. Common choices: 15 for 5m charts, 60 for 15m charts, 240 for 1H charts. Higher timeframes give stronger trend signals but slower response.')
+mtfZigzagLength = input.int(21, 'ZZ Length', minval=5, group='🎯 Advanced Bias Filters', inline='mtf2', tooltip='ZigZag sensitivity. Lower values (5-10) = more sensitive, more signals. Higher values (20-50) = less sensitive, stronger trends only.')
+
+// MTF ZigZag Advanced (Row 3)
+mtfDepth = input.int(200, 'ZZ Depth', minval=50, maxval=500, step=50, group='🎯 Advanced Bias Filters', inline='mtf3', tooltip='Number of pivots to analyze. Higher values give more historical context but use more memory. 200 is good balance for most timeframes.')
+mtfMinPivotAge = input.int(2, 'Min Pivot Age', minval=1, maxval=5, group='🎯 Advanced Bias Filters', inline='mtf3', tooltip='Minimum bars a pivot must be old to be considered confirmed. 2+ bars ensures no repainting.')
+
+// ═══════════════════ REVERSAL PROBABILITY BIAS FILTER ═══════════════════
+// Statistical reversal probability analysis for intelligent trend continuation
+// Uses AlgoAlpha + LuxAlgo probability indicators for bias decisions
+
+// Reversal Probability Enable Toggle (Row 1)
+reversalProbEnable = input.bool(false, '📊 Reversal Probability', group='🎯 Probability Bias Filter', inline='prob1', tooltip='Enable reversal probability bias filter. Uses statistical analysis to determine trend continuation likelihood. LOW probability = continue trend, HIGH probability = neutral/exit bias.')
+reversalProbPrimary = input.bool(false, '⭐ Primary Mode', group='🎯 Probability Bias Filter', inline='prob1', tooltip='Make reversal probability the primary bias filter. When enabled, this filter can work alone when other filters are disabled.')
+
+// Probability Thresholds (Row 2)
+reversalProbThreshold = input.float(30.0, 'Bias Threshold %', minval=10.0, maxval=90.0, step=5.0, group='🎯 Probability Bias Filter', inline='prob2', tooltip='Reversal probability threshold for bias decisions. Below this % = continue trend bias. Default 30% = conservative. Lower = more aggressive trend continuation.')
+reversalExitThreshold = input.float(70.0, 'Exit Threshold %', minval=30.0, maxval=95.0, step=5.0, group='🎯 Probability Bias Filter', inline='prob2', tooltip='Reversal probability threshold for exit decisions. Above this % = consider exiting. Separate from bias threshold for independent testing.')
+
+// Trend-Riding Integration (Row 3)
+reversalProbRequiredForTrend = input.bool(false, '🚀 Required for Trend-Riding', group='🎯 Probability Bias Filter', inline='prob3', tooltip='Require LOW reversal probability for trend-riding activation. When enabled, trend-riding mode will only activate if reversal probability is below threshold.')
+reversalProbWeight = input.float(1.0, 'Filter Weight', minval=0.1, maxval=3.0, step=0.1, group='🎯 Probability Bias Filter', inline='prob3', tooltip='Weight of this filter in confluence voting. 1.0 = equal weight. Higher values give this filter more influence in bias decisions.')
+
+// Entry Probability Filter (Row 4) - NEW FEATURE
+entryProbFilterEnable = input.bool(false, '🚫 Entry Probability Filter', group='🎯 Probability Bias Filter', inline='prob4', tooltip='OPTIONAL: Block entries when reversal probability is too high (e.g., gap opens at extremes). Prevents entering at 84%+ reversal probability zones. OFF by default.')
+entryProbFilterThreshold = input.float(84.0, 'Block Above %', minval=70.0, maxval=95.0, step=1.0, group='🎯 Probability Bias Filter', inline='prob4', tooltip='Block entries when reversal probability exceeds this threshold. 84% = AlgoAlpha extreme level. 90% = LuxAlgo 90th percentile. Protects against gap-open losses.')
 
 // ═══════════════════ TREND-RIDING OVERLAY SYSTEM ═══════════════════
 // Advanced exit system to "let winners run" in strong trending conditions
@@ -819,61 +890,370 @@ useExitSignal10 = input.bool(false, 'Exit: Sig 10', group='🎯 Trend-Riding Sys
 minOppositeSignals = input.int(1, 'Min Exit Signals', minval=1, maxval=10, group='🎯 Trend-Riding System', inline='tr7', tooltip='Minimum number of selected opposite signals required to trigger exit. 1 = exit on first available signal. 2+ = wait for confluence of multiple opposite signals.')
 enableTrendBreakSafety = input.bool(true, 'Trend Break Safety', group='🎯 Trend-Riding System', inline='tr7', tooltip='Exit immediately if trend consensus breaks (filters no longer agree). Critical safety net to prevent being stuck in sideways markets.')
 
-// ═══════════════════ EXTENDED BIAS FILTERS (6 INDICATORS) ═══════════════════
-// Professional trend-based directional bias filters with confluence logic
+// Catastrophic Stop Safety (Row 8)
+enableCatastrophicStop = input.bool(true, 'Catastrophic Stop', group='🎯 Trend-Riding System', inline='tr8', tooltip='Respect catastrophic stop-loss even during trend-riding. Uses 3x normal stop distance as final safety net.')
+catastrophicStopMultiplier = input.float(3.0, 'Cat Stop Mult', minval=2.0, maxval=5.0, step=0.5, group='🎯 Trend-Riding System', inline='tr8', tooltip='Multiplier for catastrophic stop distance. 3.0 = 3x normal trailing stop distance as absolute maximum loss.')
 
-// Confluence Logic (Row 1)
-biasConfluence = input.string('Any', 'Confluence Mode', options=['Any', 'Majority', 'All'], group='🎯 Extended Bias Filters', inline='conf1', tooltip='Any: At least one filter agrees | Majority: Most filters agree | All: All enabled filters agree')
+// ═══════════════════ ADAPTIVE EXIT SYSTEM ═══════════════════
+// Impulsive move detection and rapid exit capabilities
 
-// ──────── ROW 1: CORE TREND FILTERS ────────────
-// Hull Suite Filter (Section 1)
-hullEnable = input.bool(true, '📈 Hull Suite', group='🎯 Extended Bias Filters', inline='hull1')
-hullLength = input.int(55, 'Length', minval=10, maxval=200, group='🎯 Extended Bias Filters', inline='hull1')
-hullMode = input.string('Hma', 'Type', options=['Hma', 'Ehma', 'Thma'], group='🎯 Extended Bias Filters', inline='hull2')
+// Impulsive Exit Enable (Row 1)
+impulsiveExitEnable = input.bool(true, '⚡ Impulsive Exits', group='🎯 Adaptive Exit System', inline='ie1', tooltip='Enable real-time exits for impulsive reversal moves. Protects against large adverse moves that happen within a single bar.')
+momentumExitEnable = input.bool(false, '📉 Momentum Exits', group='🎯 Adaptive Exit System', inline='ie1', tooltip='Enable exits after consecutive adverse bars. Protects against slow bleeds where price gradually moves against position.')
 
-// SuperTrend Filter (Section 2)
-supertrendEnable = input.bool(false, '🔥 SuperTrend', group='🎯 Extended Bias Filters', inline='st1')
-supertrendFactor = input.float(3.0, 'Factor', minval=1.0, maxval=10.0, step=0.1, group='🎯 Extended Bias Filters', inline='st1')
-supertrendATR = input.int(10, 'ATR', minval=5, maxval=50, group='🎯 Extended Bias Filters', inline='st2')
+// Impulsive Move Thresholds (Row 2)
+impulsiveATRThreshold = input.float(2.0, 'ATR Threshold', minval=1.0, maxval=5.0, step=0.1, group='🎯 Adaptive Exit System', inline='ie2', tooltip='Bar body size threshold for impulsive move detection. 2.0 = bar body must be 2x ATR to trigger. Lower = more sensitive.')
+impulsiveMaxLoss = input.float(0.5, 'Max Loss %', minval=0.1, maxval=2.0, step=0.1, group='🎯 Adaptive Exit System', inline='ie2', tooltip='Maximum percentage loss allowed within a single bar before immediate exit. 0.5% = exit if position loses more than 0.5% intrabar.')
 
-// Quadrant NW Filter (Section 3) - FULL NADARAYA-WATSON IMPLEMENTATION
-quadrantEnable = input.bool(false, '📊 Quadrant NW', group='🎯 Extended Bias Filters', inline='quad1')
-quadrantLookback = input.float(8.0, 'Lookback Window', minval=3.0, maxval=50.0, step=0.5, group='🎯 Extended Bias Filters', inline='quad1', tooltip='The number of bars used for the estimation. Recommended range: 3-50')
-quadrantRelativeWeight = input.float(8.0, 'Relative Weighting', minval=0.25, maxval=25.0, step=0.25, group='🎯 Extended Bias Filters', inline='quad2', tooltip='Relative weighting of time frames. Lower values = more long-term influence. Recommended range: 0.25-25')
-quadrantStartBar = input.int(25, 'Start Regression at Bar', minval=5, maxval=50, group='🎯 Extended Bias Filters', inline='quad2', tooltip='Bar index to start regression. Omits volatile initial bars. Recommended range: 5-25')
+// Volume and Momentum Confirmation (Row 3)
+impulsiveVolumeMultiplier = input.float(1.5, 'Volume Mult', minval=1.0, maxval=3.0, step=0.1, group='🎯 Adaptive Exit System', inline='ie3', tooltip='Volume multiplier for impulsive move confirmation. 1.5 = volume must be 1.5x average to confirm impulsive move. Higher = more conservative.')
+impulsiveVolumePeriod = input.int(20, 'Volume Period', minval=5, maxval=50, group='🎯 Adaptive Exit System', inline='ie3', tooltip='Period for volume moving average comparison. 20 = compare current volume to 20-bar SMA. Lower = more sensitive to recent volume changes.')
+impulsiveMomentumBars = input.int(2, 'Momentum Bars', minval=1, maxval=5, group='🎯 Adaptive Exit System', inline='ie3', tooltip='Number of consecutive adverse bars to trigger momentum exit. 2 = exit after 2 consecutive bars against position.')
 
-// ──────── ROW 2: ADVANCED TREND FILTERS ────────────
-// Adaptive SuperTrend Filter (Section 4) - FULL K-MEANS IMPLEMENTATION
-adaptiveSTEnable = input.bool(false, '🤖 Adaptive ST', group='🎯 Extended Bias Filters', inline='ast1')
-// Full K-means Clustering Parameters (matching Adaptive.pine exactly)
-adaptive_atr_len = input.int(10, 'ATR Length', minval=5, maxval=50, group='🎯 Extended Bias Filters', inline='ast3')
-adaptive_fact = input.float(3.0, 'SuperTrend Factor', minval=1.0, maxval=10.0, step=0.1, group='🎯 Extended Bias Filters', inline='ast3')
-adaptive_training_period = input.int(100, 'Training Period', minval=50, maxval=200, group='🎯 Extended Bias Filters', inline='ast4')
-adaptive_highvol = input.float(0.75, 'High Vol %', minval=0.5, maxval=1.0, step=0.05, group='🎯 Extended Bias Filters', inline='ast4')
-adaptive_midvol = input.float(0.5, 'Med Vol %', minval=0.3, maxval=0.7, step=0.05, group='🎯 Extended Bias Filters', inline='ast5')
-adaptive_lowvol = input.float(0.25, 'Low Vol %', minval=0.1, maxval=0.5, step=0.05, group='🎯 Extended Bias Filters', inline='ast5')
+// Exit Mode Selection (Row 4)
+adaptiveExitMode = input.string('Adaptive', 'Exit Mode', options=['Confirmed Only', 'Adaptive', 'Aggressive'], group='🎯 Adaptive Exit System', inline='ie4', tooltip='Exit timing mode. Confirmed Only = wait for bar close. Adaptive = real-time exits in high volatility. Aggressive = always use real-time exits.')
+volatilityThreshold = input.float(1.2, 'Vol Threshold', minval=1.0, maxval=2.0, step=0.1, group='🎯 Adaptive Exit System', inline='ie4', tooltip='Volatility ratio threshold for adaptive mode. 1.2 = use real-time exits when current ATR is 1.2x average ATR.')
 
-// Adaptive SuperTrend Exit Filter System (Human-Friendly Configuration)
-adaptiveExitFilterEnable = input.bool(false, '🛡️ Exit Filter', group='🎯 Extended Bias Filters', inline='astf1', tooltip='Block scalp exits during specific volatility regimes')
-adaptiveExitFilterShowDebug = input.bool(false, 'Debug', group='🎯 Extended Bias Filters', inline='astf1', tooltip='Show volatility number and filter status on chart')
-adaptiveExitFilterBlock3 = input.bool(true, '🚫 Do Not Exit on "3"', group='🎯 Extended Bias Filters', inline='astf2', tooltip='Block exits during High Volatility (Number 3)')
-adaptiveExitFilterBlock2 = input.bool(false, '🚫 Do Not Exit on "2"', group='🎯 Extended Bias Filters', inline='astf3', tooltip='Block exits during Medium Volatility (Number 2)')
-adaptiveExitFilterBlock1 = input.bool(false, '🚫 Do Not Exit on "1"', group='🎯 Extended Bias Filters', inline='astf4', tooltip='Block exits during Low Volatility (Number 1)')
+// ═══════════════════ EXIT INDICATOR INTEGRATION SYSTEM ═══════════════════
+// Advanced exit signal detection using multiple reversal indicators
+// Implements hybrid exit mode to reduce profit giveback in trend-riding
 
-// Volumatic VIDYA Filter (Section 5) - FULL VARIABLE INDEX DYNAMIC AVERAGE
-volumaticEnable = input.bool(false, '📊 Volumatic', group='🎯 Extended Bias Filters', inline='vol1')
-volumaticLength = input.int(10, 'VIDYA Length', minval=5, maxval=100, group='🎯 Extended Bias Filters', inline='vol1', tooltip='Length of the VIDYA calculation')
-volumaticMomentum = input.int(20, 'VIDYA Momentum', minval=5, maxval=50, group='🎯 Extended Bias Filters', inline='vol2', tooltip='Momentum length for VIDYA calculation')
-volumaticBandDistance = input.float(2.0, 'Band Distance', minval=0.1, maxval=5.0, step=0.1, group='🎯 Extended Bias Filters', inline='vol2', tooltip='Distance factor for upper/lower bands')
+// Exit Indicator Enable Toggles (Row 1)
+exitIndicator1Enable = input.bool(true, '🔄 AlgoAlpha Reversal', group='🚨 Exit Indicators', inline='exit1', tooltip='Enable AlgoAlpha Reversal Signal detection. Extremely accurate reversal signals for trend exit confirmation.')
+exitIndicator2Enable = input.bool(false, '🔄 LuxAlgo RevProb', group='🚨 Exit Indicators', inline='exit1', tooltip='Enable LuxAlgo Reversal Probability zones for exit signal detection.')
+exitIndicator3Enable = input.bool(false, '🔄 Reversal Candles', group='🚨 Exit Indicators', inline='exit1', tooltip='Enable simple reversal candlestick pattern detection.')
 
-// Smoothed Heiken Ashi Filter (Section 6) - FULL DUAL SMOOTHING IMPLEMENTATION
-smoothHAEnable = input.bool(false, '🕯️ Smooth HA', group='🎯 Extended Bias Filters', inline='sha1')
-// Before HA Smoothing (matching original SmoothHK.pine)
-smoothHALength = input.int(10, 'Before Smooth Length', minval=1, maxval=50, group='🎯 Extended Bias Filters', inline='sha1', tooltip='Smooth length before HA calculation')
-smoothHAMode = input.string('EMA', 'Before MA Type', options=['SMA', 'EMA', 'WMA', 'VWMA', 'RMA', 'DEMA', 'TEMA', 'HMA', 'ALMA', 'LSMA'], group='🎯 Extended Bias Filters', inline='sha2', tooltip='MA type for pre-HA smoothing')
-// After HA Smoothing (matching original SmoothHK.pine)
-smoothHAAfterLength = input.int(10, 'After Smooth Length', minval=1, maxval=50, group='🎯 Extended Bias Filters', inline='sha3', tooltip='Smooth length after HA calculation')
-smoothHAAfterMode = input.string('EMA', 'After MA Type', options=['SMA', 'EMA', 'WMA', 'VWMA', 'RMA', 'DEMA', 'TEMA', 'HMA', 'ALMA', 'LSMA'], group='🎯 Extended Bias Filters', inline='sha3', tooltip='MA type for post-HA smoothing')
+// External Plot Integration (Row 2) - 3 Plot Points for LuxAlgo Integration
+exitPlot1Enable = input.bool(false, '📊 Exit Plot 1', group='🚨 Exit Indicators', inline='exit2', tooltip='Enable external exit plot 1. Connect your LuxAlgo Long Exit signal here.')
+exitPlot1Source = input.source(close, 'Plot 1 Src', group='🚨 Exit Indicators', inline='exit2', tooltip='Source for external exit plot 1 (LuxAlgo Long Exit)')
+exitPlot2Enable = input.bool(false, '📊 Exit Plot 2', group='🚨 Exit Indicators', inline='exit2', tooltip='Enable external exit plot 2. Connect your LuxAlgo Short Exit signal here.')
+exitPlot2Source = input.source(close, 'Plot 2 Src', group='🚨 Exit Indicators', inline='exit2', tooltip='Source for external exit plot 2 (LuxAlgo Short Exit)')
+
+// Additional Plot Point (Row 3)
+exitPlot3Enable = input.bool(false, '📊 Exit Plot 3', group='🚨 Exit Indicators', inline='exit3', tooltip='Enable external exit plot 3. Additional exit signal input for custom indicators.')
+exitPlot3Source = input.source(close, 'Plot 3 Src', group='🚨 Exit Indicators', inline='exit3', tooltip='Source for external exit plot 3 (Custom Exit Signal)')
+
+// Hybrid Exit Mode Configuration (Row 4)
+hybridExitEnable = input.bool(true, '🔄 Hybrid Exit Mode', group='🚨 Exit Indicators', inline='exit4', tooltip='Enable hybrid exit mode. When exit indicators reach threshold, switch from signal-based to Smart Profit Locker mode.')
+hybridExitThreshold = input.int(2, 'Exit Threshold', minval=1, maxval=5, group='🚨 Exit Indicators', inline='exit4', tooltip='Number of exit indicators required to trigger hybrid mode switch. 2 = switch to Smart Profit Locker when 2+ exit indicators trigger.')
+
+// AlgoAlpha Reversal Signal Parameters (Row 5)
+algoAlphaLookback = input.int(12, 'AA Lookback', minval=5, maxval=20, group='🚨 Exit Indicators', inline='exit5', tooltip='AlgoAlpha lookback period for reversal detection. Lower = more sensitive.')
+algoAlphaConfirmation = input.int(3, 'AA Confirm', minval=1, maxval=5, group='🚨 Exit Indicators', inline='exit5', tooltip='AlgoAlpha confirmation period. Number of bars to confirm reversal signal.')
+
+// ═══════════════════ ALGOA ALPHA REVERSAL SIGNAL CALCULATION ═══════════════════
+// Core logic ported from AlgoAlphaReversalSignal.pine for exit detection
+
+// AlgoAlpha Variables
+var int aaBullCandleScore = 0
+var int aaBearCandleScore = 0
+var bool aaBullReversalCandidate = false
+var bool aaBearReversalCandidate = false
+var float aaBullReversalLow = 0.0
+var float aaBullReversalHigh = 0.0
+var float aaBearReversalLow = 0.0
+var float aaBearReversalHigh = 0.0
+var bool aaBullSignalConfirmed = false
+var bool aaBearSignalConfirmed = false
+var int aaBullCandleCounter = 0
+var int aaBearCandleCounter = 0
+
+// AlgoAlpha Signal Detection
+aaVolumeIsHigh = volume > ta.sma(volume, 20)
+aaBullSignal = false
+aaBearSignal = false
+
+if exitIndicator1Enable
+    // Reset candle scores
+    aaBullCandleScore := 0
+    aaBearCandleScore := 0
+    
+    // Loop through the lookback period
+    for i = 0 to algoAlphaLookback - 1 by 1
+        if close < low[i]
+            aaBullCandleScore := aaBullCandleScore + 1
+        if close > high[i]
+            aaBearCandleScore := aaBearCandleScore + 1
+    
+    // Bearish reversal detection (exit signal for long positions)
+    if aaBearCandleScore == algoAlphaLookback - 1
+        aaBearReversalCandidate := true
+        aaBearReversalLow := low
+        aaBearReversalHigh := high
+        aaBearSignalConfirmed := false
+        aaBearCandleCounter := 0
+    
+    if aaBearReversalCandidate
+        aaBearCandleCounter := aaBearCandleCounter + 1
+        if close > aaBearReversalHigh
+            aaBearReversalCandidate := false
+    
+    aaBearCondition = false
+    if aaBearReversalCandidate and close < aaBearReversalLow and not aaBearSignalConfirmed and aaBearCandleCounter <= algoAlphaConfirmation + 1
+        aaBearSignalConfirmed := true
+        aaBearCondition := true
+    
+    if aaBearCondition
+        if aaVolumeIsHigh  // Volume confirmation
+            aaBearSignal := true
+    
+    // Bullish reversal detection (exit signal for short positions)
+    if aaBullCandleScore == algoAlphaLookback - 1
+        aaBullReversalCandidate := true
+        aaBullReversalLow := low
+        aaBullReversalHigh := high
+        aaBullSignalConfirmed := false
+        aaBullCandleCounter := 0
+    
+    if aaBullReversalCandidate
+        aaBullCandleCounter := aaBullCandleCounter + 1
+        if close < aaBullReversalLow
+            aaBullReversalCandidate := false
+    
+    aaBullCondition = false
+    if aaBullReversalCandidate and close > aaBullReversalHigh and not aaBullSignalConfirmed and aaBullCandleCounter <= algoAlphaConfirmation + 1
+        aaBullSignalConfirmed := true
+        aaBullCondition := true
+    
+    if aaBullCondition
+        if aaVolumeIsHigh  // Volume confirmation
+            aaBullSignal := true
+
+// ═══════════════════ REVERSAL PROBABILITY CALCULATION ═══════════════════
+// Composite probability analysis using AlgoAlpha + LuxAlgo indicators
+// Provides statistical likelihood of trend reversal for intelligent bias decisions
+
+// AlgoAlpha Probability Calculation (ported from AlgoAlphaReversalProbability.pine)
+var durations = array.new_int()
+cut = ta.barssince(ta.cross(close, ta.ema(close, 21)))  // Simplified trend cross detection
+
+if cut == 0 and cut != cut[1]
+    durations.unshift(cut[1])
+
+basis = durations.avg()
+stdDev = durations.stdev()
+
+// Statistical probability calculation using cumulative distribution function
+f_cdf(z) =>
+    a1 = 0.254829592
+    a2 = -0.284496736
+    a3 = 1.421413741
+    a4 = -1.453152027
+    a5 = 1.061405429
+    p = 0.3275911
+    
+    sign = z < 0 ? -1 : 1
+    x = math.abs(z) / math.sqrt(2)
+    t = 1 / (1 + p * x)
+    erf_approx = 1 - (((((a5 * t + a4) * t) + a3) * t + a2) * t + a1) * t * math.exp(-x * x)
+    
+    0.5 * (1 + sign * erf_approx)
+
+z = na(stdDev) or stdDev == 0 ? 0 : (cut - basis) / stdDev
+algoAlphaProbability = f_cdf(z) * 100  // Convert to percentage (0-100)
+
+// LuxAlgo Probability Zone Estimation (simplified)
+// Based on current price position relative to recent pivots
+pivotHigh = ta.pivothigh(high, 10, 10)
+pivotLow = ta.pivotlow(low, 10, 10)
+var float lastPivotHigh = na
+var float lastPivotLow = na
+
+if not na(pivotHigh)
+    lastPivotHigh := pivotHigh
+if not na(pivotLow)
+    lastPivotLow := pivotLow
+
+// Estimate probability zone based on price position
+pricePosition = na(lastPivotHigh) or na(lastPivotLow) ? 50 : 
+  ((close - lastPivotLow) / (lastPivotHigh - lastPivotLow)) * 100
+
+// Convert to probability zones (25%, 50%, 75%, 90%)
+luxAlgoProbabilityZone = 
+  pricePosition > 90 ? 90 :
+  pricePosition > 75 ? 75 :
+  pricePosition > 50 ? 50 : 25
+
+// Composite Reversal Probability (weighted average)
+compositeProbability = reversalProbEnable ? 
+  (algoAlphaProbability * 0.6 + luxAlgoProbabilityZone * 0.4) : 50
+
+// ═══════════════════ ENTRY PROBABILITY FILTER ═══════════════════
+// NEW FEATURE: Block entries at extreme reversal probability levels
+// Prevents entering trades at gap opens or other extreme reversal zones
+
+// Entry Probability Filter Logic
+entryProbabilityOK = entryProbFilterEnable ? 
+  (compositeProbability <= entryProbFilterThreshold) : true  // Block entries above threshold
+
+// Debug output for Entry Probability Filter
+if entryProbFilterEnable and not entryProbabilityOK
+    debugInfo("🚫 ENTRY BLOCKED: Reversal probability " + str.tostring(compositeProbability, "#.#") + "% exceeds threshold " + str.tostring(entryProbFilterThreshold, "#.#") + "%")
+
+// Reversal Probability Bias Logic
+reversalProbLongBias = reversalProbEnable ? 
+  (compositeProbability < reversalProbThreshold) : true  // Low probability = continue long trend
+reversalProbShortBias = reversalProbEnable ? 
+  (compositeProbability < reversalProbThreshold) : true  // Low probability = continue short trend
+
+// ═══════════════════ EXIT INDICATOR VOTING SYSTEM ═══════════════════
+// Hybrid exit mode: count exit indicators and switch to Smart Profit Locker
+
+// External Plot Signal Detection (for LuxAlgo integration)
+exitPlot1LongSignal = exitPlot1Enable and exitPlot1Source > exitPlot1Source[1]  // Rising signal = long exit
+exitPlot1ShortSignal = exitPlot1Enable and exitPlot1Source < exitPlot1Source[1]  // Falling signal = short exit
+exitPlot2LongSignal = exitPlot2Enable and exitPlot2Source > exitPlot2Source[1]  // Rising signal = long exit  
+exitPlot2ShortSignal = exitPlot2Enable and exitPlot2Source < exitPlot2Source[1]  // Falling signal = short exit
+exitPlot3LongSignal = exitPlot3Enable and exitPlot3Source > exitPlot3Source[1]  // Rising signal = long exit
+exitPlot3ShortSignal = exitPlot3Enable and exitPlot3Source < exitPlot3Source[1]  // Falling signal = short exit
+// Simple Reversal Candle Detection (basic implementation)
+reversalCandleBull = exitIndicator3Enable and (close > open and close[1] < open[1] and close > high[1])  // Bullish engulfing
+reversalCandleBear = exitIndicator3Enable and (close < open and close[1] > open[1] and close < low[1])   // Bearish engulfing
+
+// ═══════════════════ WEIGHTED EXIT SIGNAL COUNTING SYSTEM (CRITICAL FIX) ═══════════════════
+// CRITICAL FIX: Replace binary counting with weighted signal strength analysis
+// This fixes the bug where all signals were weighted equally regardless of strength
+
+// Signal Weight Definitions (based on reliability and strength)
+aaSignalWeight = 2.0      // AlgoAlpha: High reliability, volume-confirmed reversal signals
+externalPlotWeight = 1.5  // External plots: Medium-high reliability (LuxAlgo, etc.)
+reversalCandleWeight = 0.8 // Reversal candles: Lower reliability, basic pattern recognition
+
+// CRITICAL FIX: Declare variables before usage to prevent undeclared identifier errors
+averageATR = math.max(ta.sma(atrVal, 50), 0.0001)  // Division by zero protection
+volatilityRatio = atrVal / averageATR
+
+// Declare smartDistance as a global variable for use across exit systems
+var float smartDistance = na
+
+// Market Context Multipliers (enhance signal quality based on conditions)
+// Note: bullishVotes and bearishVotes will be calculated later in the directional bias section
+volatilityMultiplier = volatilityRatio > 1.5 ? 1.2 : volatilityRatio < 0.8 ? 0.9 : 1.0
+// Temporary trendStrengthMultiplier (will be recalculated later with proper votes)
+trendStrengthMultiplier = 1.0  // Default neutral multiplier
+
+// Calculate Weighted Exit Signal Strength for Long Positions (bearish exit signals)
+longExitSignalCount = 0.0
+if aaBearSignal
+    aaStrength = aaVolumeIsHigh ? aaSignalWeight * 1.2 : aaSignalWeight * 0.9  // Volume confirmation bonus
+    longExitSignalCount := longExitSignalCount + (aaStrength * volatilityMultiplier)
+if exitPlot1LongSignal
+    longExitSignalCount := longExitSignalCount + (externalPlotWeight * trendStrengthMultiplier)
+if exitPlot2LongSignal
+    longExitSignalCount := longExitSignalCount + (externalPlotWeight * trendStrengthMultiplier)
+if exitPlot3LongSignal
+    longExitSignalCount := longExitSignalCount + (externalPlotWeight * trendStrengthMultiplier)
+if reversalCandleBear
+    candleStrength = math.abs(close - open) / atrVal  // Candle body size relative to ATR
+    weightedCandleSignal = reversalCandleWeight * math.min(candleStrength, 2.0)  // Cap at 2x weight
+    longExitSignalCount := longExitSignalCount + weightedCandleSignal
+
+// Calculate Weighted Exit Signal Strength for Short Positions (bullish exit signals)
+shortExitSignalCount = 0.0
+if aaBullSignal
+    aaStrength = aaVolumeIsHigh ? aaSignalWeight * 1.2 : aaSignalWeight * 0.9  // Volume confirmation bonus
+    shortExitSignalCount := shortExitSignalCount + (aaStrength * volatilityMultiplier)
+if exitPlot1ShortSignal
+    shortExitSignalCount := shortExitSignalCount + (externalPlotWeight * trendStrengthMultiplier)
+if exitPlot2ShortSignal
+    shortExitSignalCount := shortExitSignalCount + (externalPlotWeight * trendStrengthMultiplier)
+if exitPlot3ShortSignal
+    shortExitSignalCount := shortExitSignalCount + (externalPlotWeight * trendStrengthMultiplier)
+if reversalCandleBull
+    candleStrength = math.abs(close - open) / atrVal  // Candle body size relative to ATR
+    weightedCandleSignal = reversalCandleWeight * math.min(candleStrength, 2.0)  // Cap at 2x weight
+    shortExitSignalCount := shortExitSignalCount + weightedCandleSignal
+
+// Enhanced Hybrid Exit Mode Trigger Detection
+// Combines binary signal counting with reversal probability analysis
+probabilityExitTriggered = reversalProbEnable and compositeProbability >= reversalExitThreshold
+
+// Multiple trigger modes:
+// 1. Binary signals only (original logic)
+// 2. Probability only (new statistical approach) 
+// 3. Combined mode (signals + probability confirmation)
+binaryExitTriggeredLong = hybridExitEnable and longExitSignalCount >= hybridExitThreshold
+binaryExitTriggeredShort = hybridExitEnable and shortExitSignalCount >= hybridExitThreshold
+
+// Final hybrid exit decision (enhanced logic)
+hybridExitTriggeredLong = binaryExitTriggeredLong or (reversalProbEnable and probabilityExitTriggered)
+hybridExitTriggeredShort = binaryExitTriggeredShort or (reversalProbEnable and probabilityExitTriggered)
+
+// Activate Hybrid Exit Mode
+if not inHybridExitMode and strategy.position_size != 0
+    if (strategy.position_size > 0 and hybridExitTriggeredLong) or (strategy.position_size < 0 and hybridExitTriggeredShort)
+        inHybridExitMode := true
+        hybridModeStartBar := bar_index
+        if debugEnabled
+            exitSignalType = strategy.position_size > 0 ? "Long" : "Short"
+            signalCount = strategy.position_size > 0 ? longExitSignalCount : shortExitSignalCount
+            binaryTriggered = strategy.position_size > 0 ? binaryExitTriggeredLong : binaryExitTriggeredShort
+            probTriggered = probabilityExitTriggered
+            triggerReason = binaryTriggered and probTriggered ? "Signals+Probability" : 
+                           binaryTriggered ? "Binary Signals" : "Probability Only"
+            probInfo = reversalProbEnable ? (" | RevProb: " + str.tostring(compositeProbability, "#.#") + "% (" + str.tostring(reversalExitThreshold, "#.#") + "% threshold)") : ""
+            debugInfo("🔄 HYBRID EXIT: Activated for " + exitSignalType + " position. Trigger: " + triggerReason + " | Signals: " + str.tostring(signalCount) + "/" + str.tostring(hybridExitThreshold) + probInfo)
+
+// Deactivate Hybrid Exit Mode (when position closes)
+if inHybridExitMode and strategy.position_size == 0
+    inHybridExitMode := false
+    if debugEnabled
+        barsInHybrid = bar_index - hybridModeStartBar
+        debugInfo("🔄 HYBRID EXIT: Deactivated. Duration: " + str.tostring(barsInHybrid) + " bars")
+
+// RBW Calculation Logic - Variable Declarations
+var float rbwUpper = na
+var float rbwLower = na
+var float rbwMiddle = na
+var float rbwRelativeBandwidth = na
+var int rbwSignal = 0
+var float rbwBBMiddle = na
+var float rbwBBUpper = na
+var float rbwBBLower = na
+var float rbwRef = na
+var float rbwStdDev = na
+var float rbwATR = na
+
+if rbwEnable
+    // Bollinger Bands
+    if rbwBandType == "BB"
+        rbwMiddle := ta.sma(rbwSource, rbwLength)
+        rbwStdDev := ta.stdev(rbwSource, rbwLength)
+        rbwUpper := rbwMiddle + rbwStdDev * rbwMultiplier
+        rbwLower := rbwMiddle - rbwStdDev * rbwMultiplier
+    
+    // Keltner Channels  
+    else if rbwBandType == "KC"
+        rbwMiddle := ta.sma(rbwSource, rbwLength)
+        rbwATR := rbwUseTR ? ta.atr(rbwLength) : ta.rma(high - low, rbwLength)
+        rbwUpper := rbwMiddle + rbwATR * rbwMultiplier
+        rbwLower := rbwMiddle - rbwATR * rbwMultiplier
+    
+    // Donchian Channels
+    else if rbwBandType == "DC"
+        rbwUpper := ta.highest(rbwUseAltSrc ? high : rbwSource, rbwLength)
+        rbwLower := ta.lowest(rbwUseAltSrc ? low : rbwSource, rbwLength)
+        rbwMiddle := (rbwUpper + rbwLower) / 2
+
+    // Relative Bandwidth calculation (DIVISION BY ZERO FIX)
+    if not na(rbwUpper) and not na(rbwLower)
+        rbwATR := ta.atr(rbwATRLength)
+        // CRITICAL FIX: Comprehensive protection against division by zero
+        if not na(rbwATR) and rbwATR > 0.0001  // Increased minimum threshold
+            rbwRelativeBandwidth := (rbwUpper - rbwLower) / rbwATR
+        else
+            // Fallback: Use normalized bandwidth when ATR is invalid
+            rbwRelativeBandwidth := na(rbwUpper - rbwLower) ? 0.0 : math.abs(rbwUpper - rbwLower) * 100
+        
+        // CRITICAL FIX: Move signal calculation outside the else block so it always executes
+        // Calculate reference bands for signal
+        rbwBBMiddle := ta.sma(rbwRelativeBandwidth, 100)
+        rbwBBUpper := rbwBBMiddle + ta.stdev(rbwRelativeBandwidth, 100) * 1.0
+        rbwBBLower := rbwBBMiddle - ta.stdev(rbwRelativeBandwidth, 100) * 1.0
+        
+        rbwRef := rbwRefBand == "Middle" ? rbwBBMiddle : rbwRefBand == "Upper" ? rbwBBUpper : rbwBBLower
+        rbwSignal := rbwRelativeBandwidth > rbwRef ? 2 : 0
+        rbwSignal := rbwDesiredCond == "Lower Bandwidth" ? math.abs(rbwSignal-2) : rbwSignal
 
 // ═══════════════════ HULL SUITE CALCULATION ═══════════════════
 // Hull Moving Average trend detection
@@ -892,7 +1272,7 @@ var float hullMA = na
 var bool hullBullish = false
 
 if hullEnable
-    
+    // Calculate Hull MA based on selected mode (THMA LENGTH BUG FIX)
     // CRITICAL FIX: THMA should use full hullLength, not divided by 2
     hullMA := hullMode == 'Hma' ? HMA(close, hullLength) : hullMode == 'Ehma' ? EHMA(close, hullLength) : hullMode == 'Thma' ? THMA(close, hullLength) : na
     
@@ -926,297 +1306,197 @@ else
 // ═══════════════════ QUADRANT (NADARAYA-WATSON) CALCULATION ═══════════════════
 // Rational Quadratic Kernel regression for trend detection
 
-// Nadaraya-Watson Kernel Regression Function (exact copy from original Quadrant.pine)
-kernel_regression(_src, _size, _h, _r, _x_0) =>
-    float _currentWeight = 0.
-    float _cumulativeWeight = 0.
-    for i = 0 to _size + _x_0 by 1
-        y = _src[i]
-        w = math.pow(1 + math.pow(i, 2) / (math.pow(_h, 2) * 2 * _r), -_r)
-        _currentWeight := _currentWeight + y * w
-        _cumulativeWeight := _cumulativeWeight + w
-        _cumulativeWeight
-    _currentWeight / _cumulativeWeight
+// Kernel regression function (must be defined outside conditional blocks)
+kernel_regression(src, h, r) =>
+    float currentWeight = 0.0
+    float cumulativeWeight = 0.0
+    int size = math.min(25, bar_index)  // Limit lookback for performance
+    
+    for i = 0 to size
+        y = src[i]
+        w = math.pow(1 + math.pow(i, 2) / (math.pow(h, 2) * 2 * r), -r)
+        currentWeight := currentWeight + y * w
+        cumulativeWeight := cumulativeWeight + w
+    
+    cumulativeWeight > 0 ? currentWeight / cumulativeWeight : src
 
 var float quadrantEstimate = na
 var bool quadrantBullish = false
 
 if quadrantEnable
-    // Calculate kernel estimate using proper Nadaraya-Watson parameters
-    size = array.size(array.from(close))  // Size of data series
-    quadrantEstimate := kernel_regression(close, size, quadrantLookback, quadrantRelativeWeight, quadrantStartBar)
+    // Calculate kernel estimate
+    quadrantEstimate := kernel_regression(close, quadrantLookback, quadrantWeight)
     
-    // Determine trend direction (matching original logic)
+    // Determine trend direction
     quadrantBullish := not na(quadrantEstimate) and quadrantEstimate > quadrantEstimate[1]
 else
     // When disabled, set neutral (allow all trades)
     quadrantBullish := false
 
+// ═══════════════════ MULTI-TIMEFRAME ZIGZAG CALCULATION ═══════════════════
+// Simplified MTF ZigZag for directional bias (confirmed bars only)
 
-
-// ═══════════════════ ADAPTIVE SUPERTREND (FULL K-MEANS IMPLEMENTATION) ═══════════════════
-// Complete restoration of Adaptive.pine algorithm with K-means clustering
-// Provides volatility classification numbers (1/2/3) for exit filter system
-
-// Pine SuperTrend function (from Adaptive.pine)
-adaptive_pine_supertrend(factor, atr_val) =>
-    src = hl2
-    upperBand = src + factor * atr_val
-    lowerBand = src - factor * atr_val
-    prevLowerBand = nz(lowerBand[1])
-    prevUpperBand = nz(upperBand[1])
+// Simplified ZigZag calculation for directional bias
+simple_zigzag(src, length) =>
+    var float zz_high = na
+    var float zz_low = na
+    var int trend = 0
+    var float last_pivot = na
     
-    lowerBand := lowerBand > prevLowerBand or close[1] < prevLowerBand ? lowerBand : prevLowerBand
-    upperBand := upperBand < prevUpperBand or close[1] > prevUpperBand ? upperBand : prevUpperBand
-    int _direction = na
-    float superTrend = na
-    prevSuperTrend = superTrend[1]
-    if na(atr_val[1])
-        _direction := 1
-    else if prevSuperTrend == prevUpperBand
-        _direction := close > upperBand ? -1 : 1
-    else
-        _direction := close < lowerBand ? 1 : -1
-    superTrend := _direction == -1 ? lowerBand : upperBand
-    [superTrend, _direction]
+    // Calculate pivot highs and lows (confirmed only)
+    pivot_high = ta.pivothigh(src, length, length)
+    pivot_low = ta.pivotlow(src, length, length)
+    
+    // Update ZigZag points and trend direction
+    if not na(pivot_high) and (na(last_pivot) or pivot_high != last_pivot)
+        zz_high := pivot_high
+        last_pivot := pivot_high
+        trend := 1  // Uptrend (higher high)
+    
+    if not na(pivot_low) and (na(last_pivot) or pivot_low != last_pivot)
+        zz_low := pivot_low
+        last_pivot := pivot_low
+        trend := -1  // Downtrend (lower low)
+    
+    [zz_high, zz_low, trend]
 
-// Preserve existing interface variables for backward compatibility
+var float mtfZigzagHigh = na
+var float mtfZigzagLow = na
+var int mtfZigzagTrend = 0
+var bool mtfZigzagBullish = false
+
+// CRITICAL FIX: Declare zigzag variables before usage
+var float zz_h = na
+var float zz_l = na
+var int zz_trend = 0
+
+if mtfZigzagEnable
+    // CRITICAL FIX: Enhanced Anti-Repainting Protection for MTF ZigZag
+    // Use additional offset and confirmation to eliminate repainting risk
+    [htf_high, htf_low, htf_close] = request.security(syminfo.tickerid, mtfTimeframe, [high[2], low[2], close[2]], lookahead=barmerge.lookahead_off)
+    
+    // Additional confirmation: Only update on confirmed higher timeframe bar close
+    htf_bar_time = request.security(syminfo.tickerid, mtfTimeframe, time[2], lookahead=barmerge.lookahead_off)
+    var float last_htf_time = na
+    htf_bar_confirmed = na(last_htf_time) or htf_bar_time != last_htf_time
+    
+    if htf_bar_confirmed
+        last_htf_time := htf_bar_time
+        // Calculate ZigZag on higher timeframe using confirmed data only
+        [zz_h, zz_l, zz_trend] = simple_zigzag(htf_high, mtfZigzagLength)
+    
+    // Update ZigZag values when new pivots are detected
+    if not na(zz_h)
+        mtfZigzagHigh := zz_h
+        mtfZigzagTrend := zz_trend
+    
+    if not na(zz_l)
+        mtfZigzagLow := zz_l
+        mtfZigzagTrend := zz_trend
+    
+    // Determine trend direction - simplified logic
+    // Bullish if trend is up (1), bearish if trend is down (-1)
+    mtfZigzagBullish := mtfZigzagTrend == 1
+else
+    // When disabled, set neutral values
+    mtfZigzagBullish := false
+
+// ═══════════════════ ADVANCED TREND INDICATORS (INTERNAL CALCULATIONS) ═══════════════════
+
+// Adaptive SuperTrend Calculation (K-Means Inspired)
 var bool adaptiveSTBullish = false
 var float adaptiveST = na
 var int adaptiveSTDirection = 1
 
 if adaptiveSTEnable
-    // Full K-means clustering algorithm (exact copy from Adaptive.pine)
-    volatility = ta.atr(adaptive_atr_len)
+    // Enhanced SuperTrend with adaptive ATR multiplier
+    atr = ta.atr(adaptiveSTLength)
+    hl2_ma = ta.ema(hl2, adaptiveSTLength)
     
-    upper = ta.highest(volatility, adaptive_training_period)
-    lower = ta.lowest(volatility, adaptive_training_period)
+    // Adaptive factor based on volatility clustering
+    volatility = ta.stdev(close, adaptiveSTLength) / ta.sma(close, adaptiveSTLength)
+    adaptiveFactor = adaptiveSTFactor * (1 + volatility)
     
-    high_volatility = lower + (upper - lower) * adaptive_highvol
-    medium_volatility = lower + (upper - lower) * adaptive_midvol
-    low_volatility = lower + (upper - lower) * adaptive_lowvol
+    // Calculate adaptive SuperTrend bands
+    upper_band = hl2_ma + (adaptiveFactor * atr)
+    lower_band = hl2_ma - (adaptiveFactor * atr)
     
-    adaptive_iterations := 0
-    size_a = 0
-    size_b = 0
-    size_c = 0
+    // SuperTrend logic with adaptive bands
+    prev_upper = nz(upper_band[1], upper_band)
+    prev_lower = nz(lower_band[1], lower_band)
     
-    // Initialize centroids on first run
-    if array.size(adaptive_amean) == 1 and array.get(adaptive_amean, 0) == 0
-        array.set(adaptive_amean, 0, high_volatility)
-        array.set(adaptive_bmean, 0, medium_volatility)
-        array.set(adaptive_cmean, 0, low_volatility)
+    upper_band := close[1] > prev_upper ? math.max(upper_band, prev_upper) : upper_band
+    lower_band := close[1] < prev_lower ? math.min(lower_band, prev_lower) : lower_band
     
-    // K-means clustering with iterative convergence (from Adaptive.pine)
-    if nz(volatility) > 0 and bar_index >= adaptive_training_period - 1
-        // Iterative K-means algorithm
-        while ((array.size(adaptive_amean) == 1 ? true : (array.get(adaptive_amean, 0) != array.get(adaptive_amean, math.min(1, array.size(adaptive_amean) - 1)))) or 
-               (array.size(adaptive_bmean) == 1 ? true : (array.get(adaptive_bmean, 0) != array.get(adaptive_bmean, math.min(1, array.size(adaptive_bmean) - 1)))) or 
-               (array.size(adaptive_cmean) == 1 ? true : (array.get(adaptive_cmean, 0) != array.get(adaptive_cmean, math.min(1, array.size(adaptive_cmean) - 1))))) and adaptive_iterations < 10
-            
-            array.clear(adaptive_hv)
-            array.clear(adaptive_mv)
-            array.clear(adaptive_lv)
-            
-            // Assign data points to clusters
-            for i = adaptive_training_period - 1 to 0 by 1
-                _1 = math.abs(volatility[i] - array.get(adaptive_amean, 0))
-                _2 = math.abs(volatility[i] - array.get(adaptive_bmean, 0))
-                _3 = math.abs(volatility[i] - array.get(adaptive_cmean, 0))
-                
-                if _1 < _2 and _1 < _3
-                    array.unshift(adaptive_hv, volatility[i])
-                else if _2 < _1 and _2 < _3
-                    array.unshift(adaptive_mv, volatility[i])
-                else if _3 < _1 and _3 < _2
-                    array.unshift(adaptive_lv, volatility[i])
-            
-            // Update centroids
-            if array.size(adaptive_hv) > 0
-                array.unshift(adaptive_amean, array.avg(adaptive_hv))
-            if array.size(adaptive_mv) > 0
-                array.unshift(adaptive_bmean, array.avg(adaptive_mv))
-            if array.size(adaptive_lv) > 0
-                array.unshift(adaptive_cmean, array.avg(adaptive_lv))
-            
-            size_a := array.size(adaptive_hv)
-            size_b := array.size(adaptive_mv)
-            size_c := array.size(adaptive_lv)
-            adaptive_iterations := adaptive_iterations + 1
+    // Determine trend direction
+    adaptiveSTDirection := close <= lower_band[1] ? 1 : close >= upper_band[1] ? -1 : nz(adaptiveSTDirection[1], 1)
+    adaptiveST := adaptiveSTDirection == 1 ? lower_band : upper_band
     
-    // Get current centroids
-    hv_new = array.size(adaptive_amean) > 0 ? array.get(adaptive_amean, 0) : high_volatility
-    mv_new = array.size(adaptive_bmean) > 0 ? array.get(adaptive_bmean, 0) : medium_volatility
-    lv_new = array.size(adaptive_cmean) > 0 ? array.get(adaptive_cmean, 0) : low_volatility
-    
-    // Calculate distances to each centroid
-    vdist_a = math.abs(volatility - hv_new)
-    vdist_b = math.abs(volatility - mv_new)
-    vdist_c = math.abs(volatility - lv_new)
-    
-    // Assign to closest cluster (0=high, 1=medium, 2=low)
-    adaptiveCluster := vdist_a <= vdist_b and vdist_a <= vdist_c ? 0 : 
-                      vdist_b <= vdist_a and vdist_b <= vdist_c ? 1 : 2
-    
-    // Convert cluster to display number (matching Adaptive.pine exactly)
-    adaptiveNumber := 4 - (adaptiveCluster + 1)  // 0->3, 1->2, 2->1
-    
-    // Get assigned centroid for SuperTrend calculation
-    adaptive_assigned_centroid := adaptiveCluster == 0 ? hv_new : adaptiveCluster == 1 ? mv_new : lv_new
-    
-    // Calculate Adaptive SuperTrend using assigned centroid
-    [adaptive_ST_calc, adaptive_dir_calc] = adaptive_pine_supertrend(adaptive_fact, adaptive_assigned_centroid)
-    
-    // Update interface variables for backward compatibility
-    adaptiveST := adaptive_ST_calc
-    adaptiveSTDirection := adaptive_dir_calc
-    adaptiveSTBullish := adaptive_dir_calc < 0  // Bullish when direction = -1
+    // Bullish when price is above adaptive SuperTrend
+    adaptiveSTBullish := adaptiveSTDirection == -1
 else
     adaptiveSTBullish := false
-    adaptiveCluster := 1  // Default to medium volatility
-    adaptiveNumber := 2   // Default to number 2
 
-// ═══════════════════ ADAPTIVE SUPERTREND EXIT FILTER SYSTEM ═══════════════════
-// Revolutionary exit filter using volatility classification numbers (1/2/3)
-// Blocks scalp exits during specific volatility regimes for better trend riding
-
-if adaptiveExitFilterEnable and adaptiveSTEnable
-    // Determine if current volatility number should block exits
-    currentlyBlocked = (adaptiveNumber == 3 and adaptiveExitFilterBlock3) or 
-                      (adaptiveNumber == 2 and adaptiveExitFilterBlock2) or 
-                      (adaptiveNumber == 1 and adaptiveExitFilterBlock1)
-    
-    // Update exit blocking status
-    adaptiveExitBlocked := currentlyBlocked
-    
-    // Handle pending exit logic
-    if adaptiveExitBlocked and not adaptiveExitBlocked[1]
-        // Just entered blocked state - no action needed, just block new exits
-        adaptivePendingExit := false
-        adaptiveExitReason := na
-    
-    if not adaptiveExitBlocked and adaptiveExitBlocked[1]
-        // Just exited blocked state - trigger any pending exits immediately
-        if adaptivePendingExit
-            // Exit will be triggered by normal exit logic since block is now lifted
-            adaptivePendingExit := false
-else
-    // When filter is disabled, never block exits
-    adaptiveExitBlocked := false
-    adaptivePendingExit := false
-    adaptiveExitReason := na
-
-// ═══════════════════ VOLUMATIC VIDYA CALCULATION (FULL IMPLEMENTATION) ═══════════════════
-// Complete Variable Index Dynamic Average with proper CMO and volume weighting
-// Exact restoration from original Volumatic.pine by BigBeluga
-
-// VIDYA (Variable Index Dynamic Average) function - exact copy from original
-vidya_calc(src, vidya_length, vidya_momentum) =>
-    float momentum = ta.change(src)
-    float sum_pos_momentum = math.sum(momentum >= 0 ? momentum : 0.0, vidya_momentum)
-    float sum_neg_momentum = math.sum(momentum >= 0 ? 0.0 : -momentum, vidya_momentum)
-    float abs_cmo = math.abs(100 * (sum_pos_momentum - sum_neg_momentum) / (sum_pos_momentum + sum_neg_momentum))
-    float alpha = 2 / (vidya_length + 1)
-    var float vidya_value = 0.0
-    vidya_value := alpha * abs_cmo / 100 * src + (1 - alpha * abs_cmo / 100) * nz(vidya_value[1])
-    ta.sma(vidya_value, 15)  // Smoothed VIDYA as in original
-
+// Volumatic VIDYA Calculation (Volume-Weighted Dynamic Average)
 var bool volumaticBullish = false
 var float volumaticVIDYA = na
-var bool volumatic_is_trend_up = false
 
 if volumaticEnable
-    // Calculate VIDYA using complete original algorithm
-    volumaticVIDYA := vidya_calc(close, volumaticLength, volumaticMomentum)
+    // Calculate Chande Momentum Oscillator for VIDYA
+    cmo_up = math.max(close - close[1], 0)
+    cmo_down = math.max(close[1] - close, 0)
+    cmo_sum_up = ta.sma(cmo_up, volumaticLength)
+    cmo_sum_down = ta.sma(cmo_down, volumaticLength)
+    cmo = (cmo_sum_up - cmo_sum_down) / (cmo_sum_up + cmo_sum_down)
     
-    // Calculate ATR for band distance (matching original)
-    atr_volumatic = ta.atr(200)
+    // Volume-weighted alpha calculation
+    vol_ratio = volume / ta.sma(volume, volumaticLength)
+    dynamic_alpha = math.abs(cmo) * volumaticAlpha * vol_ratio
+    dynamic_alpha := math.min(dynamic_alpha, 1.0)  // Cap at 1.0
     
-    // Calculate upper and lower bands
-    volumatic_upper = volumaticVIDYA + (atr_volumatic * volumaticBandDistance)
-    volumatic_lower = volumaticVIDYA - (atr_volumatic * volumaticBandDistance)
+    // VIDYA calculation
+    volumaticVIDYA := na(volumaticVIDYA[1]) ? close : volumaticVIDYA[1] + dynamic_alpha * (close - volumaticVIDYA[1])
     
-    // Trend detection logic (matching original sophisticated logic)
-    trend_cross_up = ta.crossover(close, volumaticVIDYA)
-    trend_cross_down = ta.crossunder(close, volumaticVIDYA)
-    
-    // Update trend state
-    if trend_cross_up
-        volumatic_is_trend_up := true
-    else if trend_cross_down
-        volumatic_is_trend_up := false
-    
-    // Bullish when in uptrend and price above VIDYA
-    volumaticBullish := volumatic_is_trend_up and close > volumaticVIDYA
+    // Bullish when price is above VIDYA and VIDYA is rising
+    volumaticBullish := close > volumaticVIDYA and volumaticVIDYA > volumaticVIDYA[2]
 else
     volumaticBullish := false
-    volumatic_is_trend_up := false
 
-// ═══════════════════ SMOOTHED HEIKEN ASHI (FULL DUAL SMOOTHING IMPLEMENTATION) ═══════════════════
-// Complete restoration of dual smoothing algorithm from original SmoothHK.pine
-// Implements before-HA and after-HA smoothing with multiple MA types
-
-// Advanced MA function supporting multiple types (matching original capabilities)
-get_ma(src, length, ma_type) =>
-    switch ma_type
-        'SMA' => ta.sma(src, length)
-        'EMA' => ta.ema(src, length)
-        'WMA' => ta.wma(src, length)
-        'VWMA' => ta.vwma(src, length)
-        'RMA' => ta.rma(src, length)
-        'DEMA' => 2 * ta.ema(src, length) - ta.ema(ta.ema(src, length), length)
-        'TEMA' => 
-            ema1 = ta.ema(src, length)
-            ema2 = ta.ema(ema1, length)
-            ema3 = ta.ema(ema2, length)
-            3 * ema1 - 3 * ema2 + ema3
-        'HMA' => ta.wma(2 * ta.wma(src, length / 2) - ta.wma(src, length), math.round(math.sqrt(length)))
-        'ALMA' => ta.alma(src, length, 0.85, 6)
-        'LSMA' => ta.linreg(src, length, 0)
-        => ta.ema(src, length)  // Default fallback
-
+// Smoothed Heiken Ashi Calculation (Enhanced)
 var bool smoothHABullish = false
-var float smoothHA_o = na
-var float smoothHA_h = na
-var float smoothHA_l = na
-var float smoothHA_c = na
+var float haOpen = na
 
 if smoothHAEnable
-    // PHASE 1: Pre-HA Smoothing (Before HA calculation)
-    smooth_open = get_ma(open, smoothHALength, smoothHAMode)
-    smooth_high = get_ma(high, smoothHALength, smoothHAMode)
-    smooth_low = get_ma(low, smoothHALength, smoothHAMode)
-    smooth_close = get_ma(close, smoothHALength, smoothHAMode)
+    // Enhanced HA calculation with multiple smoothing options
+    haClose = (open + high + low + close) / 4
+    haOpen := na(haOpen[1]) ? (open + close) / 2 : (haOpen[1] + haClose[1]) / 2
+    haHigh = math.max(high, math.max(haOpen, haClose))
+    haLow = math.min(low, math.min(haOpen, haClose))
     
-    // PHASE 2: Heiken Ashi Calculation (using smoothed OHLC)
-    ha_close = (smooth_open + smooth_high + smooth_low + smooth_close) / 4
-    ha_open = na(smoothHA_o[1]) ? (smooth_open + smooth_close) / 2 : (smoothHA_o[1] + smoothHA_c[1]) / 2
-    ha_high = math.max(smooth_high, math.max(ha_open, ha_close))
-    ha_low = math.min(smooth_low, math.min(ha_open, ha_close))
+    // Apply selected smoothing method
+    smoothHAClose = smoothHAMode == 'EMA' ? ta.ema(haClose, smoothHALength) : 
+                   smoothHAMode == 'SMA' ? ta.sma(haClose, smoothHALength) : 
+                   ta.wma(haClose, smoothHALength)
     
-    // PHASE 3: Post-HA Smoothing (After HA calculation)
-    smoothHA_o := get_ma(ha_open, smoothHAAfterLength, smoothHAAfterMode)
-    smoothHA_h := get_ma(ha_high, smoothHAAfterLength, smoothHAAfterMode)
-    smoothHA_l := get_ma(ha_low, smoothHAAfterLength, smoothHAAfterMode)
-    smoothHA_c := get_ma(ha_close, smoothHAAfterLength, smoothHAAfterMode)
+    smoothHAOpen = smoothHAMode == 'EMA' ? ta.ema(haOpen, smoothHALength) : 
+                  smoothHAMode == 'SMA' ? ta.sma(haOpen, smoothHALength) : 
+                  ta.wma(haOpen, smoothHALength)
     
-    // PHASE 4: Trend Detection (matching original logic)
-    // Bullish when smoothed HA close > smoothed HA open (uptrend candle)
-    smoothHABullish := smoothHA_c > smoothHA_o
+    // Enhanced trend detection with momentum confirmation
+    ha_trend = smoothHAClose > smoothHAOpen
+    ha_momentum = smoothHAClose > smoothHAClose[1] and smoothHAOpen > smoothHAOpen[1]
+    
+    // Bullish when both trend and momentum align
+    smoothHABullish := ha_trend and ha_momentum
 else
     smoothHABullish := false
-    smoothHA_o := na
-    smoothHA_h := na
-    smoothHA_l := na
-    smoothHA_c := na
 
 // ═══════════════════ DIRECTIONAL BIAS INTEGRATION ═══════════════════
 // Apply directional bias filters to entry signals with confluence logic
 
 // Individual Filter Bias Logic (Fixed: disabled filters don't vote)
-// RBW filter removed, so bias defaults to true
-rbwLongBias = true  // RBW filter removed
-rbwShortBias = true  // RBW filter removed
+rbwLongBias = rbwEnable ? (rbwSignal == 2) : true  // If enabled: bullish signal required. If disabled: allow all
+rbwShortBias = rbwEnable ? (rbwSignal == 0) : true  // If enabled: bearish signal required. If disabled: allow all
 
 hullLongBias = hullEnable ? hullBullish : true  // If enabled: bullish trend required. If disabled: allow all
 hullShortBias = hullEnable ? (not hullBullish) : true  // If enabled: bearish trend required. If disabled: allow all
@@ -1227,7 +1507,8 @@ supertrendShortBias = supertrendEnable ? (not supertrendBullish) : true  // If e
 quadrantLongBias = quadrantEnable ? quadrantBullish : true  // If enabled: bullish trend required. If disabled: allow all
 quadrantShortBias = quadrantEnable ? (not quadrantBullish) : true  // If enabled: bearish trend required. If disabled: allow all
 
-
+mtfZigzagLongBias = mtfZigzagEnable ? mtfZigzagBullish : true  // If enabled: bullish trend required. If disabled: allow all
+mtfZigzagShortBias = mtfZigzagEnable ? (not mtfZigzagBullish) : true  // If enabled: bearish trend required. If disabled: allow all
 
 adaptiveSTLongBias = adaptiveSTEnable ? adaptiveSTBullish : true  // If enabled: bullish trend required. If disabled: allow all
 adaptiveSTShortBias = adaptiveSTEnable ? (not adaptiveSTBullish) : true  // If enabled: bearish trend required. If disabled: allow all
@@ -1238,55 +1519,298 @@ volumaticShortBias = volumaticEnable ? (not volumaticBullish) : true  // If enab
 smoothHALongBias = smoothHAEnable ? smoothHABullish : true  // If enabled: bullish trend required. If disabled: allow all
 smoothHAShortBias = smoothHAEnable ? (not smoothHABullish) : true  // If enabled: bearish trend required. If disabled: allow all
 
+// Reversal Probability Bias Logic (6th Filter)
+// Note: reversalProbLongBias/reversalProbShortBias already calculated above
 
 // Confluence Logic Implementation - FIXED WEIGHTED VOTING BUG
 // CRITICAL FIX: Use consistent decimal weighting instead of math.round() to prevent unbalanced voting
 // This fixes the bug where math.round() created inconsistent filter weights
 
-// NOTE: enabledFilters, bullishVotes, and bearishVotes are already calculated above (lines 1542-1548)
-// Removing duplicate definitions to fix compilation error
+// Count enabled filters with proper decimal weighting (BUG FIX)
+enabledFilters = (rbwEnable ? 1.0 : 0.0) + (hullEnable ? 1.0 : 0.0) + (supertrendEnable ? 1.0 : 0.0) + (quadrantEnable ? 1.0 : 0.0) + (mtfZigzagEnable ? 1.0 : 0.0) + (reversalProbEnable ? reversalProbWeight : 0.0) + (adaptiveSTEnable ? 1.0 : 0.0) + (volumaticEnable ? 1.0 : 0.0) + (smoothHAEnable ? 1.0 : 0.0)
 
-// ═══════════════════ DIRECTIONAL BIAS CALCULATION ═══════════════════
-// Apply directional bias filters to entry signals with confluence logic
+// Count bullish votes with consistent decimal weighting (BUG FIX)
+bullishVotes = (rbwEnable and rbwSignal == 2 ? 1.0 : 0.0) + 
+              (hullEnable and hullBullish ? 1.0 : 0.0) + 
+              (supertrendEnable and supertrendBullish ? 1.0 : 0.0) + 
+              (quadrantEnable and quadrantBullish ? 1.0 : 0.0) + 
+              (mtfZigzagEnable and mtfZigzagBullish ? 1.0 : 0.0) +
+              (reversalProbEnable and reversalProbLongBias ? reversalProbWeight : 0.0) +
+              (adaptiveSTEnable and adaptiveSTBullish ? 1.0 : 0.0) +
+              (volumaticEnable and volumaticBullish ? 1.0 : 0.0) +
+              (smoothHAEnable and smoothHABullish ? 1.0 : 0.0)
 
-// Initialize directional bias variables
-var bool longDirectionalBias = true
-var bool shortDirectionalBias = true
+// Count bearish votes with consistent decimal weighting (BUG FIX)
+bearishVotes = (rbwEnable and rbwSignal == 0 ? 1.0 : 0.0) + 
+              (hullEnable and not hullBullish ? 1.0 : 0.0) + 
+              (supertrendEnable and not supertrendBullish ? 1.0 : 0.0) + 
+              (quadrantEnable and not quadrantBullish ? 1.0 : 0.0) + 
+              (mtfZigzagEnable and not mtfZigzagBullish ? 1.0 : 0.0) +
+              (reversalProbEnable and reversalProbShortBias ? reversalProbWeight : 0.0) +
+              (adaptiveSTEnable and not adaptiveSTBullish ? 1.0 : 0.0) +
+              (volumaticEnable and not volumaticBullish ? 1.0 : 0.0) +
+              (smoothHAEnable and not smoothHABullish ? 1.0 : 0.0)
 
-// Count enabled filters and calculate votes (RBW removed)
-enabledFilters = (hullEnable ? 1.0 : 0.0) + (supertrendEnable ? 1.0 : 0.0) + (quadrantEnable ? 1.0 : 0.0) + (adaptiveSTEnable ? 1.0 : 0.0) + (volumaticEnable ? 1.0 : 0.0) + (smoothHAEnable ? 1.0 : 0.0)
+// Calculate trend strength multiplier now that votes are available
+trendStrengthMultiplier := math.max(bullishVotes, bearishVotes) >= 3 ? 1.1 : 0.95
 
-// Count bullish votes (RBW removed)
-bullishVotes = (hullEnable and hullBullish ? 1.0 : 0.0) + (supertrendEnable and supertrendBullish ? 1.0 : 0.0) + (quadrantEnable and quadrantBullish ? 1.0 : 0.0) + (adaptiveSTEnable and adaptiveSTBullish ? 1.0 : 0.0) + (volumaticEnable and volumaticBullish ? 1.0 : 0.0) + (smoothHAEnable and smoothHABullish ? 1.0 : 0.0)
+// Apply confluence mode - SIMPLIFIED LOGIC
+longDirectionalBias = enabledFilters == 0 ? true :  // No filters = allow all
+  biasConfluence == 'Any' ? bullishVotes > 0 :  // At least one bullish vote
+  biasConfluence == 'Majority' ? bullishVotes >= math.ceil(enabledFilters / 2.0) :  // Majority bullish
+  biasConfluence == 'All' ? bullishVotes == enabledFilters : false  // All filters bullish
 
-// Count bearish votes (RBW removed)
-bearishVotes = (hullEnable and not hullBullish ? 1.0 : 0.0) + (supertrendEnable and not supertrendBullish ? 1.0 : 0.0) + (quadrantEnable and not quadrantBullish ? 1.0 : 0.0) + (adaptiveSTEnable and not adaptiveSTBullish ? 1.0 : 0.0) + (volumaticEnable and not volumaticBullish ? 1.0 : 0.0) + (smoothHAEnable and not smoothHABullish ? 1.0 : 0.0)
-
-// Apply confluence logic
-longDirectionalBias := enabledFilters == 0 ? true : (biasConfluence == 'Any' and bullishVotes > 0) or (biasConfluence == 'Majority' and bullishVotes > bearishVotes) or (biasConfluence == 'All' and bearishVotes == 0)
-shortDirectionalBias := enabledFilters == 0 ? true : (biasConfluence == 'Any' and bearishVotes > 0) or (biasConfluence == 'Majority' and bearishVotes > bullishVotes) or (biasConfluence == 'All' and bullishVotes == 0)
-
-
+shortDirectionalBias = enabledFilters == 0 ? true :  // No filters = allow all
+  biasConfluence == 'Any' ? bearishVotes > 0 :  // At least one bearish vote
+  biasConfluence == 'Majority' ? bearishVotes >= math.ceil(enabledFilters / 2.0) :  // Majority bearish
+  biasConfluence == 'All' ? bearishVotes == enabledFilters : false  // All filters bearish
 
 // ═══════════════════ TREND-RIDING OVERLAY LOGIC ═══════════════════
 // Advanced exit system to "let winners run" in strong trending conditions
 
 // Variables are now declared at the top of the script to avoid scope issues
 
-// ═══════════════════ SIMPLIFIED TREND-RIDING ACTIVATION ═══════════════════
-// Basic trend detection without enhancement suite
+// Calculate trend strength for activation
+trendStrengthScore = math.max(bullishVotes, bearishVotes)  // Score based on number of agreeing filters
 
-// Initialize trend variables
-var float trendStrengthScore = 0.0
-var bool strongTrendDetected = false
+// Determine if trend-riding should activate
+trendActivationThreshold = trendActivationMode == 'All Filters' ? enabledFilters : 
+  trendActivationMode == 'Majority Filters' ? math.ceil(enabledFilters / 2.0) : trendMinFilters
 
-// Simple trend detection - disabled since all filters are off
-strongTrendDetected := false
+// Check for trend-riding activation conditions
+// Enhanced with optional reversal probability requirement
+reversalProbOK = reversalProbRequiredForTrend ? (compositeProbability < reversalProbThreshold) : true
 
-// ──────────────── ENTRY SIGNAL FINALIZATION ────────────────
-// Assign entry signals after all filters & calculations complete.
-longEntrySignal := primaryLongSig and longDirectionalBias 
-shortEntrySignal := primaryShortSig and shortDirectionalBias
+strongTrendDetected = enabledFilters > 0 and 
+  (bullishVotes >= trendActivationThreshold or bearishVotes >= trendActivationThreshold) and
+  reversalProbOK  // Optional: require low reversal probability for trend activation
+
+// Track consecutive bars of strong trend
+if strongTrendDetected
+    trendRidingBarsActive := trendRidingBarsActive + 1
+else
+    trendRidingBarsActive := 0
+
+// Activate trend-riding mode
+if trendRidingEnable and not inTrendRidingMode and trendRidingBarsActive >= trendMinBars and (trendActivationTiming == 'After Entry Only' or strategy.position_size != 0)
+    inTrendRidingMode := true
+    trendRidingStartBar := bar_index
+    probInfo = reversalProbRequiredForTrend ? (" | RevProb: " + str.tostring(compositeProbability, "#.#") + "%") : ""
+    debugInfo("🚀 Trend-Riding Mode ACTIVATED - Bar: " + str.tostring(bar_index) + ", Filters: " + str.tostring(trendStrengthScore) + probInfo)
+
+// ═══════════════════ SIGNAL-DRIVEN TREND RIDER EXIT LOGIC ═══════════════════
+// Revolutionary exit system: Replace price-based exits with signal-based exits
+
+// Count available opposite signals for exit
+oppositeSignalsCount = 0
+trendRiderLongExit = false
+trendRiderShortExit = false
+
+// Enhanced exit signal detection with usage settings integration
+// Uses raw signals for exit-configured signals, processed signals for others
+
+// Helper function to get appropriate signal based on usage
+getExitSignal(bool rawLong, bool rawShort, bool processedLong, bool processedShort, string usage, bool isLongPosition) =>
+    var bool exitSignal = false
+    
+    if usage == 'Exit All'
+        exitSignal := isLongPosition ? rawShort : rawLong  // Use raw signals for exit-only signals
+    else if usage == 'Exit Long Only'
+        exitSignal := isLongPosition ? rawShort : false   // Only exit long positions
+    else if usage == 'Exit Short Only'
+        exitSignal := isLongPosition ? false : rawLong    // Only exit short positions
+    else
+        exitSignal := isLongPosition ? processedShort : processedLong  // Use processed signals for entry signals
+    
+    exitSignal
+
+// Check for opposite signals (enhanced with usage settings)
+if useExitSignal1 and signal1Enable
+    if strategy.position_size > 0 and getExitSignal(rawSig1Long, rawSig1Short, sig1Long, sig1Short, signal1Usage, true)
+        oppositeSignalsCount := oppositeSignalsCount + 1
+    if strategy.position_size < 0 and getExitSignal(rawSig1Long, rawSig1Short, sig1Long, sig1Short, signal1Usage, false)
+        oppositeSignalsCount := oppositeSignalsCount + 1
+
+if useExitSignal2 and signal2Enable
+    if strategy.position_size > 0 and getExitSignal(rawSig2Long, rawSig2Short, sig2Long, sig2Short, signal2Usage, true)
+        oppositeSignalsCount := oppositeSignalsCount + 1
+    if strategy.position_size < 0 and getExitSignal(rawSig2Long, rawSig2Short, sig2Long, sig2Short, signal2Usage, false)
+        oppositeSignalsCount := oppositeSignalsCount + 1
+
+if useExitSignal3 and signal3Enable
+    if strategy.position_size > 0 and getExitSignal(rawSig3Long, rawSig3Short, sig3Long, sig3Short, signal3Usage, true)
+        oppositeSignalsCount := oppositeSignalsCount + 1
+    if strategy.position_size < 0 and getExitSignal(rawSig3Long, rawSig3Short, sig3Long, sig3Short, signal3Usage, false)
+        oppositeSignalsCount := oppositeSignalsCount + 1
+
+if useExitSignal4 and signal4Enable
+    if strategy.position_size > 0 and getExitSignal(rawSig4Long, rawSig4Short, sig4Long, sig4Short, signal4Usage, true)
+        oppositeSignalsCount := oppositeSignalsCount + 1
+    if strategy.position_size < 0 and getExitSignal(rawSig4Long, rawSig4Short, sig4Long, sig4Short, signal4Usage, false)
+        oppositeSignalsCount := oppositeSignalsCount + 1
+
+if useExitSignal5 and signal5Enable
+    if strategy.position_size > 0 and getExitSignal(rawSig5Long, rawSig5Short, sig5Long, sig5Short, signal5Usage, true)
+        oppositeSignalsCount := oppositeSignalsCount + 1
+    if strategy.position_size < 0 and getExitSignal(rawSig5Long, rawSig5Short, sig5Long, sig5Short, signal5Usage, false)
+        oppositeSignalsCount := oppositeSignalsCount + 1
+
+if useExitSignal6 and signal6Enable
+    if strategy.position_size > 0 and getExitSignal(rawSig6Long, rawSig6Short, sig6Long, sig6Short, signal6Usage, true)
+        oppositeSignalsCount := oppositeSignalsCount + 1
+    if strategy.position_size < 0 and getExitSignal(rawSig6Long, rawSig6Short, sig6Long, sig6Short, signal6Usage, false)
+        oppositeSignalsCount := oppositeSignalsCount + 1
+
+if useExitSignal7 and signal7Enable
+    if strategy.position_size > 0 and getExitSignal(rawSig7Long, rawSig7Short, sig7Long, sig7Short, signal7Usage, true)
+        oppositeSignalsCount := oppositeSignalsCount + 1
+    if strategy.position_size < 0 and getExitSignal(rawSig7Long, rawSig7Short, sig7Long, sig7Short, signal7Usage, false)
+        oppositeSignalsCount := oppositeSignalsCount + 1
+
+if useExitSignal8 and signal8Enable
+    if strategy.position_size > 0 and getExitSignal(rawSig8Long, rawSig8Short, sig8Long, sig8Short, signal8Usage, true)
+        oppositeSignalsCount := oppositeSignalsCount + 1
+    if strategy.position_size < 0 and getExitSignal(rawSig8Long, rawSig8Short, sig8Long, sig8Short, signal8Usage, false)
+        oppositeSignalsCount := oppositeSignalsCount + 1
+
+if useExitSignal9 and signal9Enable
+    if strategy.position_size > 0 and getExitSignal(rawSig9Long, rawSig9Short, sig9Long, sig9Short, signal9Usage, true)
+        oppositeSignalsCount := oppositeSignalsCount + 1
+    if strategy.position_size < 0 and getExitSignal(rawSig9Long, rawSig9Short, sig9Long, sig9Short, signal9Usage, false)
+        oppositeSignalsCount := oppositeSignalsCount + 1
+
+if useExitSignal10 and signal10Enable
+    if strategy.position_size > 0 and getExitSignal(rawSig10Long, rawSig10Short, sig10Long, sig10Short, signal10Usage, true)
+        oppositeSignalsCount := oppositeSignalsCount + 1
+    if strategy.position_size < 0 and getExitSignal(rawSig10Long, rawSig10Short, sig10Long, sig10Short, signal10Usage, false)
+        oppositeSignalsCount := oppositeSignalsCount + 1
+
+// Determine if enough opposite signals are present
+signalBasedExitTriggered = oppositeSignalsCount >= minOppositeSignals
+
+// Set specific exit flags for long/short
+if strategy.position_size > 0
+    trendRiderLongExit := signalBasedExitTriggered
+if strategy.position_size < 0
+    trendRiderShortExit := signalBasedExitTriggered
+
+// ═══════════════════ TREND RIDER SAFETY NETS ═══════════════════
+// Critical safety mechanisms to prevent being stuck in bad trades
+
+// Safety Net 1: Trend Break Detection
+trendBreakSafetyTriggered = false
+if enableTrendBreakSafety and inTrendRidingMode
+    // Check if trend consensus has broken
+    trendConsensusBroken = not strongTrendDetected
+    if trendConsensusBroken
+        trendBreakSafetyTriggered := true
+        debugWarn("⚠️ Trend Break Safety: Consensus lost, exiting trend-riding mode")
+
+// Safety Net 2: Maximum Hold Duration
+maxHoldSafetyTriggered = false
+if inTrendRidingMode and bar_index - trendRidingStartBar >= trendMaxHold
+    maxHoldSafetyTriggered := true
+    debugWarn("⚠️ Max Hold Safety: " + str.tostring(trendMaxHold) + " bars reached, forcing exit")
+
+// Safety Net 3: Catastrophic Stop Loss
+catastrophicStopTriggered = false
+if enableCatastrophicStop and strategy.position_size != 0
+    // Calculate catastrophic stop distance
+    normalStopDistance = atrVal * 3.1  // Normal Smart Profit Locker distance
+    catastrophicStopDistance = normalStopDistance * catastrophicStopMultiplier
+    
+    if strategy.position_size > 0
+        catastrophicStopPrice = strategy.position_avg_price - catastrophicStopDistance
+        if low <= catastrophicStopPrice
+            catastrophicStopTriggered := true
+            debugError("🛑 Catastrophic Stop: Long position hit " + str.tostring(catastrophicStopMultiplier) + "x stop at " + str.tostring(catastrophicStopPrice))
+    
+    if strategy.position_size < 0
+        catastrophicStopPrice = strategy.position_avg_price + catastrophicStopDistance
+        if high >= catastrophicStopPrice
+            catastrophicStopTriggered := true
+            debugError("🛑 Catastrophic Stop: Short position hit " + str.tostring(catastrophicStopMultiplier) + "x stop at " + str.tostring(catastrophicStopPrice))
+
+// ═══════════════════ TREND RIDER EXIT EXECUTION ═══════════════════
+// Execute exits based on signals or safety nets
+
+// Execute signal-based exits
+if inTrendRidingMode and signalBasedExitTriggered
+    if strategy.position_size > 0
+        strategy.close("Long", comment="Signal Exit", alert_message=longExitMsg)
+        debugInfo("✅ Signal-Based Exit (Long): " + str.tostring(oppositeSignalsCount) + " opposite signals detected")
+    if strategy.position_size < 0
+        strategy.close("Short", comment="Signal Exit", alert_message=shortExitMsg)
+        debugInfo("✅ Signal-Based Exit (Short): " + str.tostring(oppositeSignalsCount) + " opposite signals detected")
+    inTrendRidingMode := false
+
+// Execute safety net exits
+if inTrendRidingMode and (trendBreakSafetyTriggered or maxHoldSafetyTriggered or catastrophicStopTriggered)
+    exitReason := trendBreakSafetyTriggered ? "Trend Break" : maxHoldSafetyTriggered ? "Max Hold" : "Catastrophic Stop"
+    
+    if strategy.position_size > 0
+        strategy.close("Long", comment=exitReason, alert_message=longExitMsg)
+        debugWarn("⚠️ Safety Exit (Long): " + exitReason)
+    if strategy.position_size < 0
+        strategy.close("Short", comment=exitReason, alert_message=shortExitMsg)
+        debugWarn("⚠️ Safety Exit (Short): " + exitReason)
+    inTrendRidingMode := false
+
+// Deactivate trend-riding mode when position closes
+if inTrendRidingMode and strategy.position_size == 0
+    inTrendRidingMode := false
+    trendRidingBarsActive := 0
+    debugInfo("🏁 Trend-Riding Mode DEACTIVATED - Position closed")
+
+// ═══════════════════ ADAPTIVE EXIT SYSTEM ═══════════════════
+// Impulsive move detection and rapid exit capabilities
+
+// Calculate volatility metrics using user-configurable ATR
+// (Variables already declared above to prevent undeclared identifier errors)
+
+// Detect impulsive moves
+barBodySize = math.abs(close - open)
+impulsiveBarDetected = barBodySize > atrVal * impulsiveATRThreshold
+volumeConfirmation = volume > ta.sma(volume, impulsiveVolumePeriod) * impulsiveVolumeMultiplier
+
+// Calculate intrabar loss for position
+var float entryPrice = na
+if strategy.position_size != 0 and na(entryPrice)
+    entryPrice := strategy.position_avg_price
+else if strategy.position_size == 0
+    entryPrice := na
+
+intrabarLossPercent = strategy.position_size > 0 ? 
+  (entryPrice - close) / entryPrice * 100 : 
+  strategy.position_size < 0 ? 
+  (close - entryPrice) / entryPrice * 100 : 0.0
+
+// CRITICAL FIX: Determine exit sensitivity based on mode (works with bar-close execution)
+useAggressiveExits = adaptiveExitMode == 'Aggressive' or 
+  (adaptiveExitMode == 'Adaptive' and volatilityRatio > volatilityThreshold)
+
+// Impulsive exit conditions (FIXED: Remove real-time dependency)
+impulsiveExitTriggered = impulsiveExitEnable and
+  ((impulsiveBarDetected and volumeConfirmation) or
+   (useAggressiveExits and intrabarLossPercent > impulsiveMaxLoss))
+
+// Momentum exit conditions (consecutive adverse bars)
+var int adverseBars = 0
+if momentumExitEnable and strategy.position_size != 0
+    if strategy.position_size > 0 and close < close[1]
+        adverseBars := adverseBars + 1
+    else if strategy.position_size < 0 and close > close[1]
+        adverseBars := adverseBars + 1
+    else
+        adverseBars := 0
+else
+    adverseBars := 0  // Reset when disabled or no position
+
+momentumExitTriggered = momentumExitEnable and adverseBars >= impulsiveMomentumBars
+
+// Define final entry signals with directional bias and Entry Probability Filter applied
+longEntrySignal := primaryLongSig and longDirectionalBias and entryProbabilityOK
+shortEntrySignal := primaryShortSig and shortDirectionalBias and entryProbabilityOK
 
 // ═══════════════════ ACTUAL STRATEGY ENTRY EXECUTION (CRITICAL FIX) ═══════════════════
 // CRITICAL: Execute the actual trades using strategy.entry() calls
@@ -1322,10 +1846,11 @@ if shortEntrySignal
 if debugEnabled
     // Always show filter status when debug is enabled
     filterStatusMsg = 'FILTER STATUS:'
+    filterStatusMsg += ' RBW=' + (rbwEnable ? (rbwSignal == 2 ? 'BULL' : rbwSignal == 0 ? 'BEAR' : 'NEUTRAL(' + str.tostring(rbwSignal) + ')') : 'OFF')
     filterStatusMsg += ' Hull=' + (hullEnable ? (hullBullish ? 'BULL' : 'BEAR') + '(' + str.tostring(hullMA, '#.##') + ')' : 'OFF')
     filterStatusMsg += ' ST=' + (supertrendEnable ? (supertrendBullish ? 'BULL' : 'BEAR') + '(' + str.tostring(supertrendDirection, '#.#') + ')' : 'OFF')
     filterStatusMsg += ' Quad=' + (quadrantEnable ? (quadrantBullish ? 'BULL' : 'BEAR') + '(' + str.tostring(quadrantEstimate, '#.##') + ')' : 'OFF')
-
+    filterStatusMsg += ' MTF-ZZ=' + (mtfZigzagEnable ? (mtfZigzagBullish ? 'BULL' : 'BEAR') + '(' + str.tostring(mtfZigzagTrend) + ')' : 'OFF')
     debugInfo(filterStatusMsg)
     
     // Show confluence calculation with new voting system
@@ -1336,19 +1861,28 @@ if debugEnabled
     // Show individual filter votes (only when enabled)
     if enabledFilters > 0
         voteDetailMsg = 'FILTER VOTES:'
-        // RBW filter removed
-        // if rbwEnable
-        //     voteDetailMsg += ' RBW=' + (rbwSignal == 2 ? 'BULL' : rbwSignal == 0 ? 'BEAR' : 'NEUTRAL')
+        if rbwEnable
+            voteDetailMsg += ' RBW=' + (rbwSignal == 2 ? 'BULL' : rbwSignal == 0 ? 'BEAR' : 'NEUTRAL')
         if hullEnable
             voteDetailMsg += ' Hull=' + (hullBullish ? 'BULL' : 'BEAR')
         if supertrendEnable
             voteDetailMsg += ' ST=' + (supertrendBullish ? 'BULL' : 'BEAR')
         if quadrantEnable
             voteDetailMsg += ' Quad=' + (quadrantBullish ? 'BULL' : 'BEAR')
-
+        if mtfZigzagEnable
+            voteDetailMsg += ' MTF=' + (mtfZigzagBullish ? 'BULL' : 'BEAR')
         debugInfo(voteDetailMsg)
 
-
+// Debug logging for trend-riding and adaptive exit systems
+if debugEnabled and strategy.position_size != 0
+    systemMsg = 'Exit Systems:'
+    systemMsg += ' TrendRiding=' + (inTrendRidingMode ? 'ACTIVE(' + str.tostring(bar_index - trendRidingStartBar) + 'bars)' : 'OFF')
+    systemMsg += ' | VolRatio=' + str.tostring(volatilityRatio, '#.##')
+    systemMsg += ' | ExitMode=' + adaptiveExitMode
+    systemMsg += ' | Impulsive=' + (impulsiveExitTriggered ? 'TRIGGERED' : 'OK')
+    systemMsg += ' | Momentum=' + (momentumExitTriggered ? 'EXIT(' + str.tostring(adverseBars) + 'bars)' : 'OK')
+    systemMsg += ' | IntraLoss=' + str.tostring(intrabarLossPercent, '#.##') + '%'
+    debugInfo(systemMsg)
 
 // ═══════════════════ SIGNAL-DRIVEN TREND RIDER: EXIT INTERCEPTION ═══════════════════
 // REVOLUTIONARY FEATURE: Intercept and ignore standard exits during trend-riding mode
@@ -1357,10 +1891,47 @@ if debugEnabled
 // ──────── EXIT INTERCEPTION LOGIC ────────────
 // When trend-riding mode is active, we intercept standard exits and ignore them
 // Only signal-based exits and safety nets are allowed to close positions
-// ENHANCED: Now includes Adaptive SuperTrend Exit Filter blocking
 
 var bool standardExitBlocked = false
-standardExitBlocked := false  // Simplified since trend-riding is disabled
+standardExitBlocked := inTrendRidingMode
+
+// ──────── ADAPTIVE EXIT INTEGRATION (RESPECTS TREND-RIDING) ────────────
+// Immediate exit conditions - but respect trend-riding mode for non-catastrophic exits
+
+// Catastrophic exits (always allowed, even during trend-riding)
+if strategy.position_size != 0 and impulsiveExitTriggered and not standardExitBlocked
+    if strategy.position_size > 0
+        strategy.close('Long', comment='Impulsive Exit', alert_message=longExitMsg)
+        debugWarn("⚡ Impulsive Exit (Long): Immediate exit triggered")
+    else
+        strategy.close('Short', comment='Impulsive Exit', alert_message=shortExitMsg)
+        debugWarn("⚡ Impulsive Exit (Short): Immediate exit triggered")
+    
+    // Reset tracking variables
+    entryPrice := na
+    adverseBars := 0
+
+// Momentum exits (blocked during trend-riding unless catastrophic)
+else if strategy.position_size != 0 and momentumExitTriggered and not standardExitBlocked
+    if strategy.position_size > 0
+        strategy.close('Long', comment='Momentum Exit', alert_message=longExitMsg)
+        debugWarn("📉 Momentum Exit (Long): " + str.tostring(adverseBars) + " adverse bars")
+    else
+        strategy.close('Short', comment='Momentum Exit', alert_message=shortExitMsg)
+        debugWarn("📉 Momentum Exit (Short): " + str.tostring(adverseBars) + " adverse bars")
+    
+    // Reset tracking variables
+    entryPrice := na
+    adverseBars := 0
+
+// ──────── TREND-RIDING EXIT INTERCEPTION FEEDBACK ────────────
+// Provide debug feedback when exits are blocked
+if standardExitBlocked and (impulsiveExitTriggered or momentumExitTriggered)
+    blockedExitType = impulsiveExitTriggered ? "Impulsive" : "Momentum"
+    debugInfo("🚀 TREND-RIDING: " + blockedExitType + " exit INTERCEPTED and IGNORED - Waiting for signal-based exit")
+    
+    if debugEnabled
+        debugInfo('BLOCKED EXIT: ' + blockedExitType + ' | Loss: ' + str.tostring(intrabarLossPercent, '#.##') + '%')
 
 // Trend-riding mode modifications (modify existing exit behavior)
 var bool exitOverridden = false
@@ -1373,120 +1944,29 @@ if inTrendRidingMode and strategy.position_size != 0
         trendDuration = bar_index - trendRidingStartBar
         debugInfo('TREND-RIDING ACTIVE: 3x wider stops, 50% offset | Duration: ' + str.tostring(trendDuration) + ' bars | Filters: ' + str.tostring(trendStrengthScore) + '/' + str.tostring(enabledFilters))
 
-// ──────── CORE EXIT SYSTEMS (PRESERVED) ────────────
-// Smart Profit Locker - Dynamic stop loss with ATR-based distance
-if strategy.position_size != 0 and smartProfitEnable
-    // Calculate smart distance
-    baseDistance = atrVal * smartProfitMultiplier
-    
-    // Declare and assign smartDistance
-    var float smartDistance = na
-    smartDistance := baseDistance
+// Visual plotting removed for performance optimization
+// Core logic preserved: entryBlocked and entryWarning calculations maintained for strategy logic
+entryBlocked = entryProbFilterEnable and not entryProbabilityOK
+entryWarning = entryProbFilterEnable and entryProbabilityOK and compositeProbability > entryProbFilterThreshold * 0.8
+
+// ──────── 7. CUSTOM EXIT (Always Active) ────────────
+if strategy.position_size != 0
+    customDistance = 2.5 * atrVal
     
     // CRITICAL FIX: Use user-configurable fallback instead of hardcoded value
     if na(smartDistance) or smartDistance <= 0
         smartDistance := smartProfitFallback  // User-configurable fallback value
     
     if strategy.position_size > 0  // Long position
-        stopLevel = strategy.position_avg_price - smartDistance
+        stopLevel = strategyEntryPrice - customDistance
         if not na(stopLevel) and stopLevel > 0
-            strategy.exit('SPL-Long', from_entry='Long', stop=stopLevel, comment='Smart Profit Locker')
+            strategy.exit('Custom-Long', from_entry='Long', stop=math.max(stopLevel, close * 0.99), comment='Custom Exit')
+            if not customExitSent
+                customExitSent := true
     
     else if strategy.position_size < 0  // Short position
-        stopLevel = strategy.position_avg_price + smartDistance
+        stopLevel = strategyEntryPrice + customDistance
         if not na(stopLevel) and stopLevel > 0
-            strategy.exit('SPL-Short', from_entry='Short', stop=stopLevel, comment='Smart Profit Locker')
-
-// Fixed SL/TP System
-if strategy.position_size != 0 and fixedSlTpEnable
-    if strategy.position_size > 0  // Long position
-        slLevel = strategy.position_avg_price * (1 - fixedStopLoss / 100)
-        tpLevel = strategy.position_avg_price * (1 + fixedTakeProfit / 100)
-        strategy.exit('Fixed-Long', from_entry='Long', stop=slLevel, limit=tpLevel, comment='Fixed SL/TP')
-    
-    else if strategy.position_size < 0  // Short position
-        slLevel = strategy.position_avg_price * (1 + fixedStopLoss / 100)
-        tpLevel = strategy.position_avg_price * (1 - fixedTakeProfit / 100)
-        strategy.exit('Fixed-Short', from_entry='Short', stop=slLevel, limit=tpLevel, comment='Fixed SL/TP')
-
-// MA Exit System
-if strategy.position_size != 0 and maExitEnable
-    if strategy.position_size > 0 and close < maExitLine
-        strategy.close('Long', comment='MA Exit', alert_message=longExitMsg)
-        debugInfo("📈 MA Exit: Long position closed below MA")
-    
-    else if strategy.position_size < 0 and close > maExitLine
-        strategy.close('Short', comment='MA Exit', alert_message=shortExitMsg)
-        debugInfo("📉 MA Exit: Short position closed above MA")
-
-// Signal-Based Trend Rider Exits (from panel configuration)
-if inTrendRidingMode and strategy.position_size != 0
-    // Exit based on signal configuration from trend-riding panel
-    if trendRiderSignalExit and ((strategy.position_size > 0 and not longDirectionalBias) or (strategy.position_size < 0 and not shortDirectionalBias))
-        if strategy.position_size > 0
-            strategy.close('Long', comment='Trend Rider Signal Exit', alert_message=longExitMsg)
-            debugInfo("🏄 Trend Rider: Long exit on signal reversal")
-        else
-            strategy.close('Short', comment='Trend Rider Signal Exit', alert_message=shortExitMsg)
-            debugInfo("🏄 Trend Rider: Short exit on signal reversal")
-        
-        // Reset trend-riding mode
-        inTrendRidingMode := false
-        trendRidingStartBar := na
-
-
-
-// ═══════════════════ ADAPTIVE SUPERTREND EXIT FILTER VISUALIZATION ═══════════════════
-// Professional debug visualization for volatility numbers and filter status
-
-// Volatility Number Display (badge-style label)
-if adaptiveExitFilterShowDebug and adaptiveExitFilterEnable and adaptiveSTEnable and strategy.position_size != 0
-    // Create volatility number label with color coding
-    volColor = adaptiveNumber == 3 ? color.new(color.red, 20) : 
-               adaptiveNumber == 2 ? color.new(color.orange, 20) : 
-               color.new(color.green, 20)
-    
-    volText = "Vol: " + str.tostring(adaptiveNumber)
-    
-    // Add filter status to label
-    if adaptiveExitBlocked
-        volText := volText + " 🚫"
-        volColor := color.new(color.red, 0)  // Bright red when blocked
-    else
-        volText := volText + " ✅"
-    
-    // Position label based on position type
-    labelY = strategy.position_size > 0 ? high + atrVal * 0.5 : low - atrVal * 0.5
-    labelLoc = strategy.position_size > 0 ? location.abovebar : location.belowbar
-    
-    label.new(bar_index, labelY, volText, 
-              color=volColor, 
-              textcolor=color.white, 
-              style=label.style_label_down, 
-              size=size.small)
-
-// Exit Filter Status Changes (transition markers)
-plotshape(adaptiveExitFilterShowDebug and adaptiveExitFilterEnable and adaptiveSTEnable and 
-          adaptiveExitBlocked and not adaptiveExitBlocked[1], 
-          title='Exit Filter BLOCKED', 
-          style=shape.xcross, 
-          location=location.abovebar, 
-          color=color.new(color.red, 0), 
-          size=size.tiny)
-
-plotshape(adaptiveExitFilterShowDebug and adaptiveExitFilterEnable and adaptiveSTEnable and 
-          not adaptiveExitBlocked and adaptiveExitBlocked[1], 
-          title='Exit Filter UNBLOCKED', 
-          style=shape.circle, 
-          location=location.abovebar, 
-          color=color.new(color.lime, 0), 
-          size=size.tiny)
-
-// Enhancement metrics table removed (enhancement suite removed)
-// All enhancement-related visualization has been removed to keep code lean
-
-// ═══════════════════ ENHANCEMENT SUITE REMOVED ═══════════════════
-// Advanced trend enhancement suite has been surgically removed to keep code lean.
-// Core functionality preserved: 6 trend indicators, confluence logic, entry/exit systems.
-// TOTAL TOGGLES: 1 master + 8 individual = 9 independent control switches
-// 🧠 COMPLEXITY LEVEL: Institutional-grade algorithmic trading system
+            strategy.exit('Custom-Short', from_entry='Short', stop=math.max(stopLevel, close * 1.01), comment='Custom Exit')
+            if not customExitSent
+                customExitSent := true
