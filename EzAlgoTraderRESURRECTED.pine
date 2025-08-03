@@ -938,10 +938,20 @@ if stepChannelEnable
             label.new(bar_index-stepChannelLength, pl, "⬥", style=label.style_label_center, textcolor=chart.fg_color, size=size.normal, color=color(na))
     
     // Calculate average and ATR-based channel (exact ChartPrime formula)
-    stepChannelAvg = math.avg(stepChannelPivotHigh, stepChannelPivotLow)
-    stepChannelATR = ta.atr(200) * stepChannelMultiplier
-    stepChannelUpper = stepChannelAvg + stepChannelATR
-    stepChannelLower = stepChannelAvg - stepChannelATR
+    // FIXED: Provide fallback values during initialization period
+    stepChannelATR := ta.atr(200) * stepChannelMultiplier
+    
+    // Use fallback values if pivots haven't been detected yet
+    if na(stepChannelPivotHigh) or na(stepChannelPivotLow)
+        // Fallback: Use current price as center during initialization
+        stepChannelAvg := hl2
+        stepChannelUpper := stepChannelAvg + stepChannelATR
+        stepChannelLower := stepChannelAvg - stepChannelATR
+    else
+        // Normal calculation once both pivots are available
+        stepChannelAvg := math.avg(stepChannelPivotHigh, stepChannelPivotLow)
+        stepChannelUpper := stepChannelAvg + stepChannelATR
+        stepChannelLower := stepChannelAvg - stepChannelATR
     
     // Determine market state and color (exact ChartPrime logic)
     if hl2 > stepChannelUpper
@@ -1830,17 +1840,21 @@ stepChannelCandleColor = stepChannelShowVisualsActive and stepChannelShowCandles
 // Step Channel lines (EXACT ChartPrime implementation - 3 lines total)
 // Midline: Colored with momentum state (yellow/green/red) - linewidth=3
 // Upper/Lower: Chart foreground color (white) - style_linebr
-plot(stepChannelEnable and stepChannelShowLines ? stepChannelAvg : na, 
+
+// FIXED: Consistent conditional logic for line visibility and coloring
+stepChannelLinesActive = stepChannelEnable and stepChannelShowLines
+
+plot(stepChannelLinesActive ? stepChannelAvg : na, 
      "Step Channel MidLine", 
-     color=stepChannelEnable ? stepChannelCurrentColor : na, 
+     color=stepChannelLinesActive ? stepChannelCurrentColor : na, 
      linewidth=3)
-plot(stepChannelEnable and stepChannelShowLines ? stepChannelUpper : na, 
+plot(stepChannelLinesActive ? stepChannelUpper : na, 
      "Step Channel Upper", 
-     color=stepChannelEnable ? chart.fg_color : na, 
+     color=stepChannelLinesActive ? chart.fg_color : na, 
      style=plot.style_linebr)
-plot(stepChannelEnable and stepChannelShowLines ? stepChannelLower : na, 
+plot(stepChannelLinesActive ? stepChannelLower : na, 
      "Step Channel Lower", 
-     color=stepChannelEnable ? chart.fg_color : na, 
+     color=stepChannelLinesActive ? chart.fg_color : na, 
      style=plot.style_linebr)
 
 // Step Channel complete candle coloring (EXACT ChartPrime implementation)
