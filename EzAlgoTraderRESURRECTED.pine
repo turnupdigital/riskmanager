@@ -154,8 +154,7 @@ var array<float> adaptive_lv = array.new_float()
 var array<float> adaptive_amean = array.new_float(1, 0)
 var array<float> adaptive_bmean = array.new_float(1, 0)
 var array<float> adaptive_cmean = array.new_float(1, 0)
-var int adaptiveCluster = na
-var int adaptiveNumber = na
+// NOTE: adaptiveCluster and adaptiveNumber declarations moved to line 1175-1176
 var float adaptive_assigned_centroid = na
 var int adaptive_iterations = 0
 
@@ -176,66 +175,138 @@ positionQty = input.int(1, 'Number of Contracts', minval = 1, maxval = 1000, gro
 // ═══════════════════ MULTI-SIGNAL INPUT SYSTEM ═══════════════════
 // Support for multiple buy/sell indicators with AI-style quality assessment
 
-// ─────────────────── SIGNAL SOURCE INPUTS ───────────────────
-signal1Enable = input.bool(true, '📊 Signal 1', inline = 'sig1', group = '🔄 Multi-Signals', tooltip = 'Primary signal source')
-signal1LongSrc = input.source(close, 'Long', inline = 'sig1', group = '🔄 Multi-Signals')
-signal1ShortSrc = input.source(close, 'Short', inline = 'sig1', group = '🔄 Multi-Signals')
-signal1Name = input.string('LuxAlgo', 'Name', inline = 'sig1name', group = '🔄 Multi-Signals')
-signal1Usage = input.string('Entry All', 'Usage', options = ['Entry All', 'Entry Long Only', 'Entry Short Only', 'Exit All', 'Exit Long Only', 'Exit Short Only', 'Observe'], inline = 'sig1name', group = '🔄 Multi-Signals')
+// ─────────────────── SIGNAL SOURCE INPUTS ───────────────────// ═══════════════════ MULTI-SIGNAL ENTRY SYSTEM (ENHANCED 3-ROW LAYOUT) ═══════════════════
+// Improved organization: Enable+Name+Usage | Long+Short Sources | Advanced Options
 
-signal2Enable = input.bool(false, '📊 Signal 2', inline = 'sig2', group = '🔄 Multi-Signals')
-signal2LongSrc = input.source(close, 'Long', inline = 'sig2', group = '🔄 Multi-Signals')
-signal2ShortSrc = input.source(close, 'Short', inline = 'sig2', group = '🔄 Multi-Signals')
-signal2Name = input.string('UTBot', 'Name', inline = 'sig2name', group = '🔄 Multi-Signals')
-signal2Usage = input.string('Entry All', 'Usage', options = ['Entry All', 'Entry Long Only', 'Entry Short Only', 'Exit All', 'Exit Long Only', 'Exit Short Only', 'Observe'], inline = 'sig2name', group = '🔄 Multi-Signals')
+// Signal 1
+// Row 1: Enable + Name + Usage
+signal1Enable = input.bool(true, 'Signal 1', inline='sig1', group='2️⃣ Entry Signals', tooltip='Primary signal source')
+signal1Name = input.string('LuxAlgo', 'Name', inline='sig1', group='2️⃣ Entry Signals')
+signal1Usage = input.string('All Entries', 'Usage', options=['Long Only', 'Short Only', 'All Entries', 'Trend Exit', 'Observe'], inline='sig1', group='2️⃣ Entry Signals')
+// Row 2: Long + Short Sources
+signal1LongSrc = input.source(close, 'Long', inline='sig1src', group='2️⃣ Entry Signals', tooltip='Connect to: LuxAlgo Long, UTBot Long, or any Long signal plot')
+signal1ShortSrc = input.source(close, 'Short', inline='sig1src', group='2️⃣ Entry Signals', tooltip='Connect to: LuxAlgo Short, UTBot Short, or any Short signal plot')
+// Row 3: Advanced Options
+signal1RequiredForTrend = input.bool(false, '⭐ Required', inline='sig1opts', group='2️⃣ Entry Signals', tooltip='This signal MUST be active for trend mode activation')
+signal1OnlyMode = input.bool(false, 'Only', inline='sig1opts', group='2️⃣ Entry Signals', tooltip='Make this the ONLY active signal (for individual testing)')
+signal1TrendEnable = input.bool(false, 'Trend', inline='sig1opts', group='2️⃣ Entry Signals', tooltip='Include this signal in trend majority calculation')
+    
+// Signal 2
+// Row 1: Enable + Name + Usage
+signal2Enable = input.bool(false, 'Signal 2', inline='sig2', group='2️⃣ Entry Signals', tooltip='Secondary signal source')
+signal2Name = input.string('UTBot', 'Name', inline='sig2', group='2️⃣ Entry Signals')
+signal2Usage = input.string('All Entries', 'Usage', options=['Long Only', 'Short Only', 'All Entries', 'Trend Exit', 'Observe'], inline='sig2', group='2️⃣ Entry Signals')
+// Row 2: Long + Short Sources
+signal2LongSrc = input.source(close, 'Long', inline='sig2src', group='2️⃣ Entry Signals', tooltip='Connect to: UTBot Long, MACD Long, or any Long signal plot')
+signal2ShortSrc = input.source(close, 'Short', inline='sig2src', group='2️⃣ Entry Signals', tooltip='Connect to: UTBot Short, MACD Short, or any Short signal plot')
+// Row 3: Advanced Options
+signal2RequiredForTrend = input.bool(false, '⭐ Required', inline='sig2opts', group='2️⃣ Entry Signals', tooltip='This signal MUST be active for trend mode activation')
+signal2OnlyMode = input.bool(false, 'Only', inline='sig2opts', group='2️⃣ Entry Signals', tooltip='Make this the ONLY active signal (for individual testing)')
+signal2TrendEnable = input.bool(false, 'Trend', inline='sig2opts', group='2️⃣ Entry Signals', tooltip='Include this signal in trend majority calculation')
+    
+// Signal 3
+// Row 1: Enable + Name + Usage
+signal3Enable = input.bool(false, 'Signal 3', inline='sig3', group='2️⃣ Entry Signals', tooltip='Third signal source')
+signal3Name = input.string('RSI', 'Name', inline='sig3', group='2️⃣ Entry Signals')
+signal3Usage = input.string('All Entries', 'Usage', options=['Long Only', 'Short Only', 'All Entries', 'Trend Exit', 'Observe'], inline='sig3', group='2️⃣ Entry Signals')
+// Row 2: Long + Short Sources
+signal3LongSrc = input.source(close, 'Long', inline='sig3src', group='2️⃣ Entry Signals', tooltip='Connect to: RSI Long, Stoch Long, or any Long signal plot')
+signal3ShortSrc = input.source(close, 'Short', inline='sig3src', group='2️⃣ Entry Signals', tooltip='Connect to: RSI Short, Stoch Short, or any Short signal plot')
+// Row 3: Advanced Options
+signal3RequiredForTrend = input.bool(false, '⭐ Required', inline='sig3opts', group='2️⃣ Entry Signals', tooltip='This signal MUST be active for trend mode activation')
+signal3OnlyMode = input.bool(false, 'Only', inline='sig3opts', group='2️⃣ Entry Signals', tooltip='Make this the ONLY active signal (for individual testing)')
+signal3TrendEnable = input.bool(false, 'Trend', inline='sig3opts', group='2️⃣ Entry Signals', tooltip='Include this signal in trend majority calculation')
 
-signal3Enable = input.bool(false, '📊 Signal 3', inline = 'sig3', group = '🔄 Multi-Signals')
-signal3LongSrc = input.source(close, 'Long', inline = 'sig3', group = '🔄 Multi-Signals')
-signal3ShortSrc = input.source(close, 'Short', inline = 'sig3', group = '🔄 Multi-Signals')
-signal3Name = input.string('VIDYA', 'Name', inline = 'sig3name', group = '🔄 Multi-Signals')
-signal3Usage = input.string('Entry All', 'Usage', options = ['Entry All', 'Entry Long Only', 'Entry Short Only', 'Exit All', 'Exit Long Only', 'Exit Short Only', 'Observe'], inline = 'sig3name', group = '🔄 Multi-Signals')
+// Signal 4
+// Row 1: Enable + Name + Usage
+signal4Enable = input.bool(false, 'Signal 4', inline='sig4', group='2️⃣ Entry Signals', tooltip='Fourth signal source')
+signal4Name = input.string('MACD', 'Name', inline='sig4', group='2️⃣ Entry Signals')
+signal4Usage = input.string('All Entries', 'Usage', options=['Long Only', 'Short Only', 'All Entries', 'Trend Exit', 'Observe'], inline='sig4', group='2️⃣ Entry Signals')
+// Row 2: Long + Short Sources
+signal4LongSrc = input.source(close, 'Long', inline='sig4src', group='2️⃣ Entry Signals', tooltip='Connect to: MACD Long, CCI Long, or any Long signal plot')
+signal4ShortSrc = input.source(close, 'Short', inline='sig4src', group='2️⃣ Entry Signals', tooltip='Connect to: MACD Short, CCI Short, or any Short signal plot')
+// Row 3: Advanced Options
+signal4RequiredForTrend = input.bool(false, '⭐ Required', inline='sig4opts', group='2️⃣ Entry Signals', tooltip='This signal MUST be active for trend mode activation')
+signal4OnlyMode = input.bool(false, 'Only', inline='sig4opts', group='2️⃣ Entry Signals', tooltip='Make this the ONLY active signal (for individual testing)')
+signal4TrendEnable = input.bool(false, 'Trend', inline='sig4opts', group='2️⃣ Entry Signals', tooltip='Include this signal in trend majority calculation')
 
-signal4Enable = input.bool(false, '📊 Signal 4', inline = 'sig4', group = '🔄 Multi-Signals')
-signal4LongSrc = input.source(close, 'Long', inline = 'sig4', group = '🔄 Multi-Signals')
-signal4ShortSrc = input.source(close, 'Short', inline = 'sig4', group = '🔄 Multi-Signals')
-signal4Name = input.string('KyleAlgo', 'Name', inline = 'sig4name', group = '🔄 Multi-Signals')
-signal4Usage = input.string('Entry All', 'Usage', options = ['Entry All', 'Entry Long Only', 'Entry Short Only', 'Exit All', 'Exit Long Only', 'Exit Short Only', 'Observe'], inline = 'sig4name', group = '🔄 Multi-Signals')
+// Signal 5
+// Row 1: Enable + Name + Usage
+signal5Enable = input.bool(false, 'Signal 5', inline='sig5', group='2️⃣ Entry Signals', tooltip='Fifth signal source')
+signal5Name = input.string('Stoch', 'Name', inline='sig5', group='2️⃣ Entry Signals')
+signal5Usage = input.string('All Entries', 'Usage', options=['Long Only', 'Short Only', 'All Entries', 'Trend Exit', 'Observe'], inline='sig5', group='2️⃣ Entry Signals')
+// Row 2: Long + Short Sources
+signal5LongSrc = input.source(close, 'Long', inline='sig5src', group='2️⃣ Entry Signals', tooltip='Connect to: Stoch Long, Williams Long, or any Long signal plot')
+signal5ShortSrc = input.source(close, 'Short', inline='sig5src', group='2️⃣ Entry Signals', tooltip='Connect to: Stoch Short, Williams Short, or any Short signal plot')
+// Row 3: Advanced Options
+signal5RequiredForTrend = input.bool(false, '⭐ Required', inline='sig5opts', group='2️⃣ Entry Signals', tooltip='This signal MUST be active for trend mode activation')
+signal5OnlyMode = input.bool(false, 'Only', inline='sig5opts', group='2️⃣ Entry Signals', tooltip='Make this the ONLY active signal (for individual testing)')
+signal5TrendEnable = input.bool(false, 'Trend', inline='sig5opts', group='2️⃣ Entry Signals', tooltip='Include this signal in trend majority calculation')
 
-signal5Enable = input.bool(false, '📊 Signal 5', inline = 'sig5', group = '🔄 Multi-Signals')
-signal5LongSrc = input.source(close, 'Long', inline = 'sig5', group = '🔄 Multi-Signals')
-signal5ShortSrc = input.source(close, 'Short', inline = 'sig5', group = '🔄 Multi-Signals')
-signal5Name = input.string('Wonder', 'Name', inline = 'sig5name', group = '🔄 Multi-Signals')
-signal5Usage = input.string('Entry All', 'Usage', options = ['Entry All', 'Entry Long Only', 'Entry Short Only', 'Exit All', 'Exit Long Only', 'Exit Short Only', 'Observe'], inline = 'sig5name', group = '🔄 Multi-Signals')
+// Signal 6
+// Row 1: Enable + Name + Usage
+signal6Enable = input.bool(false, 'Signal 6', inline='sig6', group='2️⃣ Entry Signals', tooltip='Sixth signal source')
+signal6Name = input.string('CCI', 'Name', inline='sig6', group='2️⃣ Entry Signals')
+signal6Usage = input.string('All Entries', 'Usage', options=['Long Only', 'Short Only', 'All Entries', 'Trend Exit', 'Observe'], inline='sig6', group='2️⃣ Entry Signals')
+// Row 2: Long + Short Sources
+signal6LongSrc = input.source(close, 'Long', inline='sig6src', group='2️⃣ Entry Signals', tooltip='Connect to: CCI Long, Williams Long, or any Long signal plot')
+signal6ShortSrc = input.source(close, 'Short', inline='sig6src', group='2️⃣ Entry Signals', tooltip='Connect to: CCI Short, Williams Short, or any Short signal plot')
+// Row 3: Advanced Options
+signal6RequiredForTrend = input.bool(false, '⭐ Required', inline='sig6opts', group='2️⃣ Entry Signals', tooltip='This signal MUST be active for trend mode activation')
+signal6OnlyMode = input.bool(false, 'Only', inline='sig6opts', group='2️⃣ Entry Signals', tooltip='Make this the ONLY active signal (for individual testing)')
+signal6TrendEnable = input.bool(false, 'Trend', inline='sig6opts', group='2️⃣ Entry Signals', tooltip='Include this signal in trend majority calculation')
 
-signal6Enable = input.bool(false, '📊 Signal 6', inline = 'sig6', group = '🔄 Multi-Signals')
-signal6LongSrc = input.source(close, 'Long', inline = 'sig6', group = '🔄 Multi-Signals')
-signal6ShortSrc = input.source(close, 'Short', inline = 'sig6', group = '🔄 Multi-Signals')
-signal6Name = input.string('Custom1', 'Name', inline = 'sig6name', group = '🔄 Multi-Signals')
-signal6Usage = input.string('Entry All', 'Usage', options = ['Entry All', 'Entry Long Only', 'Entry Short Only', 'Exit All', 'Exit Long Only', 'Exit Short Only', 'Observe'], inline = 'sig6name', group = '🔄 Multi-Signals')
+// Signal 7
+// Row 1: Enable + Name + Usage
+signal7Enable = input.bool(false, 'Signal 7', inline='sig7', group='2️⃣ Entry Signals', tooltip='Seventh signal source')
+signal7Name = input.string('Williams', 'Name', inline='sig7', group='2️⃣ Entry Signals')
+signal7Usage = input.string('All Entries', 'Usage', options=['Long Only', 'Short Only', 'All Entries', 'Trend Exit', 'Observe'], inline='sig7', group='2️⃣ Entry Signals')
+// Row 2: Long + Short Sources
+signal7LongSrc = input.source(close, 'Long', inline='sig7src', group='2️⃣ Entry Signals', tooltip='Connect to: Williams Long, ADX Long, or any Long signal plot')
+signal7ShortSrc = input.source(close, 'Short', inline='sig7src', group='2️⃣ Entry Signals', tooltip='Connect to: Williams Short, ADX Short, or any Short signal plot')
+// Row 3: Advanced Options
+signal7RequiredForTrend = input.bool(false, '⭐ Required', inline='sig7opts', group='2️⃣ Entry Signals', tooltip='This signal MUST be active for trend mode activation')
+signal7OnlyMode = input.bool(false, 'Only', inline='sig7opts', group='2️⃣ Entry Signals', tooltip='Make this the ONLY active signal (for individual testing)')
+signal7TrendEnable = input.bool(false, 'Trend', inline='sig7opts', group='2️⃣ Entry Signals', tooltip='Include this signal in trend majority calculation')
 
-signal7Enable = input.bool(false, '📊 Signal 7', inline = 'sig7', group = '🔄 Multi-Signals')
-signal7LongSrc = input.source(close, 'Long', inline = 'sig7', group = '🔄 Multi-Signals')
-signal7ShortSrc = input.source(close, 'Short', inline = 'sig7', group = '🔄 Multi-Signals')
-signal7Name = input.string('Custom2', 'Name', inline = 'sig7name', group = '🔄 Multi-Signals')
-signal7Usage = input.string('Entry All', 'Usage', options = ['Entry All', 'Entry Long Only', 'Entry Short Only', 'Exit All', 'Exit Long Only', 'Exit Short Only', 'Observe'], inline = 'sig7name', group = '🔄 Multi-Signals')
+// Signal 8
+// Row 1: Enable + Name + Usage
+signal8Enable = input.bool(false, 'Signal 8', inline='sig8', group='2️⃣ Entry Signals', tooltip='Eighth signal source')
+signal8Name = input.string('ADX', 'Name', inline='sig8', group='2️⃣ Entry Signals')
+signal8Usage = input.string('All Entries', 'Usage', options=['Long Only', 'Short Only', 'All Entries', 'Trend Exit', 'Observe'], inline='sig8', group='2️⃣ Entry Signals')
+// Row 2: Long + Short Sources
+signal8LongSrc = input.source(close, 'Long', inline='sig8src', group='2️⃣ Entry Signals', tooltip='Connect to: ADX Long, Custom Long, or any Long signal plot')
+signal8ShortSrc = input.source(close, 'Short', inline='sig8src', group='2️⃣ Entry Signals', tooltip='Connect to: ADX Short, Custom Short, or any Short signal plot')
+// Row 3: Advanced Options
+signal8RequiredForTrend = input.bool(false, '⭐ Required', inline='sig8opts', group='2️⃣ Entry Signals', tooltip='This signal MUST be active for trend mode activation')
+signal8OnlyMode = input.bool(false, 'Only', inline='sig8opts', group='2️⃣ Entry Signals', tooltip='Make this the ONLY active signal (for individual testing)')
+signal8TrendEnable = input.bool(false, 'Trend', inline='sig8opts', group='2️⃣ Entry Signals', tooltip='Include this signal in trend majority calculation')
 
-signal8Enable = input.bool(false, '📊 Signal 8', inline = 'sig8', group = '🔄 Multi-Signals')
-signal8LongSrc = input.source(close, 'Long', inline = 'sig8', group = '🔄 Multi-Signals')
-signal8ShortSrc = input.source(close, 'Short', inline = 'sig8', group = '🔄 Multi-Signals')
-signal8Name = input.string('Custom3', 'Name', inline = 'sig8name', group = '🔄 Multi-Signals')
-signal8Usage = input.string('Entry All', 'Usage', options = ['Entry All', 'Entry Long Only', 'Entry Short Only', 'Exit All', 'Exit Long Only', 'Exit Short Only', 'Observe'], inline = 'sig8name', group = '🔄 Multi-Signals')
+// Signal 9
+// Row 1: Enable + Name + Usage
+signal9Enable = input.bool(false, 'Signal 9', inline='sig9', group='2️⃣ Entry Signals', tooltip='Ninth signal source')
+signal9Name = input.string('Custom1', 'Name', inline='sig9', group='2️⃣ Entry Signals')
+signal9Usage = input.string('All Entries', 'Usage', options=['Long Only', 'Short Only', 'All Entries', 'Trend Exit', 'Observe'], inline='sig9', group='2️⃣ Entry Signals')
+// Row 2: Long + Short Sources
+signal9LongSrc = input.source(close, 'Long', inline='sig9src', group='2️⃣ Entry Signals', tooltip='Connect to: Custom Long, External Long, or any Long signal plot')
+signal9ShortSrc = input.source(close, 'Short', inline='sig9src', group='2️⃣ Entry Signals', tooltip='Connect to: Custom Short, External Short, or any Short signal plot')
+// Row 3: Advanced Options
+signal9RequiredForTrend = input.bool(false, '⭐ Required', inline='sig9opts', group='2️⃣ Entry Signals', tooltip='This signal MUST be active for trend mode activation')
+signal9OnlyMode = input.bool(false, 'Only', inline='sig9opts', group='2️⃣ Entry Signals', tooltip='Make this the ONLY active signal (for individual testing)')
+signal9TrendEnable = input.bool(false, 'Trend', inline='sig9opts', group='2️⃣ Entry Signals', tooltip='Include this signal in trend majority calculation')
 
-signal9Enable = input.bool(false, '📊 Signal 9', inline = 'sig9', group = '🔄 Multi-Signals')
-signal9LongSrc = input.source(close, 'Long', inline = 'sig9', group = '🔄 Multi-Signals')
-signal9ShortSrc = input.source(close, 'Short', inline = 'sig9', group = '🔄 Multi-Signals')
-signal9Name = input.string('Custom4', 'Name', inline = 'sig9name', group = '🔄 Multi-Signals')
-signal9Usage = input.string('Entry All', 'Usage', options = ['Entry All', 'Entry Long Only', 'Entry Short Only', 'Exit All', 'Exit Long Only', 'Exit Short Only', 'Observe'], inline = 'sig9name', group = '🔄 Multi-Signals')
-
-signal10Enable = input.bool(false, '📊 Signal 10', inline = 'sig10', group = '🔄 Multi-Signals')
-signal10LongSrc = input.source(close, 'Long', inline = 'sig10', group = '🔄 Multi-Signals')
-signal10ShortSrc = input.source(close, 'Short', inline = 'sig10', group = '🔄 Multi-Signals')
-signal10Name = input.string('Custom5', 'Name', inline = 'sig10name', group = '🔄 Multi-Signals')
-signal10Usage = input.string('Entry All', 'Usage', options = ['Entry All', 'Entry Long Only', 'Entry Short Only', 'Exit All', 'Exit Long Only', 'Exit Short Only', 'Observe'], inline = 'sig10name', group = '🔄 Multi-Signals')
+// Signal 10
+// Row 1: Enable + Name + Usage
+signal10Enable = input.bool(false, 'Signal 10', inline='sig10', group='2️⃣ Entry Signals', tooltip='Tenth signal source')
+signal10Name = input.string('Custom2', 'Name', inline='sig10', group='2️⃣ Entry Signals')
+signal10Usage = input.string('All Entries', 'Usage', options=['Long Only', 'Short Only', 'All Entries', 'Trend Exit', 'Observe'], inline='sig10', group='2️⃣ Entry Signals')
+// Row 2: Long + Short Sources
+signal10LongSrc = input.source(close, 'Long', inline='sig10src', group='2️⃣ Entry Signals', tooltip='Connect to: Custom Long, External Long, or any Long signal plot')
+signal10ShortSrc = input.source(close, 'Short', inline='sig10src', group='2️⃣ Entry Signals', tooltip='Connect to: Custom Short, External Short, or any Short signal plot')
+// Row 3: Advanced Options
+signal10RequiredForTrend = input.bool(false, '⭐ Required', inline='sig10opts', group='2️⃣ Entry Signals', tooltip='This signal MUST be active for trend mode activation')
+signal10OnlyMode = input.bool(false, 'Only', inline='sig10opts', group='2️⃣ Entry Signals', tooltip='Make this the ONLY active signal (for individual testing)')
+signal10TrendEnable = input.bool(false, 'Trend', inline='sig10opts', group='2️⃣ Entry Signals', tooltip='Include this signal in trend majority calculation')
 
 // ═══════════════════ LABELING OPTIONS ═══════════════════
 displayEntryLabels = input.bool(true,  'Show Entry Labels', group = '📍 Labeling')
@@ -252,10 +323,10 @@ isValidSignalSource(src) =>
     not na(src) and src != close and src != open and src != high and src != low
 
 // Enhanced validation for external indicators (Signal 5 fix)
-// More permissive validation that allows external indicators to work properly
-// Only blocks truly invalid signals (na values or disabled signals)
+// FIX: Updated to be strict like isValidSignalSource to block defaults uniformly
+// This ensures Signal 5 (and others) NEVER generate trades on default close
 isValidExternalSignal(src) =>
-    not na(src)  // Only check for na values, allow price-based external indicators
+    not na(src) and src != close and src != open and src != high and src != low  // Strict check
 
 // ═══════════════════ SIGNAL USAGE PROCESSING HELPER ═══════════════════
 // NEW FEATURE: Process signals based on usage dropdown settings
@@ -381,109 +452,13 @@ array.set(allShortSignals, 9, sig10Short)
 longSignalCount = (sig1Long ? 1 : 0) + (sig2Long ? 1 : 0) + (sig3Long ? 1 : 0) + (sig4Long ? 1 : 0) + (sig5Long ? 1 : 0) + (sig6Long ? 1 : 0) + (sig7Long ? 1 : 0) + (sig8Long ? 1 : 0) + (sig9Long ? 1 : 0) + (sig10Long ? 1 : 0)
 shortSignalCount = (sig1Short ? 1 : 0) + (sig2Short ? 1 : 0) + (sig3Short ? 1 : 0) + (sig4Short ? 1 : 0) + (sig5Short ? 1 : 0) + (sig6Short ? 1 : 0) + (sig7Short ? 1 : 0) + (sig8Short ? 1 : 0) + (sig9Short ? 1 : 0) + (sig10Short ? 1 : 0)
 
-
-
-// ═══════════════════ PRIMARY SIGNAL COMBINATION ═══════════════════
-// Note: Primary signals are defined below after imports (line 126-127)
-
 // ═══════════════════ RBW FILTER IMPORT ═══════════════════
 // Import enhanced_ta library for existing RBW filter (defined later)
 import HeWhoMustNotBeNamed/enhanced_ta/14 as eta
 
-// ═══════════════════ FLIPFLOP RANGE-BREAKOUT FILTER (OPTIONAL) ═══════════════════
-// Inline port of FlipFlopFilter.pine (≈150 lines). OFF by default; fully user-configurable.
-
-// ───── USER SETTINGS ─────
-ffEnable  = input.bool(false,  '🚦 Enable FlipFlop Filter', group='🆕 FlipFlop Filter')
-ffShowBg  = input.bool(true,   'Show Range/Breakout BG',   group='🆕 FlipFlop Filter', inline='ff1')
-ffSigSrc  = input.string('Any','Signal Source', options=['Breakout','Reversal','Any'], group='🆕 FlipFlop Filter', inline='ff1')
-ffAtrLen   = input.int(400,  'ATR Length',         group='🆕 FlipFlop Filter')
-ffAbsMax   = input.float(2.0,'AbsMax ×ATR', step=0.1, group='🆕 FlipFlop Filter')
-ffMinFlips = input.int(3,    'Min Small Flips',    group='🆕 FlipFlop Filter')
-ffBreakK   = input.float(0.6,'BreakK ×ATR', step=0.05, group='🆕 FlipFlop Filter')
-ffRunThres = input.float(2.0,'runATR Threshold', step=0.1, group='🆕 FlipFlop Filter')
-ffDecay    = input.int(1,'Small Flip Decay',   minval=1, maxval=10, group='🆕 FlipFlop Filter')
-
-// External pulses (optional)
-ff_longEntSrc   = input.source(close, 'Ext Long ENTRY',  group='🆕 FlipFlop Filter')
-ff_longExitSrc  = input.source(close, 'Ext Long EXIT',   group='🆕 FlipFlop Filter')
-ff_shortEntSrc  = input.source(close, 'Ext Short ENTRY', group='🆕 FlipFlop Filter')
-ff_shortExitSrc = input.source(close, 'Ext Short EXIT',  group='🆕 FlipFlop Filter')
-
-// ───── INTERNAL CALCULATIONS ─────
-ff_isPulse(sig) => nz(sig,0) != 0 and nz(sig[1],0) == 0
-ffATR  = ta.atr(ffAtrLen)
-ffDir  = close >= open ? 1 : -1
-ffFlip = ta.change(ffDir) != 0
-var int ff_runID = 0
-ff_runID := ffFlip ? ff_runID + 1 : ff_runID
-ff_runMove = math.abs(close - ta.valuewhen(ffFlip, close[1], 0))
-// Hardened division guard
-ff_runATR  = (not na(ffATR) and ffATR > 0.0001) ? ff_runMove / ffATR : 0.0
-ff_lastInRun = ta.barssince(ffFlip[1]) == 0
-
-// MEMORY-SAFE fixed-length buffer (max 20)
-var float[] ff_buf = array.new_float()
-if ff_lastInRun
-    if array.size(ff_buf) >= 20
-        array.shift(ff_buf)
-    array.push(ff_buf, ff_runATR)
-ff_isSmall = ff_runATR < ffAbsMax
-
-var bool ff_inRange = false
-var float ff_hi = na
-var float ff_lo = na
-var int ff_smallCnt = 0
-ff_brkLong = false
-ff_brkShort = false
-if not ff_inRange
-    if ff_lastInRun
-        // Increment or decay small-flip counter
-        ff_smallCnt := ff_isSmall ? ff_smallCnt + 1 : math.max(ff_smallCnt - ffDecay, 0)
-    if ff_smallCnt >= ffMinFlips
-        ff_inRange := true
-        ff_hi := high
-        ff_lo := low
-else
-    ff_dynUp = (high - ff_hi) > ffBreakK * ffATR
-    ff_dynDn = (ff_lo - low)  > ffBreakK * ffATR
-    ff_atrUp = ff_runATR > ffRunThres and ffDir == 1  and ff_lastInRun
-    ff_atrDn = ff_runATR > ffRunThres and ffDir == -1 and ff_lastInRun
-    if ff_dynUp or ff_atrUp
-        ff_brkLong := true
-        ff_inRange := false
-        ff_smallCnt := 0
-    else if ff_dynDn or ff_atrDn
-        ff_brkShort := true
-        ff_inRange := false
-        ff_smallCnt := 0
-    else
-        ff_hi := math.max(ff_hi, high)
-        ff_lo := math.min(ff_lo, low)
-
-var bool ff_trendMode = false
-if ff_brkLong or ff_brkShort
-    ff_trendMode := true
-if ff_inRange
-    ff_trendMode := false
-
-ff_revLongEntry  = ff_trendMode and ff_isPulse(ff_longEntSrc)
-ff_revShortEntry = ff_trendMode and ff_isPulse(ff_shortEntSrc)
-
-ff_buySig  = (ffSigSrc == 'Breakout' and ff_brkLong)  or (ffSigSrc == 'Reversal' and ff_revLongEntry)  or (ffSigSrc == 'Any' and (ff_brkLong  or ff_revLongEntry))
-ff_sellSig = (ffSigSrc == 'Breakout' and ff_brkShort) or (ffSigSrc == 'Reversal' and ff_revShortEntry) or (ffSigSrc == 'Any' and (ff_brkShort or ff_revShortEntry))
-
-// Background highlight (must be global call)
-var color ff_bg = na
-ff_bg := ffEnable and ffShowBg and ff_inRange ? color.new(color.blue, 90) : na
-bgcolor(ff_bg)
-
-ff_longGate  = not ffEnable ? true : ff_buySig
-ff_shortGate = not ffEnable ? true : ff_sellSig
 
 // ═══════════════════ BUILD SIGNAL NAME FUNCTION ═══════════════════
 // Builds a "+"-concatenated string of active signal names on the current bar
-// Declared after all signal and FlipFlop variables exist to prevent undeclared identifier errors
 buildSignalName(bool isLong) =>
     string names = ""
     if isLong
@@ -507,8 +482,7 @@ buildSignalName(bool isLong) =>
             names := names == "" ? signal9Name : names + "+" + signal9Name
         if sig10Long 
             names := names == "" ? signal10Name : names + "+" + signal10Name
-        if ff_buySig 
-            names := names == "" ? "FlipFlop" : names + "+FlipFlop"
+      
     else
         if sig1Short  
             names := names == "" ? signal1Name : names + "+" + signal1Name
@@ -530,8 +504,7 @@ buildSignalName(bool isLong) =>
             names := names == "" ? signal9Name : names + "+" + signal9Name
         if sig10Short 
             names := names == "" ? signal10Name : names + "+" + signal10Name
-        if ff_sellSig 
-            names := names == "" ? "FlipFlop" : names + "+FlipFlop"
+       
     names
 
 // ═══════════════════ SIGNAL PROCESSING SETUP ═══════════════════
@@ -539,10 +512,7 @@ buildSignalName(bool isLong) =>
 primaryLongSig = sig1Long or sig2Long or sig3Long or sig4Long or sig5Long or sig6Long or sig7Long or sig8Long or sig9Long or sig10Long
 primaryShortSig = sig1Short or sig2Short or sig3Short or sig4Short or sig5Short or sig6Short or sig7Short or sig8Short or sig9Short or sig10Short
 
-// ───── APPLY FLIPFLOP FILTER ─────
-if ffEnable
-    primaryLongSig := primaryLongSig and ff_longGate
-    primaryShortSig := primaryShortSig and ff_shortGate
+
 
 // ─────────────────── 1 · TRADERSPOST JSON HELPERS ───────────────
 
@@ -577,7 +547,7 @@ volatilityRatio = ta.sma(atrVal, 50) > 1e-10 ? atrVal / ta.sma(atrVal, 50) : 1.0
 
 
 // ─────────────────── 3 · EXIT PARAMETERS (ASCII SAFE) ───────────
-maExitOn = input.bool(true, 'Enable MA Exit', group = 'MA Exit')
+maExitOn = input.bool(false, 'Enable MA Exit', group = 'MA Exit')
 maLen = input.int(21, 'MA Length', minval = 1, group = 'MA Exit')
 maType = input.string('EMA', 'MA Type', options = ['SMA', 'EMA', 'WMA', 'VWMA', 'SMMA'], group = 'MA Exit')
 // Intrabar exits removed - exits only trigger once per bar on close
@@ -598,11 +568,11 @@ tp2Size = input.float(3.0, '', inline = 'tp2', group = 'Fixed SL/TP')
 tp3Enable = input.bool(false, 'TP3', inline = 'tp3', group = 'Fixed SL/TP')
 tp3Size = input.float(4.0, '', inline = 'tp3', group = 'Fixed SL/TP')
 
-// Smart Profit Locker (Aggressive Profit Protection)
-smartProfitEnable = input.bool(false, '🎯 Enable Smart Profit Locker', group = 'Smart Profit Locker', tooltip = 'Aggressive profit-taking with adjustable pullback sensitivity')
+// Smart Profit Locker (Aggressive Profit Protection) - DEFAULT ENABLED
+smartProfitEnable = input.bool(true, '🎯 Enable Smart Profit Locker', group = 'Smart Profit Locker', tooltip = 'Aggressive profit-taking with adjustable pullback sensitivity')
 smartProfitType = input.string('ATR', 'Type', options = ['ATR', 'Points', 'Percent'], group = 'Smart Profit Locker')
-smartProfitVal = input.float(3.1, 'Value', step = 0.1, group = 'Smart Profit Locker')
-smartProfitOffset = input.float(0.10, 'Pullback %', step = 0.05, minval = 0.01, maxval = 1.0, group = 'Smart Profit Locker', tooltip = 'Pullback percentage to trigger exit (0.10 = 10%)')
+smartProfitVal = input.float(5.0, 'Value', step = 0.1, group = 'Smart Profit Locker')
+smartProfitOffset = input.float(0.1, 'Pullback %', step = 0.05, minval = 0.01, maxval = 1.0, group = 'Smart Profit Locker', tooltip = 'Pullback percentage to trigger exit (0.10 = 10%)')
 // CRITICAL FIX: User-configurable fallback for invalid calculations
 smartProfitFallback = input.float(50.0, 'Fallback Value', step = 1.0, minval = 0.1, group = 'Smart Profit Locker', tooltip = 'Fallback value when calculation fails. Set appropriately for your symbol: Forex ~0.001, Crypto ~1.0, Stocks ~0.50')
 
@@ -612,7 +582,7 @@ smartProfitMultiplier = smartProfitVal  // Legacy name mapping
 fixedSlTpEnable = fixedEnable           // Fix typo in later logic
 fixedStopLoss = fixedStop               // Stop-loss size alias
 fixedTakeProfit = tp1Size               // Default take-profit size (TP1) as placeholder
-maExitEnable = maExitOn                 // MA exit enable alias
+// maExitEnable is defined as input in Trend Indicators section
 maExitLine = priceMA                    // MA line alias
 trendRiderSignalExit = true             // Default allow signal-based exit (can be later wired to input)
 
@@ -748,129 +718,101 @@ if smartProfitEnable and strategy.position_size != 0 and allowTrendExit
         if not trailExitSent
             trailExitSent := true
 
-// ═══════════════════ RBW FILTER COMPLETELY REMOVED ═══════════════════
-// All RBW filter inputs and logic have been permanently removed to eliminate clutter
 
-// ═══════════════════ LEGACY TREND-RIDING SYSTEM REMOVED ═══════════════════
-// The old trend-riding overlay system has been completely removed to eliminate conflicts.
-// All trend-based exit logic is now handled by the new Trend-Exit/Hold Filter System below.
 
-// ═══════════════════ TREND-EXIT/HOLD FILTER SYSTEM ═══════════════════
-// Visually clear, mechanically simple filters to hold trades longer during obvious trends
+// ═══════════════════ TREND EXIT SYSTEMS ═══════════════════
+// Independent exit systems for holding trades longer during obvious trends
 
-// Adaptive SuperTrend "3" Filter (Row 8) - Already implemented
-adaptiveExitFilterEnable = input.bool(false, '🔥 Adaptive ST "3" Hold', group='🎯 Trend-Exit Filters', inline='te1', tooltip='Hold trades when Adaptive SuperTrend shows "3" (high volatility). Simple rule: "If you see a 3, don\'t exit"')
-adaptiveHoldOn3 = input.bool(true, 'Hold on "3"', group='🎯 Trend-Exit Filters', inline='te1', tooltip='Do not exit when Adaptive SuperTrend displays "3" (high volatility regime)')
-adaptiveHoldOn2 = input.bool(false, 'Hold on "2"', group='🎯 Trend-Exit Filters', inline='te1', tooltip='Do not exit when Adaptive SuperTrend displays "2" (medium volatility regime)')
-adaptiveHoldOn1 = input.bool(false, 'Hold on "1"', group='🎯 Trend-Exit Filters', inline='te1', tooltip='Do not exit when Adaptive SuperTrend displays "1" (low volatility regime)')
+// ──────── SUPERTREND BAR RANKING ────────────
+adaptiveExitFilterEnable = input.bool(false, '🔥 Adaptive SuperTrend Volatility Exit', group='🔥 SuperTrend Bar Ranking', tooltip='Hold trades based on Adaptive SuperTrend volatility ranking (1,2,3)')
+adaptiveHoldOn3 = input.bool(true, 'Hold on "3"', group='🔥 SuperTrend Bar Ranking', inline='av1', tooltip='Do not exit when volatility regime is "3" (high volatility)')
+adaptiveHoldOn2 = input.bool(false, 'Hold on "2"', group='🔥 SuperTrend Bar Ranking', inline='av1', tooltip='Do not exit when volatility regime is "2" (medium volatility)')
+adaptiveHoldOn1 = input.bool(false, 'Hold on "1"', group='🔥 SuperTrend Bar Ranking', inline='av1', tooltip='Do not exit when volatility regime is "1" (low volatility)')
 
-// Moving Average Crossover Filter (Row 9)
-maCrossoverFilterEnable = input.bool(false, '📈 MA Crossover Hold', group='🎯 Trend-Exit Filters', inline='te2', tooltip='Hold trades until moving averages cross over. Clear visual crossover signal on chart.')
-maCrossoverFastLength = input.int(8, 'Fast MA', minval=1, maxval=50, group='🎯 Trend-Exit Filters', inline='te2', tooltip='Fast moving average length (e.g., 8 SMA)')
-maCrossoverSlowLength = input.int(35, 'Slow MA', minval=10, maxval=200, group='🎯 Trend-Exit Filters', inline='te2', tooltip='Slow moving average length (e.g., 35 SMA)')
-maCrossoverType = input.string('SMA', 'MA Type', options=['SMA', 'EMA', 'WMA'], group='🎯 Trend-Exit Filters', inline='te2b', tooltip='Type of moving average to use for crossover detection')
+// ──────── MOVING AVERAGE CROSSOVER EXIT ────────────
+maCrossoverFilterEnable = input.bool(false, '📈 Moving Average Crossover Exit', group='📈 Moving Average Crossover Exit', tooltip='Exit trades when moving averages cross over')
+maCrossoverType = input.string('SMA', 'MA Type', options=['SMA', 'EMA', 'WMA'], group='📈 Moving Average Crossover Exit', inline='ma1', tooltip='Type of moving average for crossover detection')
+maCrossoverFastLength = input.int(8, 'Fast MA', minval=1, maxval=50, group='📈 Moving Average Crossover Exit', inline='ma2', tooltip='Fast moving average length')
+maCrossoverSlowLength = input.int(35, 'Slow MA', minval=10, maxval=200, group='📈 Moving Average Crossover Exit', inline='ma2', tooltip='Slow moving average length')
 
-// Per-Indicator Trend Exit Toggles (Row 10-11)
-indicatorExitHeader = input.string('--- Individual Trend Indicator Exits ---', 'Indicator Exit Config', group='🎯 Trend-Exit Filters', inline='te3', tooltip='Each trend indicator can be used as an individual trend exit. Allows testing each indicator as sole trend exit method.')
+// ──────── TREND BREAK EXIT ────────────
+// Exit when trend indicators flip against our position direction
+hullTrendExit = input.bool(false, '🌊 Hull Break Exit', group='🌊 Trend Break Exit', inline='tb1', tooltip='Exit when Hull Suite flips against position direction')
+supertrendTrendExit = input.bool(false, '⚡ SuperTrend Break Exit', group='🌊 Trend Break Exit', inline='tb1', tooltip='Exit when SuperTrend flips against position direction')
+quadrantTrendExit = input.bool(false, '🎯 Quadrant Break Exit', group='🌊 Trend Break Exit', inline='tb1', tooltip='Exit when Quadrant NW flips against position direction')
+adaptiveTrendExit = input.bool(false, '🔄 Adaptive Break Exit', group='🌊 Trend Break Exit', inline='tb2', tooltip='Exit when Adaptive SuperTrend flips against position direction')
+volumaticTrendExit = input.bool(false, '📊 Volumatic Break Exit', group='🌊 Trend Break Exit', inline='tb2', tooltip='Exit when Volumatic VIDYA flips against position direction')
+smoothHATrendExit = input.bool(false, '🕯️ Smooth HA Break Exit', group='🌊 Trend Break Exit', inline='tb2', tooltip='Exit when Smooth Heiken Ashi flips against position direction')
 
-// First row of indicator exits
-hullTrendExit = input.bool(false, '🌊 Hull Exit', group='🎯 Trend-Exit Filters', inline='te4', tooltip='Exit when Hull Suite trend changes direction')
-supertrendTrendExit = input.bool(false, '⚡ SuperTrend Exit', group='🎯 Trend-Exit Filters', inline='te4', tooltip='Exit when SuperTrend direction changes')
-quadrantTrendExit = input.bool(false, '🎯 Quadrant Exit', group='🎯 Trend-Exit Filters', inline='te4', tooltip='Exit when Quadrant NW trend changes')
+// Old Trend-Exit Filters section removed - functionality moved to separate sections above
+// Legacy variables kept for compatibility (set to safe defaults)
+trendExitSignalEnable = false
+trendExitSignalSrc = close
+trendExitLogic = 'Any Filter Triggers Exit'
+trendExitDebug = false
+// Note: trendHoldActive already defined elsewhere in code
 
-// Second row of indicator exits
-adaptiveTrendExit = input.bool(false, '🔄 Adaptive Exit', group='🎯 Trend-Exit Filters', inline='te5', tooltip='Exit when Adaptive SuperTrend trend changes')
-volumaticTrendExit = input.bool(false, '📊 Volumatic Exit', group='🎯 Trend-Exit Filters', inline='te5', tooltip='Exit when Volumatic VIDYA trend changes')
-smoothHATrendExit = input.bool(false, '🕯️ Smooth HA Exit', group='🎯 Trend-Exit Filters', inline='te5', tooltip='Exit when Smooth Heiken Ashi trend changes')
+// ═══════════════════ DIRECTIONAL BIAS SYSTEM ═══════════════════
+// Choose which trend indicators to use for directional bias determination (affects all trades including scalp)
 
-// External Trend Exit Signal (Row 12)
-trendExitSignalEnable = input.bool(false, '📡 External Trend Exit', group='🎯 Trend-Exit Filters', inline='te6', tooltip='Use external indicator (like Trend Strength) for trend exit signals. Connect to buy/sell signal from external indicator.')
-trendExitSignalSrc = input.source(close, 'Signal Source', group='🎯 Trend-Exit Filters', inline='te6', tooltip='Connect this to the buy/sell signal output from your external trend exit indicator (e.g., Trend Strength arrows)')
+// Confluence Logic
+biasConfluence = input.string('Any', 'Confluence Mode', options=['Any', 'Majority', 'All'], group='🎯 Directional Bias System', tooltip='Any: At least one indicator agrees | Majority: Most indicators agree | All: All enabled indicators agree')
 
-// Filter Combination Logic (Row 13)
-trendExitLogic = input.string('Any Filter Triggers Exit', 'Exit Logic', options=['Any Filter Triggers Exit', 'All Filters Must Agree'], group='🎯 Trend-Exit Filters', inline='te7', tooltip='ANY: Exit when first filter condition is met. ALL: Wait for all enabled filters to agree before exiting.')
-trendExitDebug = input.bool(false, 'Show Debug Info', group='🎯 Trend-Exit Filters', inline='te7', tooltip='Display debug information about trend-exit filter status on chart')
+// Directional Bias Indicators
+// Enable the trend indicators you want to use for determining trade direction
+hullBiasEnable = input.bool(true, '🌊 Hull Suite', group='🎯 Directional Bias System', inline='db1', tooltip='Enable Hull Suite for directional bias calculation')
+supertrendBiasEnable = input.bool(false, '⚡ SuperTrend', group='🎯 Directional Bias System', inline='db1', tooltip='Enable SuperTrend for directional bias calculation')
+quadrantBiasEnable = input.bool(false, '🎯 Quadrant NW', group='🎯 Directional Bias System', inline='db1', tooltip='Enable Quadrant NW for directional bias calculation')
+adaptiveBiasEnable = input.bool(false, '🤖 Adaptive ST', group='🎯 Directional Bias System', inline='db2', tooltip='Enable Adaptive SuperTrend for directional bias calculation')
+volumaticBiasEnable = input.bool(false, '📊 Volumatic', group='🎯 Directional Bias System', inline='db2', tooltip='Enable Volumatic VIDYA for directional bias calculation')
+smoothHABiasEnable = input.bool(false, '🕯️ Smooth HA', group='🎯 Directional Bias System', inline='db2', tooltip='Enable Smooth Heiken Ashi for directional bias calculation')
 
-// ═══════════════════ DIRECTIONAL BIAS SELECTION SYSTEM ═══════════════════
-// Choose which trend indicators/inputs to use for directional bias determination
+// ═══════════════════ TREND INDICATOR SECTION (PLOT-POINT DRIVEN) ═══════════════════
+// External plot point inputs for trend indicators - internal calculations surgically removed
+// PROTECTED: Step Channel and MA Crossover Exit remain internally calculated
 
-// Master Controls
-useLegacyTrendSystem = input.bool(false, '🔄 Use Legacy Trend System', group='🎯 Directional Bias Selection', inline='db1', tooltip='Enable the old trend-following system. Disable this to use only the new flexible bias selection system.')
+// ──────── TREND STRENGTH (EXTERNAL PLOT POINTS) ────────────
+trendStrengthEnable = input.bool(false, '💪 Trend Strength', group='📈 Trend Indicators', inline='ts1')
+trendStrengthLongSrc = input.source(close, 'Long', group='📈 Trend Indicators', inline='ts1', tooltip='Connect to Trend Strength Long signal plot')
+trendStrengthShortSrc = input.source(close, 'Short', group='📈 Trend Indicators', inline='ts1', tooltip='Connect to Trend Strength Short signal plot')
 
-// Primary Directional Bias Source
-primaryBiasSource = input.string('Hull Suite', 'Primary Bias Source', options=['Hull Suite', 'SuperTrend', 'Quadrant NW', 'Adaptive SuperTrend', 'Volumatic VIDYA', 'Smooth Heiken Ashi', 'External Input', 'Price Action'], group='🎯 Directional Bias Selection', inline='db2', tooltip='Primary source for determining directional bias')
+// ──────── HULL SUITE (EXTERNAL PLOT POINTS) ────────────
+hullEnable = input.bool(true, '🌊 Hull Suite', group='📈 Trend Indicators', inline='hull1')
+hullLongSrc = input.source(close, 'Long', group='📈 Trend Indicators', inline='hull1', tooltip='Connect to Hull Suite Long signal plot')
+hullShortSrc = input.source(close, 'Short', group='📈 Trend Indicators', inline='hull1', tooltip='Connect to Hull Suite Short signal plot')
 
-// Secondary Directional Bias Source (for confluence)
-secondaryBiasSource = input.string('None', 'Secondary Bias Source', options=['None', 'Hull Suite', 'SuperTrend', 'Quadrant NW', 'Adaptive SuperTrend', 'Volumatic VIDYA', 'Smooth Heiken Ashi', 'External Input', 'Price Action'], group='🎯 Directional Bias Selection', inline='db3', tooltip='Optional secondary source for bias confluence. Set to None to use only primary source.')
+// ──────── SUPERTREND (EXTERNAL PLOT POINTS) ────────────
+supertrendEnable = input.bool(false, '⚡ SuperTrend', group='📈 Trend Indicators', inline='st1')
+supertrendLongSrc = input.source(close, 'Long', group='📈 Trend Indicators', inline='st1', tooltip='Connect to SuperTrend Long signal plot')
+supertrendShortSrc = input.source(close, 'Short', group='📈 Trend Indicators', inline='st1', tooltip='Connect to SuperTrend Short signal plot')
 
-// External Input for Custom Bias
-externalBiasEnable = input.bool(false, '📡 External Bias Input', group='🎯 Directional Bias Selection', inline='db4', tooltip='Enable external input for custom directional bias (e.g., from another indicator)')
-externalBiasSrc = input.source(close, 'External Source', group='🎯 Directional Bias Selection', inline='db4', tooltip='Connect to external indicator output for custom bias determination')
+// ──────── QUADRANT NW (EXTERNAL PLOT POINTS) ────────────
+quadrantEnable = input.bool(false, '📊 Quadrant NW', group='📈 Trend Indicators', inline='quad1')
+quadrantLongSrc = input.source(close, 'Long', group='📈 Trend Indicators', inline='quad1', tooltip='Connect to Quadrant NW Long signal plot')
+quadrantShortSrc = input.source(close, 'Short', group='📈 Trend Indicators', inline='quad1', tooltip='Connect to Quadrant NW Short signal plot')
 
-// Bias Confluence Logic
-biasConfluenceMode = input.string('Primary Only', 'Bias Confluence', options=['Primary Only', 'Both Must Agree', 'Either Can Trigger'], group='🎯 Directional Bias Selection', inline='db5', tooltip='Primary Only: Use only primary source | Both Must Agree: Both sources must agree | Either Can Trigger: Either source can determine bias')
+// ──────── ADAPTIVE SUPERTREND (EXTERNAL PLOT POINTS) ────────────
+adaptiveSTEnable = input.bool(true, '🤖 Adaptive ST', group='📈 Trend Indicators', inline='ast1')
+adaptiveLongSrc = input.source(close, 'Long', group='📈 Trend Indicators', inline='ast1', tooltip='Connect to Adaptive SuperTrend Long signal plot')
+adaptiveShortSrc = input.source(close, 'Short', group='📈 Trend Indicators', inline='ast1', tooltip='Connect to Adaptive SuperTrend Short signal plot')
+// EXTERNAL INPUT: Connect to Adaptive.pine "Volatility Regime Number" plot
+adaptiveRegimeInput = input.source(close, 'Regime Number', group='📈 Trend Indicators', inline='ast2', tooltip='Connect this to the "Volatility Regime Number" plot from the Adaptive SuperTrend indicator')
 
-// Individual Trend Indicator Enable/Disable Controls
-indicatorControlsHeader = input.string('--- Individual Indicator Controls ---', 'Indicator Controls', group='🎯 Directional Bias Selection', inline='db6', tooltip='Enable/disable individual trend indicators for bias calculation')
+// ──────── VOLUMATIC VIDYA (EXTERNAL PLOT POINTS) ────────────
+volumaticEnable = input.bool(false, '📊 Volumatic', group='📈 Trend Indicators', inline='vol1')
+volumaticLongSrc = input.source(close, 'Long', group='📈 Trend Indicators', inline='vol1', tooltip='Connect to Volumatic VIDYA Long signal plot')
+volumaticShortSrc = input.source(close, 'Short', group='📈 Trend Indicators', inline='vol1', tooltip='Connect to Volumatic VIDYA Short signal plot')
 
-// Row 1: Core Indicators
-hullBiasEnable = input.bool(true, '🌊 Hull Suite', group='🎯 Directional Bias Selection', inline='db7', tooltip='Enable Hull Suite for bias calculation')
-supertrendBiasEnable = input.bool(false, '⚡ SuperTrend', group='🎯 Directional Bias Selection', inline='db7', tooltip='Enable SuperTrend for bias calculation')
-quadrantBiasEnable = input.bool(false, '🎯 Quadrant NW', group='🎯 Directional Bias Selection', inline='db7', tooltip='Enable Quadrant NW for bias calculation')
+// ──────── SMOOTH HEIKEN ASHI (EXTERNAL PLOT POINTS) ────────────
+smoothHAEnable = input.bool(false, '🕯️ Smooth HA', group='📈 Trend Indicators', inline='sha1')
+smoothHALongSrc = input.source(close, 'Long', group='📈 Trend Indicators', inline='sha1', tooltip='Connect to Smooth Heiken Ashi Long signal plot')
+smoothHAShortSrc = input.source(close, 'Short', group='📈 Trend Indicators', inline='sha1', tooltip='Connect to Smooth Heiken Ashi Short signal plot')
 
-// Row 2: Advanced Indicators
-adaptiveBiasEnable = input.bool(false, '🤖 Adaptive ST', group='🎯 Directional Bias Selection', inline='db8', tooltip='Enable Adaptive SuperTrend for bias calculation')
-volumaticBiasEnable = input.bool(false, '📊 Volumatic', group='🎯 Directional Bias Selection', inline='db8', tooltip='Enable Volumatic VIDYA for bias calculation')
-smoothHABiasEnable = input.bool(false, '🕯️ Smooth HA', group='🎯 Directional Bias Selection', inline='db8', tooltip='Enable Smooth Heiken Ashi for bias calculation')
+// ──────── STEP CHANNEL (INTERNAL CALCULATION - PROTECTED) ────────────
+// CRITICAL: This calculation must remain internal and unchanged
+// Note: Step Channel enable toggle and controls are in Step Channel Scalp Zone section
 
-// ═══════════════════ EXTENDED BIAS FILTERS (6 INDICATORS) ═══════════════════
-// Professional trend-based directional bias filters with confluence logic
 
-// Confluence Logic (Row 1)
-biasConfluence = input.string('Any', 'Confluence Mode', options=['Any', 'Majority', 'All'], group='🎯 Extended Bias Filters', inline='conf1', tooltip='Any: At least one filter agrees | Majority: Most filters agree | All: All enabled filters agree')
-
-// ──────── ROW 1: CORE TREND FILTERS ────────────
-// Hull Suite Filter (Section 1)
-hullEnable = input.bool(true, '📈 Hull Suite', group='🎯 Extended Bias Filters', inline='hull1')
-hullLength = input.int(55, 'Length', minval=10, maxval=200, group='🎯 Extended Bias Filters', inline='hull1')
-hullMode = input.string('Hma', 'Type', options=['Hma', 'Ehma', 'Thma'], group='🎯 Extended Bias Filters', inline='hull2')
-
-// SuperTrend Filter (Section 2)
-supertrendEnable = input.bool(false, '🔥 SuperTrend', group='🎯 Extended Bias Filters', inline='st1')
-supertrendFactor = input.float(3.0, 'Factor', minval=1.0, maxval=10.0, step=0.1, group='🎯 Extended Bias Filters', inline='st1')
-supertrendATR = input.int(10, 'ATR', minval=5, maxval=50, group='🎯 Extended Bias Filters', inline='st2')
-
-// Quadrant NW Filter (Section 3) - FULL NADARAYA-WATSON IMPLEMENTATION
-quadrantEnable = input.bool(false, '📊 Quadrant NW', group='🎯 Extended Bias Filters', inline='quad1')
-quadrantLookback = input.float(8.0, 'Lookback Window', minval=3.0, maxval=50.0, step=0.5, group='🎯 Extended Bias Filters', inline='quad1', tooltip='The number of bars used for the estimation. Recommended range: 3-50')
-quadrantRelativeWeight = input.float(8.0, 'Relative Weighting', minval=0.25, maxval=25.0, step=0.25, group='🎯 Extended Bias Filters', inline='quad2', tooltip='Relative weighting of time frames. Lower values = more long-term influence. Recommended range: 0.25-25')
-quadrantStartBar = input.int(25, 'Start Regression at Bar', minval=5, maxval=50, group='🎯 Extended Bias Filters', inline='quad2', tooltip='Bar index to start regression. Omits volatile initial bars. Recommended range: 5-25')
-
-// ──────── ROW 2: ADVANCED TREND FILTERS ────────────
-// Adaptive SuperTrend Filter (Section 4) - FULL K-MEANS IMPLEMENTATION
-adaptiveSTEnable = input.bool(false, '🤖 Adaptive ST', group='🎯 Extended Bias Filters', inline='ast1')
-// Full K-means Clustering Parameters (matching Adaptive.pine exactly)
-adaptive_atr_len = input.int(10, 'ATR Length', minval=5, maxval=50, group='🎯 Extended Bias Filters', inline='ast3')
-adaptive_fact = input.float(3.0, 'SuperTrend Factor', minval=1.0, maxval=10.0, step=0.1, group='🎯 Extended Bias Filters', inline='ast3')
-adaptive_training_period = input.int(100, 'Training Period', minval=50, maxval=200, group='🎯 Extended Bias Filters', inline='ast4')
-adaptive_highvol = input.float(0.75, 'High Vol %', minval=0.5, maxval=1.0, step=0.05, group='🎯 Extended Bias Filters', inline='ast4')
-adaptive_midvol = input.float(0.5, 'Med Vol %', minval=0.3, maxval=0.7, step=0.05, group='🎯 Extended Bias Filters', inline='ast5')
-adaptive_lowvol = input.float(0.25, 'Low Vol %', minval=0.1, maxval=0.5, step=0.05, group='🎯 Extended Bias Filters', inline='ast5')
-
-// Volumatic VIDYA Filter (Section 5) - FULL VARIABLE INDEX DYNAMIC AVERAGE
-volumaticEnable = input.bool(false, '📊 Volumatic', group='🎯 Extended Bias Filters', inline='vol1')
-volumaticLength = input.int(10, 'VIDYA Length', minval=5, maxval=100, group='🎯 Extended Bias Filters', inline='vol1', tooltip='Length of the VIDYA calculation')
-volumaticMomentum = input.int(20, 'VIDYA Momentum', minval=5, maxval=50, group='🎯 Extended Bias Filters', inline='vol2', tooltip='Momentum length for VIDYA calculation')
-volumaticBandDistance = input.float(2.0, 'Band Distance', minval=0.1, maxval=5.0, step=0.1, group='🎯 Extended Bias Filters', inline='vol2', tooltip='Distance factor for upper/lower bands')
-
-// Smoothed Heiken Ashi Filter (Section 6) - FULL DUAL SMOOTHING IMPLEMENTATION
-smoothHAEnable = input.bool(false, '🕯️ Smooth HA', group='🎯 Extended Bias Filters', inline='sha1')
-// Before HA Smoothing (matching original SmoothHK.pine)
-smoothHALength = input.int(10, 'Before Smooth Length', minval=1, maxval=50, group='🎯 Extended Bias Filters', inline='sha1', tooltip='Smooth length before HA calculation')
-smoothHAMode = input.string('EMA', 'Before MA Type', options=['SMA', 'EMA', 'WMA', 'VWMA', 'RMA', 'DEMA', 'TEMA', 'HMA', 'ALMA', 'LSMA'], group='🎯 Extended Bias Filters', inline='sha2', tooltip='MA type for pre-HA smoothing')
-// After HA Smoothing (matching original SmoothHK.pine)
-smoothHAAfterLength = input.int(10, 'After Smooth Length', minval=1, maxval=50, group='🎯 Extended Bias Filters', inline='sha3', tooltip='Smooth length after HA calculation')
-smoothHAAfterMode = input.string('EMA', 'After MA Type', options=['SMA', 'EMA', 'WMA', 'VWMA', 'RMA', 'DEMA', 'TEMA', 'HMA', 'ALMA', 'LSMA'], group='🎯 Extended Bias Filters', inline='sha3', tooltip='MA type for post-HA smoothing')
 
 // ═══════════════════ DUAL-LAYER MODE SELECTION SYSTEM ═══════════════════
 // Intelligent switching between scalping and trend-following modes
@@ -878,31 +820,31 @@ smoothHAAfterMode = input.string('EMA', 'After MA Type', options=['SMA', 'EMA', 
 // LAYER 2: CVD Channel Breakout (Institutional Confirmation)
 
 // ──────── STEP CHANNEL MOMENTUM SETTINGS ────────────
-stepChannelEnable = input.bool(true, "Enable Step Channel Filter", group="🎯 Dual-Layer Mode Selection")
-stepChannelLength = input.int(3, "Step Channel Length", minval=1, maxval=50, group="🎯 Dual-Layer Mode Selection")
-stepChannelMultiplier = input.float(0.6, "Step Channel Multiplier", minval=0.1, maxval=5.0, step=0.1, group="🎯 Dual-Layer Mode Selection")
+// Essential controls for Step Channel sensitivity (scalp vs trend mode detection)
+stepChannelEnable = input.bool(true, '📊 Step Channel Filter', group='🎯 Step Channel Scalp Zone', tooltip='Enable Step Channel scalp zone detection')
+stepChannelLength = input.int(3, "Step Channel Length", minval=1, maxval=50, group="🎯 Step Channel Scalp Zone", inline="sc1", tooltip="Controls sensitivity - lower = more sensitive")
+stepChannelMultiplier = input.float(0.6, "Multiplier", minval=0.1, maxval=5.0, step=0.1, group="🎯 Step Channel Scalp Zone", inline="sc1", tooltip="Channel width multiplier")
 
-// Step Channel Visual Settings
-stepChannelShowVisuals = input.bool(true, "Show Step Channel Visuals", group="🎯 Dual-Layer Mode Selection")
-stepChannelColorUp = input.color(color.rgb(26, 190, 127), "Momentum Up Color", inline="SC Colors", group="🎯 Dual-Layer Mode Selection")
-stepChannelColorRange = input.color(color.orange, "Range Color", inline="SC Colors", group="🎯 Dual-Layer Mode Selection")
-stepChannelColorDown = input.color(color.rgb(202, 38, 65), "Momentum Down Color", inline="SC Colors", group="🎯 Dual-Layer Mode Selection")
-stepChannelShowPivots = input.bool(true, "Show Pivot Points", group="🎯 Dual-Layer Mode Selection")
-stepChannelShowCandles = input.bool(true, "Show Momentum Candles", group="🎯 Dual-Layer Mode Selection")
-stepChannelShowLines = input.bool(true, "Show Channel Lines", group="🎯 Dual-Layer Mode Selection")
-stepChannelShowLabel = input.bool(true, "Show Market State Label", group="🎯 Dual-Layer Mode Selection")
+// Step Channel Visual Settings (matching original StepChannel.pine exactly)
+stepChannelShowVisuals = input.bool(true, "Show Step Channel Visuals", group="🎯 Step Channel Scalp Zone", tooltip="Enable/disable all Step Channel visualizations")
+stepChannelColorUp = input.color(color.rgb(26, 190, 127), "Momentum Up", inline="SC Colors", group="🎯 Step Channel Scalp Zone")
+stepChannelColorRange = input.color(color.orange, "Range", inline="SC Colors", group="🎯 Step Channel Scalp Zone")
+stepChannelColorDown = input.color(color.rgb(202, 38, 65), "Momentum Down", inline="SC Colors", group="🎯 Step Channel Scalp Zone")
+stepChannelShowPivots = input.bool(true, "Show Pivot Points", group="🎯 Step Channel Scalp Zone")
+stepChannelShowCandles = input.bool(true, "Show Momentum Candles", group="🎯 Step Channel Scalp Zone")
+stepChannelShowLines = input.bool(true, "Show Channel Lines", group="🎯 Step Channel Scalp Zone")
+stepChannelShowLabel = input.bool(true, "Show Market State Label", group="🎯 Step Channel Scalp Zone")
 
-// ──────── LAYER 2: CVD CHANNEL BREAKOUT SETTINGS ────────────
-cvdEnable = input.bool(true, '📈 CVD Confirmation', group='🎯 Mode Selection', tooltip='Enable CVD institutional flow confirmation')
-cvdAnchor = input.timeframe('120', 'CVD Anchor', group='🎯 Mode Selection', inline='cvd1', tooltip='120=2h, 240=4h, 1D=1day')
-cvdThreshold = input.int(1000, 'CVD Threshold', minval=100, maxval=10000, group='🎯 Mode Selection', inline='cvd1', tooltip='CVD must be outside ±threshold for trend mode')
-cvdUseCustomTimeframe = input.bool(false, 'Custom CVD TF', group='🎯 Mode Selection', inline='cvd2', tooltip='Override automatic timeframe selection')
-cvdCustomTimeframe = input.timeframe('1', 'CVD Custom TF', group='🎯 Mode Selection', inline='cvd2', tooltip='Custom timeframe for CVD calculation')
+// ──────── CUMULATIVE VOLUME DELTA FILTER ────────────
+cvdEnable = input.bool(true, '📈 CVD Filter', group='📊 Cumulative Volume Delta Filter', tooltip='Enable CVD institutional flow confirmation')
+cvdAnchor = input.timeframe('120', 'CVD Anchor', group='📊 Cumulative Volume Delta Filter', inline='cvd1', tooltip='120=2h, 240=4h, 1D=1day')
+cvdThreshold = input.int(1000, 'CVD Threshold', minval=100, maxval=10000, group='📊 Cumulative Volume Delta Filter', inline='cvd1', tooltip='CVD must be outside ±threshold for trend mode')
+cvdUseCustomTimeframe = input.bool(false, 'Custom CVD TF', group='📊 Cumulative Volume Delta Filter', inline='cvd2', tooltip='Override automatic timeframe selection')
+cvdCustomTimeframe = input.timeframe('1', 'CVD Custom TF', group='📊 Cumulative Volume Delta Filter', inline='cvd2', tooltip='Custom timeframe for CVD calculation')
 
-// ──────── MODE SELECTION LOGIC SETTINGS ────────────
-modeSelectionLogic = input.string('Both Required', 'Activation Logic', options=['Step Channel Only', 'CVD Only', 'Both Required', 'Either Filter'], group='🎯 Mode Selection', tooltip='How filters combine: Both Required = maximum selectivity')
-scalpOnlyOverride = input.bool(false, 'Force Scalp Mode', group='🎯 Mode Selection', tooltip='Override all filters and force scalp-only mode for testing')
-trendModeDebug = input.bool(false, 'Show Debug Info', group='🎯 Mode Selection', tooltip='Display mode selection debug information')
+// ──────── MODE SELECTION DEBUG SETTINGS ────────────
+scalpOnlyOverride = input.bool(false, 'Force Scalp Mode', group='📊 Cumulative Volume Delta Filter', tooltip='Override all filters and force scalp-only mode for testing')
+trendModeDebug = input.bool(false, 'Show Debug Info', group='📊 Cumulative Volume Delta Filter', tooltip='Display mode selection debug information')
 
 // ═══════════════════ DUAL-LAYER MODE SELECTION CALCULATIONS ═══════════════════
 // Intelligent regime detection for scalp vs trend mode switching
@@ -1007,16 +949,13 @@ if scalpOnlyOverride
     trendFollowingMode := false
     currentTradingMode := "SCALP (FORCED)"
 else
-    // Apply dual-layer logic based on user selection
-    switch modeSelectionLogic
-        "Step Channel Only" =>
-            trendFollowingMode := stepChannelTrendMode
-        "CVD Only" =>
-            trendFollowingMode := cvdTrendMode
-        "Both Required" =>
-            trendFollowingMode := stepChannelTrendMode and cvdTrendMode
-        "Either Filter" =>
-            trendFollowingMode := stepChannelTrendMode or cvdTrendMode
+    // Apply independent filter logic - each enabled filter is required
+    // If Step Channel is enabled, it must allow trend mode
+    // If CVD is enabled, it must allow trend mode
+    // Both filters must agree if both are enabled
+    stepChannelAllows = stepChannelEnable ? stepChannelTrendMode : true
+    cvdAllows = cvdEnable ? cvdTrendMode : true
+    trendFollowingMode := stepChannelAllows and cvdAllows
     
     scalpOnlyMode := not trendFollowingMode
     currentTradingMode := trendFollowingMode ? "TREND" : "SCALP"
@@ -1041,8 +980,9 @@ if trendModeDebug and barstate.islast
     table.cell(debugTable, 1, 3, "±" + str.tostring(cvdThreshold), text_color=color.black, text_size=size.small)
     table.cell(debugTable, 2, 3, "", text_color=color.black, text_size=size.small)
     
-    table.cell(debugTable, 0, 4, "Mode Logic:", text_color=color.black, text_size=size.small)
-    table.cell(debugTable, 1, 4, modeSelectionLogic, text_color=color.black, text_size=size.small)
+    table.cell(debugTable, 0, 4, "Filter Logic:", text_color=color.black, text_size=size.small)
+    filterLogicText = "Independent (" + (stepChannelEnable ? "SC" : "") + (stepChannelEnable and cvdEnable ? "+" : "") + (cvdEnable ? "CVD" : "") + ")"
+    table.cell(debugTable, 1, 4, filterLogicText, text_color=color.black, text_size=size.small)
     table.cell(debugTable, 2, 4, "", text_color=color.black, text_size=size.small)
     
     table.cell(debugTable, 0, 5, "Trading Mode:", text_color=color.black, text_size=size.small)
@@ -1059,206 +999,97 @@ if stepChannelShowLabel and barstate.islast
               size=size.normal,
               tooltip="Current Trading Mode\nStep Channel: " + stepChannelState + "\nCVD: " + str.tostring(math.round(cvdValue)))
 
-// ═══════════════════ HULL SUITE CALCULATION ═══════════════════
-// Hull Moving Average trend detection
+// ═══════════════════ HULL SUITE (EXTERNAL PLOT POINTS) ═══════════════════
+// Hull Suite trend detection via external plot points - internal calculation removed
 
-// Hull MA calculation functions (must be defined outside conditional blocks)
-HMA(src, length) =>
-    ta.wma(2 * ta.wma(src, length / 2) - ta.wma(src, length), math.round(math.sqrt(length)))
-
-EHMA(src, length) =>
-    ta.ema(2 * ta.ema(src, length / 2) - ta.ema(src, length), math.round(math.sqrt(length)))
-
-THMA(src, length) =>
-    ta.wma(ta.wma(src, length / 3) * 3 - ta.wma(src, length / 2) - ta.wma(src, length), length)
-
-var float hullMA = na
 var bool hullBullish = false
 
 if hullEnable
+    // Use external plot point signals instead of internal calculation
+    hullLongSignal = hullLongSrc != hullLongSrc[1] and hullLongSrc > 0
+    hullShortSignal = hullShortSrc != hullShortSrc[1] and hullShortSrc > 0
     
-    // CRITICAL FIX: THMA should use full hullLength, not divided by 2
-    hullMA := hullMode == 'Hma' ? HMA(close, hullLength) : hullMode == 'Ehma' ? EHMA(close, hullLength) : hullMode == 'Thma' ? THMA(close, hullLength) : na
-    
-    // Determine trend direction (current > 2 bars ago = bullish)
-    hullBullish := not na(hullMA) and hullMA > hullMA[2]
+    // Determine trend direction from external signals
+    if hullLongSignal
+        hullBullish := true
+    else if hullShortSignal
+        hullBullish := false
+    // Otherwise maintain previous state
 else
     // When disabled, set neutral (allow all trades)
     hullBullish := false
 
-// ═══════════════════ SUPERTREND CALCULATION ═══════════════════
-// SuperTrend directional bias
-var float supertrend = na
-var float supertrendDirection = na
+// ═══════════════════ SUPERTREND (EXTERNAL PLOT POINTS) ═══════════════════
+// SuperTrend trend detection via external plot points - internal calculation removed
+
 var bool supertrendBullish = false
 
 if supertrendEnable
-    [st, dir] = ta.supertrend(supertrendFactor, supertrendATR)
-    supertrend := st
-    supertrendDirection := dir
+    // Use external plot point signals instead of internal calculation
+    supertrendLongSignal = supertrendLongSrc != supertrendLongSrc[1] and supertrendLongSrc > 0
+    supertrendShortSignal = supertrendShortSrc != supertrendShortSrc[1] and supertrendShortSrc > 0
     
-    // CRITICAL FIX: SuperTrend Direction Logic Verification
-    // Pine Script ta.supertrend() returns:
-    // dir = 1 when price is BELOW SuperTrend (bearish/downtrend)
-    // dir = -1 when price is ABOVE SuperTrend (bullish/uptrend)
-    // Therefore: bullish when dir < 0 (dir = -1) is CORRECT
-    supertrendBullish := dir < 0  // Verified: Uptrend when direction = -1
+    // Determine trend direction from external signals
+    if supertrendLongSignal
+        supertrendBullish := true
+    else if supertrendShortSignal
+        supertrendBullish := false
+    // Otherwise maintain previous state
 else
     // When disabled, set neutral (allow all trades)
     supertrendBullish := false
 
-// ═══════════════════ QUADRANT (NADARAYA-WATSON) CALCULATION ═══════════════════
-// Rational Quadratic Kernel regression for trend detection
+// ═══════════════════ QUADRANT NW (EXTERNAL PLOT POINTS) ═══════════════════
+// Quadrant NW trend detection via external plot points - internal calculation removed
 
-// Nadaraya-Watson Kernel Regression Function (exact copy from original Quadrant.pine)
-kernel_regression(_src, _size, _h, _r, _x_0) =>
-    float _currentWeight = 0.
-    float _cumulativeWeight = 0.
-    for i = 0 to _size + _x_0 by 1
-        y = _src[i]
-        w = math.pow(1 + math.pow(i, 2) / (math.pow(_h, 2) * 2 * _r), -_r)
-        _currentWeight := _currentWeight + y * w
-        _cumulativeWeight := _cumulativeWeight + w
-        _cumulativeWeight
-    _currentWeight / _cumulativeWeight
-
-var float quadrantEstimate = na
 var bool quadrantBullish = false
 
 if quadrantEnable
-    // Calculate kernel estimate using proper Nadaraya-Watson parameters
-    size = array.size(array.from(close))  // Size of data series
-    quadrantEstimate := kernel_regression(close, size, quadrantLookback, quadrantRelativeWeight, quadrantStartBar)
+    // Use external plot point signals instead of internal calculation
+    quadrantLongSignal = quadrantLongSrc != quadrantLongSrc[1] and quadrantLongSrc > 0
+    quadrantShortSignal = quadrantShortSrc != quadrantShortSrc[1] and quadrantShortSrc > 0
     
-    // Determine trend direction (matching original logic)
-    quadrantBullish := not na(quadrantEstimate) and quadrantEstimate > quadrantEstimate[1]
+    // Determine trend direction from external signals
+    if quadrantLongSignal
+        quadrantBullish := true
+    else if quadrantShortSignal
+        quadrantBullish := false
+    // Otherwise maintain previous state
 else
     // When disabled, set neutral (allow all trades)
     quadrantBullish := false
 
 
 
-// ═══════════════════ ADAPTIVE SUPERTREND (FULL K-MEANS IMPLEMENTATION) ═══════════════════
-// Complete restoration of Adaptive.pine algorithm with K-means clustering
-// Provides volatility classification numbers (1/2/3) for exit filter system
-
-// Pine SuperTrend function (from Adaptive.pine)
-adaptive_pine_supertrend(factor, atr_val) =>
-    src = hl2
-    upperBand = src + factor * atr_val
-    lowerBand = src - factor * atr_val
-    prevLowerBand = nz(lowerBand[1])
-    prevUpperBand = nz(upperBand[1])
-    
-    lowerBand := lowerBand > prevLowerBand or close[1] < prevLowerBand ? lowerBand : prevLowerBand
-    upperBand := upperBand < prevUpperBand or close[1] > prevUpperBand ? upperBand : prevUpperBand
-    int _direction = na
-    float superTrend = na
-    prevSuperTrend = superTrend[1]
-    if na(atr_val[1])
-        _direction := 1
-    else if prevSuperTrend == prevUpperBand
-        _direction := close > upperBand ? -1 : 1
-    else
-        _direction := close < lowerBand ? 1 : -1
-    superTrend := _direction == -1 ? lowerBand : upperBand
-    [superTrend, _direction]
+// ═══════════════════ ADAPTIVE SUPERTREND (EXTERNAL PLOT POINTS) ═══════════════════
+// Adaptive SuperTrend trend detection via external plot points - internal calculation removed
 
 // Preserve existing interface variables for backward compatibility
 var bool adaptiveSTBullish = false
-var float adaptiveST = na
-var int adaptiveSTDirection = 1
+var int adaptiveCluster = na
+var int adaptiveNumber = na
 
 if adaptiveSTEnable
-    // Full K-means clustering algorithm (exact copy from Adaptive.pine)
-    volatility = ta.atr(adaptive_atr_len)
+    // Use external plot point signals for trend direction
+    adaptiveLongSignal = adaptiveLongSrc != adaptiveLongSrc[1] and adaptiveLongSrc > 0
+    adaptiveShortSignal = adaptiveShortSrc != adaptiveShortSrc[1] and adaptiveShortSrc > 0
     
-    upper = ta.highest(volatility, adaptive_training_period)
-    lower = ta.lowest(volatility, adaptive_training_period)
+    // Get volatility regime number from external plot (for exit filter compatibility)
+    adaptiveNumber := math.round(adaptiveRegimeInput)  // Get regime number (1, 2, or 3)
+    // Validate the regime number is within expected range
+    if not na(adaptiveNumber) and adaptiveNumber >= 1 and adaptiveNumber <= 3
+        adaptiveCluster := adaptiveNumber == 3 ? 0 : (adaptiveNumber == 2 ? 1 : 2)  // Convert to cluster index
+    else
+        // Fallback to medium volatility if invalid input
+        adaptiveNumber := 2
+        adaptiveCluster := 1
     
-    high_volatility = lower + (upper - lower) * adaptive_highvol
-    medium_volatility = lower + (upper - lower) * adaptive_midvol
-    low_volatility = lower + (upper - lower) * adaptive_lowvol
-    
-    adaptive_iterations := 0
-    size_a = 0
-    size_b = 0
-    size_c = 0
-    
-    // Initialize centroids on first run
-    if array.size(adaptive_amean) == 1 and array.get(adaptive_amean, 0) == 0
-        array.set(adaptive_amean, 0, high_volatility)
-        array.set(adaptive_bmean, 0, medium_volatility)
-        array.set(adaptive_cmean, 0, low_volatility)
-    
-    // K-means clustering with iterative convergence (from Adaptive.pine)
-    if nz(volatility) > 0 and bar_index >= adaptive_training_period - 1
-        // Iterative K-means algorithm
-        while ((array.size(adaptive_amean) == 1 ? true : (array.get(adaptive_amean, 0) != array.get(adaptive_amean, math.min(1, array.size(adaptive_amean) - 1)))) or 
-               (array.size(adaptive_bmean) == 1 ? true : (array.get(adaptive_bmean, 0) != array.get(adaptive_bmean, math.min(1, array.size(adaptive_bmean) - 1)))) or 
-               (array.size(adaptive_cmean) == 1 ? true : (array.get(adaptive_cmean, 0) != array.get(adaptive_cmean, math.min(1, array.size(adaptive_cmean) - 1))))) and adaptive_iterations < 10
-            
-            array.clear(adaptive_hv)
-            array.clear(adaptive_mv)
-            array.clear(adaptive_lv)
-            
-            // Assign data points to clusters
-            for i = adaptive_training_period - 1 to 0 by 1
-                _1 = math.abs(volatility[i] - array.get(adaptive_amean, 0))
-                _2 = math.abs(volatility[i] - array.get(adaptive_bmean, 0))
-                _3 = math.abs(volatility[i] - array.get(adaptive_cmean, 0))
-                
-                if _1 < _2 and _1 < _3
-                    array.unshift(adaptive_hv, volatility[i])
-                else if _2 < _1 and _2 < _3
-                    array.unshift(adaptive_mv, volatility[i])
-                else if _3 < _1 and _3 < _2
-                    array.unshift(adaptive_lv, volatility[i])
-            
-            // Update centroids
-            if array.size(adaptive_hv) > 0
-                array.unshift(adaptive_amean, array.avg(adaptive_hv))
-            if array.size(adaptive_mv) > 0
-                array.unshift(adaptive_bmean, array.avg(adaptive_mv))
-            if array.size(adaptive_lv) > 0
-                array.unshift(adaptive_cmean, array.avg(adaptive_lv))
-            
-            size_a := array.size(adaptive_hv)
-            size_b := array.size(adaptive_mv)
-            size_c := array.size(adaptive_lv)
-            adaptive_iterations := adaptive_iterations + 1
-    
-    // Get current centroids
-    hv_new = array.size(adaptive_amean) > 0 ? array.get(adaptive_amean, 0) : high_volatility
-    mv_new = array.size(adaptive_bmean) > 0 ? array.get(adaptive_bmean, 0) : medium_volatility
-    lv_new = array.size(adaptive_cmean) > 0 ? array.get(adaptive_cmean, 0) : low_volatility
-    
-    // Calculate distances to each centroid
-    vdist_a = math.abs(volatility - hv_new)
-    vdist_b = math.abs(volatility - mv_new)
-    vdist_c = math.abs(volatility - lv_new)
-    
-    // Assign to closest cluster (0=high, 1=medium, 2=low)
-    adaptiveCluster := vdist_a <= vdist_b and vdist_a <= vdist_c ? 0 : 
-                      vdist_b <= vdist_a and vdist_b <= vdist_c ? 1 : 2
-    
-    // Convert cluster to display number (matching Adaptive.pine exactly)
-    adaptiveNumber := 4 - (adaptiveCluster + 1)  // 0->3, 1->2, 2->1
-    
-    // Get assigned centroid for SuperTrend calculation
-    adaptive_assigned_centroid := adaptiveCluster == 0 ? hv_new : adaptiveCluster == 1 ? mv_new : lv_new
-    
-    // Calculate Adaptive SuperTrend using assigned centroid
-    [adaptive_ST_calc, adaptive_dir_calc] = adaptive_pine_supertrend(adaptive_fact, adaptive_assigned_centroid)
-    
-    // Update interface variables for backward compatibility
-    adaptiveST := adaptive_ST_calc
-    adaptiveSTDirection := adaptive_dir_calc
-    adaptiveSTBullish := adaptive_dir_calc < 0  // Bullish when direction = -1
-else
-    adaptiveSTBullish := false
-    adaptiveCluster := 1  // Default to medium volatility
-    adaptiveNumber := 2   // Default to number 2
+    // Determine trend direction from external signals
+    if adaptiveLongSignal
+        adaptiveSTBullish := true
+    else if adaptiveShortSignal
+        adaptiveSTBullish := false
+    // Otherwise maintain previous state
 
 // ═══════════════════ ADAPTIVE SUPERTREND EXIT FILTER SYSTEM ═══════════════════
 // Revolutionary exit filter using volatility classification numbers (1/2/3)
@@ -1290,109 +1121,43 @@ else
     adaptivePendingExit := false
     adaptiveExitReason := na
 
-// ═══════════════════ VOLUMATIC VIDYA CALCULATION (FULL IMPLEMENTATION) ═══════════════════
-// Complete Variable Index Dynamic Average with proper CMO and volume weighting
-// Exact restoration from original Volumatic.pine by BigBeluga
-
-// VIDYA (Variable Index Dynamic Average) function - exact copy from original
-vidya_calc(src, vidya_length, vidya_momentum) =>
-    float momentum = ta.change(src)
-    float sum_pos_momentum = math.sum(momentum >= 0 ? momentum : 0.0, vidya_momentum)
-    float sum_neg_momentum = math.sum(momentum >= 0 ? 0.0 : -momentum, vidya_momentum)
-    float abs_cmo = math.abs(100 * (sum_pos_momentum - sum_neg_momentum) / (sum_pos_momentum + sum_neg_momentum))
-    float alpha = 2 / (vidya_length + 1)
-    var float vidya_value = 0.0
-    vidya_value := alpha * abs_cmo / 100 * src + (1 - alpha * abs_cmo / 100) * nz(vidya_value[1])
-    ta.sma(vidya_value, 15)  // Smoothed VIDYA as in original
+// ═══════════════════ VOLUMATIC VIDYA (EXTERNAL PLOT POINTS) ═══════════════════
+// Volumatic VIDYA trend detection via external plot points - internal calculation removed
 
 var bool volumaticBullish = false
-var float volumaticVIDYA = na
-var bool volumatic_is_trend_up = false
 
 if volumaticEnable
-    // Calculate VIDYA using complete original algorithm
-    volumaticVIDYA := vidya_calc(close, volumaticLength, volumaticMomentum)
+    // Use external plot point signals instead of internal calculation
+    volumaticLongSignal = volumaticLongSrc != volumaticLongSrc[1] and volumaticLongSrc > 0
+    volumaticShortSignal = volumaticShortSrc != volumaticShortSrc[1] and volumaticShortSrc > 0
     
-    // Calculate ATR for band distance (matching original)
-    atr_volumatic = ta.atr(200)
-    
-    // Calculate upper and lower bands
-    volumatic_upper = volumaticVIDYA + (atr_volumatic * volumaticBandDistance)
-    volumatic_lower = volumaticVIDYA - (atr_volumatic * volumaticBandDistance)
-    
-    // Trend detection logic (matching original sophisticated logic)
-    trend_cross_up = ta.crossover(close, volumaticVIDYA)
-    trend_cross_down = ta.crossunder(close, volumaticVIDYA)
-    
-    // Update trend state
-    if trend_cross_up
-        volumatic_is_trend_up := true
-    else if trend_cross_down
-        volumatic_is_trend_up := false
-    
-    // Bullish when in uptrend and price above VIDYA
-    volumaticBullish := volumatic_is_trend_up and close > volumaticVIDYA
+    // Determine trend direction from external signals
+    if volumaticLongSignal
+        volumaticBullish := true
+    else if volumaticShortSignal
+        volumaticBullish := false
+    // Otherwise maintain previous state
 else
     volumaticBullish := false
-    volumatic_is_trend_up := false
 
-// ═══════════════════ SMOOTHED HEIKEN ASHI (FULL DUAL SMOOTHING IMPLEMENTATION) ═══════════════════
-// Complete restoration of dual smoothing algorithm from original SmoothHK.pine
-// Implements before-HA and after-HA smoothing with multiple MA types
-
-// Advanced MA function supporting multiple types (matching original capabilities)
-get_ma(src, length, ma_type) =>
-    switch ma_type
-        'SMA' => ta.sma(src, length)
-        'EMA' => ta.ema(src, length)
-        'WMA' => ta.wma(src, length)
-        'VWMA' => ta.vwma(src, length)
-        'RMA' => ta.rma(src, length)
-        'DEMA' => 2 * ta.ema(src, length) - ta.ema(ta.ema(src, length), length)
-        'TEMA' => 
-            ema1 = ta.ema(src, length)
-            ema2 = ta.ema(ema1, length)
-            ema3 = ta.ema(ema2, length)
-            3 * ema1 - 3 * ema2 + ema3
-        'HMA' => ta.wma(2 * ta.wma(src, length / 2) - ta.wma(src, length), math.round(math.sqrt(length)))
-        'ALMA' => ta.alma(src, length, 0.85, 6)
-        'LSMA' => ta.linreg(src, length, 0)
-        => ta.ema(src, length)  // Default fallback
+// ═══════════════════ SMOOTHED HEIKEN ASHI (EXTERNAL PLOT POINTS) ═══════════════════
+// Smoothed Heiken Ashi trend detection via external plot points - internal calculation removed
 
 var bool smoothHABullish = false
-var float smoothHA_o = na
-var float smoothHA_h = na
-var float smoothHA_l = na
-var float smoothHA_c = na
 
 if smoothHAEnable
-    // PHASE 1: Pre-HA Smoothing (Before HA calculation)
-    smooth_open = get_ma(open, smoothHALength, smoothHAMode)
-    smooth_high = get_ma(high, smoothHALength, smoothHAMode)
-    smooth_low = get_ma(low, smoothHALength, smoothHAMode)
-    smooth_close = get_ma(close, smoothHALength, smoothHAMode)
+    // Use external plot point signals instead of internal calculation
+    smoothHALongSignal = smoothHALongSrc != smoothHALongSrc[1] and smoothHALongSrc > 0
+    smoothHAShortSignal = smoothHAShortSrc != smoothHAShortSrc[1] and smoothHAShortSrc > 0
     
-    // PHASE 2: Heiken Ashi Calculation (using smoothed OHLC)
-    ha_close = (smooth_open + smooth_high + smooth_low + smooth_close) / 4
-    ha_open = na(smoothHA_o[1]) ? (smooth_open + smooth_close) / 2 : (smoothHA_o[1] + smoothHA_c[1]) / 2
-    ha_high = math.max(smooth_high, math.max(ha_open, ha_close))
-    ha_low = math.min(smooth_low, math.min(ha_open, ha_close))
-    
-    // PHASE 3: Post-HA Smoothing (After HA calculation)
-    smoothHA_o := get_ma(ha_open, smoothHAAfterLength, smoothHAAfterMode)
-    smoothHA_h := get_ma(ha_high, smoothHAAfterLength, smoothHAAfterMode)
-    smoothHA_l := get_ma(ha_low, smoothHAAfterLength, smoothHAAfterMode)
-    smoothHA_c := get_ma(ha_close, smoothHAAfterLength, smoothHAAfterMode)
-    
-    // PHASE 4: Trend Detection (matching original logic)
-    // Bullish when smoothed HA close > smoothed HA open (uptrend candle)
-    smoothHABullish := smoothHA_c > smoothHA_o
+    // Determine trend direction from external signals
+    if smoothHALongSignal
+        smoothHABullish := true
+    else if smoothHAShortSignal
+        smoothHABullish := false
+    // Otherwise maintain previous state
 else
     smoothHABullish := false
-    smoothHA_o := na
-    smoothHA_h := na
-    smoothHA_l := na
-    smoothHA_c := na
 
 // ═══════════════════ DIRECTIONAL BIAS INTEGRATION ═══════════════════
 // Apply directional bias filters to entry signals with confluence logic
@@ -1668,9 +1433,9 @@ if shortEntrySignal
 if debugEnabled
     // Always show filter status when debug is enabled
     filterStatusMsg = 'FILTER STATUS:'
-    filterStatusMsg += ' Hull=' + (hullEnable ? (hullBullish ? 'BULL' : 'BEAR') + '(' + str.tostring(hullMA, '#.##') + ')' : 'OFF')
-    filterStatusMsg += ' ST=' + (supertrendEnable ? (supertrendBullish ? 'BULL' : 'BEAR') + '(' + str.tostring(supertrendDirection, '#.#') + ')' : 'OFF')
-    filterStatusMsg += ' Quad=' + (quadrantEnable ? (quadrantBullish ? 'BULL' : 'BEAR') + '(' + str.tostring(quadrantEstimate, '#.##') + ')' : 'OFF')
+    filterStatusMsg += ' Hull=' + (hullEnable ? (hullBullish ? 'BULL' : 'BEAR') : 'OFF')
+    filterStatusMsg += ' ST=' + (supertrendEnable ? (supertrendBullish ? 'BULL' : 'BEAR') : 'OFF')
+    filterStatusMsg += ' Quad=' + (quadrantEnable ? (quadrantBullish ? 'BULL' : 'BEAR') : 'OFF')
 
     debugInfo(filterStatusMsg)
     
@@ -1812,20 +1577,21 @@ if trendExitDebug and strategy.position_size != 0
                               style=label.style_label_down, 
                               size=size.small)
 
-// Subtle visual markers for trend-exit filter state changes
-plotshape(trendExitDebug and trendHoldActive and not trendHoldActive[1], 
-          title='Hold Filter Active', 
-          style=shape.circle, 
-          location=location.belowbar, 
-          color=color.new(color.orange, 30), 
-          size=size.tiny)
+// Subtle visual markers for trend-exit filter state changes (removed - variables no longer exist)
+// plotshape(trendExitDebug and trendHoldActive and not trendHoldActive[1], 
+//           title='Hold Filter Active', 
+//           style=shape.circle, 
+//           location=location.belowbar, 
+//           color=color.new(color.orange, 30), 
+//           size=size.tiny)
 
-plotshape(trendExitDebug and not trendHoldActive and trendHoldActive[1], 
-          title='Hold Filter Inactive', 
-          style=shape.xcross, 
-          location=location.belowbar, 
-          color=color.new(color.gray, 30), 
-          size=size.tiny)
+// Debug visualization removed - trendExitDebug variable no longer exists
+// plotshape(trendExitDebug and not trendHoldActive and trendHoldActive[1], 
+//           title='Hold Filter Inactive', 
+//           style=shape.xcross, 
+//           location=location.belowbar, 
+//           color=color.new(color.gray, 30), 
+//           size=size.tiny)
 
 // ═══════════════════ STEP CHANNEL MOMENTUM VISUALS ═══════════════════
 // Complete ChartPrime Step Channel Momentum visualization (moved to global scope)
@@ -1857,20 +1623,33 @@ plot(stepChannelLinesActive ? stepChannelLower : na,
      color=stepChannelLinesActive ? chart.fg_color : na, 
      style=plot.style_linebr)
 
-// Step Channel complete candle coloring (EXACT ChartPrime implementation)
-// plotcandle() colors body, wicks, AND borders - complete yellow/green/red candles
+// Step Channel momentum candles (EXACT copy from original StepChannel.pine)
 plotcandle(stepChannelEnable and stepChannelShowCandles ? open : na, 
            stepChannelEnable and stepChannelShowCandles ? high : na, 
            stepChannelEnable and stepChannelShowCandles ? low : na, 
            stepChannelEnable and stepChannelShowCandles ? close : na, 
-           title='Step Channel Momentum Candles', 
-           color=stepChannelEnable ? stepChannelCurrentColor : na, 
-           wickcolor=stepChannelEnable ? stepChannelCurrentColor : na, 
-           bordercolor=stepChannelEnable ? stepChannelCurrentColor : na)
+           title='Momentum Candles', 
+           color=stepChannelEnable and stepChannelShowCandles ? stepChannelCurrentColor : na, 
+           wickcolor=stepChannelEnable and stepChannelShowCandles ? stepChannelCurrentColor : na, 
+           bordercolor=stepChannelEnable and stepChannelShowCandles ? stepChannelCurrentColor : na)
 
 // Step Channel market state label (matching ChartPrime exactly)
 if stepChannelShowVisualsActive and stepChannelShowLabel and barstate.islast
     label.delete(label.new(bar_index, close, stepChannelState, color=color(na), textcolor=stepChannelCurrentColor, style=label.style_label_left, size=size.large)[1])
+
+// ═══════════════════ ADAPTIVE SUPERTREND VOLATILITY NUMBERS (PIXEL-PERFECT RECREATION) ═══════════════════
+// Displays "1, 2, 3" volatility regime numbers, matching the original AlgoAlpha indicator exactly.
+// NOTE: This logic creates a new label on every bar, which is inefficient but necessary for a 1:1 visual match.
+// Use the 'Show Volatility Numbers' toggle in settings to disable if performance is impacted.
+
+// ADAPTIVE SUPERTREND VISUALIZATION - DISABLED
+// Note: Visualization removed due to plot-point-driven architecture
+// Adaptive SuperTrend volatility numbers are now provided by external Adaptive.pine indicator
+// To display volatility numbers, enable them in the external Adaptive.pine indicator
+
+// if adaptiveSTEnable and not na(adaptiveCluster)
+//     // Volatility number visualization would go here
+//     // Currently disabled - use external Adaptive.pine visualization instead
 
 // ═══════════════════ ENHANCEMENT SUITE REMOVED ═══════════════════
 // Advanced trend enhancement suite has been surgically removed to keep code lean.

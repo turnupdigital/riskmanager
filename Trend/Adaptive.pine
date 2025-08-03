@@ -124,6 +124,11 @@ plot(ta.crossover(dir, 0) ? 1 : 0, title="Adaptive Short Signal", color=color.ne
 plot(dir < 0 ? 1 : 0, title="Adaptive Trend Up", color=color.new(color.lime, 100), display=display.data_window)
 plot(dir > 0 ? 1 : 0, title="Adaptive Trend Down", color=color.new(color.orange, 100), display=display.data_window)
 
+// VOLATILITY REGIME NUMBER OUTPUT (1=Low, 2=Medium, 3=High)
+// This allows EZAlgoTrader to receive the volatility regime number directly
+volatility_regime_number = 4 - (cluster + 1)  // Convert cluster index to regime number
+plot(volatility_regime_number, title="Volatility Regime Number", color=color.new(color.blue, 100))
+
 label.new(bar_index, dir > 0 ? ST + ta.atr(7) : ST - ta.atr(7), text = str.tostring(4 - (cluster + 1)), style = label.style_none, textcolor = color.from_gradient(cluster + 1, 1, 3, color.new(dir > 0 ? red : green, 30), color.new(dir > 0 ? red : green, 90)))
 
 if barstate.islast
