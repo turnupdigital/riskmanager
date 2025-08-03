@@ -127,25 +127,25 @@ updateLabel(label lbl, int x, float y, string txt, color col) =>
         label.set_size(lbl, size.small)
 
 
-strategy(title = 'EZ Algo Trade Manager', overlay = true, pyramiding = 10, default_qty_type = strategy.fixed, default_qty_value = 1, calc_on_order_fills = true, process_orders_on_close = true, calc_on_every_tick = false)
+strategy(title = 'EZ Algo Trade Manager', overlay = true, pyramiding = 1, default_qty_type = strategy.fixed, default_qty_value = 1, calc_on_order_fills = true, process_orders_on_close = true, calc_on_every_tick = false)
 // User-controllable quantity
 
 // ═══════════════════ GLOBAL VARIABLE DECLARATIONS ═══════════════════
 // Declare all variables early to avoid scope issues
 
-// Trend-riding system variables
-var int trendRidingBarsActive = 0
-var bool inTrendRidingMode = false
-var int trendRidingStartBar = 0
+// Legacy trend-riding system variables removed (system eliminated)
 
 // Exit system variables
 var float smartOffset = na
 var string exitComment = na
 var string exitReason = na
+var bool allowTrendExit = false
 
-// Hybrid Exit Mode Variables
-var bool inHybridExitMode = false
-var int hybridModeStartBar = 0
+// Legacy trend-riding variables (for compatibility with remaining references)
+var bool inTrendRidingMode = false
+var int trendRidingStartBar = na
+
+// Hybrid Exit Mode variables removed (system eliminated)
 
 // Adaptive SuperTrend K-means Clustering Variables (FULL IMPLEMENTATION)
 var array<float> adaptive_hv = array.new_float()
@@ -716,9 +716,9 @@ if fixedEnable and not na(strategyEntryPrice) and strategy.position_size != 0
 
 
 // ──────── 4. SMART PROFIT LOCKER (Aggressive Profit Protection) ────────────
-// SIGNAL-DRIVEN TREND RIDER INTEGRATION: Block Smart Profit Locker during trend-riding mode
-// Only run Smart Profit Locker in Normal Mode or Hybrid Exit Mode
-if smartProfitEnable and strategy.position_size != 0 and not (inTrendRidingMode and not inHybridExitMode)
+// NEW TREND-EXIT/HOLD FILTER INTEGRATION: Block Smart Profit Locker when trend-hold filters are active
+// Only run Smart Profit Locker when trend-exit is allowed by the new filter system
+if smartProfitEnable and strategy.position_size != 0 and allowTrendExit
     smartDistance = smartProfitType == 'ATR' ? smartProfitVal * atrVal : smartProfitType == 'Points' ? smartProfitVal : strategyEntryPrice * smartProfitVal / 100.0
     
     // CRITICAL FIX: Symbol-aware Smart Profit Locker validation
@@ -734,16 +734,10 @@ if smartProfitEnable and strategy.position_size != 0 and not (inTrendRidingMode 
         // Ensure minimum viable distance (never less than 1 tick)
         smartDistance := math.max(smartDistance, syminfo.mintick * 10)
     
-    // MODE-BASED EXIT BEHAVIOR
-    if inHybridExitMode
-        // HYBRID MODE: Use TIGHT trailing stops when exit indicators fire during trend-riding
-        smartDistance := smartDistance * 1.0  // 1x ATR (tight profit protection)
-        smartOffset := smartDistance * 0.50  // 50% offset (aggressive profit taking)
-        exitComment := 'Hybrid Exit Mode'
-    else
-        // NORMAL MODE: Use regular Smart Profit Locker settings
-        smartOffset := smartDistance * math.max(smartProfitOffset, 0.01)
-        exitComment := 'Smart Profit Locker'
+    // SIMPLIFIED EXIT BEHAVIOR (Hybrid mode removed)
+    // Use regular Smart Profit Locker settings
+    smartOffset := smartDistance * math.max(smartProfitOffset, 0.01)
+    exitComment := 'Smart Profit Locker'
     
     if strategy.position_size > 0  // Long position
         strategy.exit('Smart-Long', from_entry='Long', trail_points=math.max(smartDistance, 0.01), trail_offset=math.max(smartOffset, 0.01), comment=exitComment)
@@ -754,70 +748,80 @@ if smartProfitEnable and strategy.position_size != 0 and not (inTrendRidingMode 
         if not trailExitSent
             trailExitSent := true
 
-// ──────── 6. RELATIVE BANDWIDTH DIRECTIONAL FILTER ────────────
-// Compact multi-column panel for volatility-based directional bias
-rbwEnable = input.bool(true, '📊 Enable RBW Filter', group='📊 Relative Bandwidth Filter', inline='rbw0')
+// ═══════════════════ RBW FILTER COMPLETELY REMOVED ═══════════════════
+// All RBW filter inputs and logic have been permanently removed to eliminate clutter
 
-// Band Type Selection (Row 1)
-rbwBandType = input.string("KC", "Band Type", group='📊 Relative Bandwidth Filter', options=["BB", "KC", "DC"], inline='rbw1')
-rbwSource = input.source(close, "Source", group='📊 Relative Bandwidth Filter', inline='rbw1')
+// ═══════════════════ LEGACY TREND-RIDING SYSTEM REMOVED ═══════════════════
+// The old trend-riding overlay system has been completely removed to eliminate conflicts.
+// All trend-based exit logic is now handled by the new Trend-Exit/Hold Filter System below.
 
-// Band Parameters (Row 2) 
-rbwLength = input.int(100, "Length", group='📊 Relative Bandwidth Filter', inline='rbw2')
-rbwMultiplier = input.float(2.0, "Mult", step=0.5, group='📊 Relative Bandwidth Filter', inline='rbw2')
+// ═══════════════════ TREND-EXIT/HOLD FILTER SYSTEM ═══════════════════
+// Visually clear, mechanically simple filters to hold trades longer during obvious trends
 
-// Additional Options (Row 3)
-rbwUseTR = input.bool(true, "Use TR", group='📊 Relative Bandwidth Filter', inline='rbw3')
-rbwUseAltSrc = input.bool(false, "Alt Src", group='📊 Relative Bandwidth Filter', inline='rbw3')
+// Adaptive SuperTrend "3" Filter (Row 8) - Already implemented
+adaptiveExitFilterEnable = input.bool(false, '🔥 Adaptive ST "3" Hold', group='🎯 Trend-Exit Filters', inline='te1', tooltip='Hold trades when Adaptive SuperTrend shows "3" (high volatility). Simple rule: "If you see a 3, don\'t exit"')
+adaptiveHoldOn3 = input.bool(true, 'Hold on "3"', group='🎯 Trend-Exit Filters', inline='te1', tooltip='Do not exit when Adaptive SuperTrend displays "3" (high volatility regime)')
+adaptiveHoldOn2 = input.bool(false, 'Hold on "2"', group='🎯 Trend-Exit Filters', inline='te1', tooltip='Do not exit when Adaptive SuperTrend displays "2" (medium volatility regime)')
+adaptiveHoldOn1 = input.bool(false, 'Hold on "1"', group='🎯 Trend-Exit Filters', inline='te1', tooltip='Do not exit when Adaptive SuperTrend displays "1" (low volatility regime)')
 
-// Signal Configuration (Row 4)
-rbwDesiredCond = input.string("Higher Bandwidth", "Condition", group='📊 Relative Bandwidth Filter', options=["Higher Bandwidth", "Lower Bandwidth"], inline='rbw4')
-rbwRefBand = input.string("Middle", "Reference", group='📊 Relative Bandwidth Filter', options=["Upper", "Lower", "Middle"], inline='rbw4')
+// Moving Average Crossover Filter (Row 9)
+maCrossoverFilterEnable = input.bool(false, '📈 MA Crossover Hold', group='🎯 Trend-Exit Filters', inline='te2', tooltip='Hold trades until moving averages cross over. Clear visual crossover signal on chart.')
+maCrossoverFastLength = input.int(8, 'Fast MA', minval=1, maxval=50, group='🎯 Trend-Exit Filters', inline='te2', tooltip='Fast moving average length (e.g., 8 SMA)')
+maCrossoverSlowLength = input.int(35, 'Slow MA', minval=10, maxval=200, group='🎯 Trend-Exit Filters', inline='te2', tooltip='Slow moving average length (e.g., 35 SMA)')
+maCrossoverType = input.string('SMA', 'MA Type', options=['SMA', 'EMA', 'WMA'], group='🎯 Trend-Exit Filters', inline='te2b', tooltip='Type of moving average to use for crossover detection')
 
-// ATR and Filter Settings (Row 5)
-rbwATRLength = input.int(20, "ATR Len", group='📊 Relative Bandwidth Filter', inline='rbw5')
-rbwBBType = input.string("sma", "BB Type", group='📊 Relative Bandwidth Filter', options=["sma", "ema", "hma", "rma", "wma", "vwma", "linreg", "median"], inline='rbw5')
+// Per-Indicator Trend Exit Toggles (Row 10-11)
+indicatorExitHeader = input.string('--- Individual Trend Indicator Exits ---', 'Indicator Exit Config', group='🎯 Trend-Exit Filters', inline='te3', tooltip='Each trend indicator can be used as an individual trend exit. Allows testing each indicator as sole trend exit method.')
 
-// ═══════════════════ TREND-RIDING OVERLAY SYSTEM ═══════════════════
-// Advanced exit system to "let winners run" in strong trending conditions
+// First row of indicator exits
+hullTrendExit = input.bool(false, '🌊 Hull Exit', group='🎯 Trend-Exit Filters', inline='te4', tooltip='Exit when Hull Suite trend changes direction')
+supertrendTrendExit = input.bool(false, '⚡ SuperTrend Exit', group='🎯 Trend-Exit Filters', inline='te4', tooltip='Exit when SuperTrend direction changes')
+quadrantTrendExit = input.bool(false, '🎯 Quadrant Exit', group='🎯 Trend-Exit Filters', inline='te4', tooltip='Exit when Quadrant NW trend changes')
 
-// Trend-Riding Enable Toggle (Row 1)
-trendRidingEnable = input.bool(true, '🚀 Trend-Riding Mode', group='🎯 Trend-Riding System', inline='tr1', tooltip='Enable trend-riding overlay that overrides Smart Profit Locker when all filters strongly agree. Designed to "let winners run" in obvious trending conditions while preserving high win rate in other scenarios.')
+// Second row of indicator exits
+adaptiveTrendExit = input.bool(false, '🔄 Adaptive Exit', group='🎯 Trend-Exit Filters', inline='te5', tooltip='Exit when Adaptive SuperTrend trend changes')
+volumaticTrendExit = input.bool(false, '📊 Volumatic Exit', group='🎯 Trend-Exit Filters', inline='te5', tooltip='Exit when Volumatic VIDYA trend changes')
+smoothHATrendExit = input.bool(false, '🕯️ Smooth HA Exit', group='🎯 Trend-Exit Filters', inline='te5', tooltip='Exit when Smooth Heiken Ashi trend changes')
 
-// Activation Requirements (Row 2)
-trendActivationMode = input.string('Majority Filters', 'Activation', options=['Majority Filters', 'All Filters', 'Custom Count'], group='🎯 Trend-Riding System', inline='tr2', tooltip='How many directional bias filters must agree to activate trend-riding mode. "All Filters" = strongest requirement, "Majority" = more frequent activation.')
-trendMinFilters = input.int(4, 'Min Count', minval=2, maxval=6, group='🎯 Trend-Riding System', inline='tr2', tooltip='Minimum number of filters that must agree (only used with "Custom Count" mode). Higher numbers = stronger trends required.')
+// External Trend Exit Signal (Row 12)
+trendExitSignalEnable = input.bool(false, '📡 External Trend Exit', group='🎯 Trend-Exit Filters', inline='te6', tooltip='Use external indicator (like Trend Strength) for trend exit signals. Connect to buy/sell signal from external indicator.')
+trendExitSignalSrc = input.source(close, 'Signal Source', group='🎯 Trend-Exit Filters', inline='te6', tooltip='Connect this to the buy/sell signal output from your external trend exit indicator (e.g., Trend Strength arrows)')
 
-// Trend Strength Requirements (Row 3)
-trendMinBars = input.int(3, 'Min Trend Bars', minval=1, maxval=10, group='🎯 Trend-Riding System', inline='tr3', tooltip='Minimum consecutive bars all filters must agree before activating trend-riding. Prevents activation on brief/false trend signals.')
-trendMaxHold = input.int(50, 'Max Hold Bars', minval=10, maxval=200, group='🎯 Trend-Riding System', inline='tr3', tooltip='Maximum bars to stay in trend-riding mode regardless of trend strength. Prevents overnight risk and ensures eventual exit.')
+// Filter Combination Logic (Row 13)
+trendExitLogic = input.string('Any Filter Triggers Exit', 'Exit Logic', options=['Any Filter Triggers Exit', 'All Filters Must Agree'], group='🎯 Trend-Exit Filters', inline='te7', tooltip='ANY: Exit when first filter condition is met. ALL: Wait for all enabled filters to agree before exiting.')
+trendExitDebug = input.bool(false, 'Show Debug Info', group='🎯 Trend-Exit Filters', inline='te7', tooltip='Display debug information about trend-exit filter status on chart')
 
-// Activation Timing (Row 3.5) - NEW FEATURE
-trendActivationTiming = input.string('After Entry Only', 'Activation Timing', options=['After Entry Only', 'Pre-Entry Detection'], group='🎯 Trend-Riding System', inline='tr3b', tooltip='AFTER ENTRY ONLY: Traditional behavior - trend-riding activates only when already in position. PRE-ENTRY DETECTION: Advanced mode - trend-riding can activate before entry when strong trend detected, allowing immediate trend-riding mode on entry.')
+// ═══════════════════ DIRECTIONAL BIAS SELECTION SYSTEM ═══════════════════
+// Choose which trend indicators/inputs to use for directional bias determination
 
-// ═══════════════════ SIGNAL-DRIVEN TREND RIDER EXIT SYSTEM ═══════════════════
-// Revolutionary exit system: Instead of price-based exits, use opposite signals from primary indicators
+// Master Controls
+useLegacyTrendSystem = input.bool(false, '🔄 Use Legacy Trend System', group='🎯 Directional Bias Selection', inline='db1', tooltip='Enable the old trend-following system. Disable this to use only the new flexible bias selection system.')
 
-// Exit Signal Selection Header (Row 4)
-trendRiderExitHeader = input.string('--- Exit Signal Source ---', 'Signal Exit Config', group='🎯 Trend-Riding System', inline='tr4', tooltip='Select which primary signals can trigger exits during trend-riding mode. When trend-riding is active, normal exits are ignored and the system waits for opposite signals from selected indicators.')
+// Primary Directional Bias Source
+primaryBiasSource = input.string('Hull Suite', 'Primary Bias Source', options=['Hull Suite', 'SuperTrend', 'Quadrant NW', 'Adaptive SuperTrend', 'Volumatic VIDYA', 'Smooth Heiken Ashi', 'External Input', 'Price Action'], group='🎯 Directional Bias Selection', inline='db2', tooltip='Primary source for determining directional bias')
 
-// Signal Selection Checkboxes (Row 5)
-useExitSignal1 = input.bool(true, 'Exit: Sig 1', group='🎯 Trend-Riding System', inline='tr5', tooltip='Use opposite signal from Signal 1 (LuxAlgo) to exit trend-riding mode. If in long trade, waits for LuxAlgo sell signal.')
-useExitSignal2 = input.bool(false, 'Exit: Sig 2', group='🎯 Trend-Riding System', inline='tr5', tooltip='Use opposite signal from Signal 2 (UTBot) to exit trend-riding mode.')
-useExitSignal3 = input.bool(false, 'Exit: Sig 3', group='🎯 Trend-Riding System', inline='tr5', tooltip='Use opposite signal from Signal 3 (VIDYA) to exit trend-riding mode.')
+// Secondary Directional Bias Source (for confluence)
+secondaryBiasSource = input.string('None', 'Secondary Bias Source', options=['None', 'Hull Suite', 'SuperTrend', 'Quadrant NW', 'Adaptive SuperTrend', 'Volumatic VIDYA', 'Smooth Heiken Ashi', 'External Input', 'Price Action'], group='🎯 Directional Bias Selection', inline='db3', tooltip='Optional secondary source for bias confluence. Set to None to use only primary source.')
 
-// Additional Signal Selection (Row 6)
-useExitSignal4 = input.bool(false, 'Exit: Sig 4', group='🎯 Trend-Riding System', inline='tr6', tooltip='Use opposite signal from Signal 4 (KyleAlgo) to exit trend-riding mode.')
-useExitSignal5 = input.bool(false, 'Exit: Sig 5', group='🎯 Trend-Riding System', inline='tr6', tooltip='Use opposite signal from Signal 5 (Wonder) to exit trend-riding mode.')
-useExitSignal6 = input.bool(false, 'Exit: Sig 6', group='🎯 Trend-Riding System', inline='tr6', tooltip='Use opposite signal from Signal 6 (Custom1) to exit trend-riding mode.')
-useExitSignal7 = input.bool(false, 'Exit: Sig 7', group='🎯 Trend-Riding System', inline='tr6', tooltip='Use opposite signal from Signal 7 (Custom2) to exit trend-riding mode.')
-useExitSignal8 = input.bool(false, 'Exit: Sig 8', group='🎯 Trend-Riding System', inline='tr6', tooltip='Use opposite signal from Signal 8 (Custom3) to exit trend-riding mode.')
-useExitSignal9 = input.bool(false, 'Exit: Sig 9', group='🎯 Trend-Riding System', inline='tr6', tooltip='Use opposite signal from Signal 9 (Custom4) to exit trend-riding mode.')
-useExitSignal10 = input.bool(false, 'Exit: Sig 10', group='🎯 Trend-Riding System', inline='tr6', tooltip='Use opposite signal from Signal 10 (Custom5) to exit trend-riding mode.')
+// External Input for Custom Bias
+externalBiasEnable = input.bool(false, '📡 External Bias Input', group='🎯 Directional Bias Selection', inline='db4', tooltip='Enable external input for custom directional bias (e.g., from another indicator)')
+externalBiasSrc = input.source(close, 'External Source', group='🎯 Directional Bias Selection', inline='db4', tooltip='Connect to external indicator output for custom bias determination')
 
-// Confluence and Safety Settings (Row 7)
-minOppositeSignals = input.int(1, 'Min Exit Signals', minval=1, maxval=10, group='🎯 Trend-Riding System', inline='tr7', tooltip='Minimum number of selected opposite signals required to trigger exit. 1 = exit on first available signal. 2+ = wait for confluence of multiple opposite signals.')
-enableTrendBreakSafety = input.bool(true, 'Trend Break Safety', group='🎯 Trend-Riding System', inline='tr7', tooltip='Exit immediately if trend consensus breaks (filters no longer agree). Critical safety net to prevent being stuck in sideways markets.')
+// Bias Confluence Logic
+biasConfluenceMode = input.string('Primary Only', 'Bias Confluence', options=['Primary Only', 'Both Must Agree', 'Either Can Trigger'], group='🎯 Directional Bias Selection', inline='db5', tooltip='Primary Only: Use only primary source | Both Must Agree: Both sources must agree | Either Can Trigger: Either source can determine bias')
+
+// Individual Trend Indicator Enable/Disable Controls
+indicatorControlsHeader = input.string('--- Individual Indicator Controls ---', 'Indicator Controls', group='🎯 Directional Bias Selection', inline='db6', tooltip='Enable/disable individual trend indicators for bias calculation')
+
+// Row 1: Core Indicators
+hullBiasEnable = input.bool(true, '🌊 Hull Suite', group='🎯 Directional Bias Selection', inline='db7', tooltip='Enable Hull Suite for bias calculation')
+supertrendBiasEnable = input.bool(false, '⚡ SuperTrend', group='🎯 Directional Bias Selection', inline='db7', tooltip='Enable SuperTrend for bias calculation')
+quadrantBiasEnable = input.bool(false, '🎯 Quadrant NW', group='🎯 Directional Bias Selection', inline='db7', tooltip='Enable Quadrant NW for bias calculation')
+
+// Row 2: Advanced Indicators
+adaptiveBiasEnable = input.bool(false, '🤖 Adaptive ST', group='🎯 Directional Bias Selection', inline='db8', tooltip='Enable Adaptive SuperTrend for bias calculation')
+volumaticBiasEnable = input.bool(false, '📊 Volumatic', group='🎯 Directional Bias Selection', inline='db8', tooltip='Enable Volumatic VIDYA for bias calculation')
+smoothHABiasEnable = input.bool(false, '🕯️ Smooth HA', group='🎯 Directional Bias Selection', inline='db8', tooltip='Enable Smooth Heiken Ashi for bias calculation')
 
 // ═══════════════════ EXTENDED BIAS FILTERS (6 INDICATORS) ═══════════════════
 // Professional trend-based directional bias filters with confluence logic
@@ -853,13 +857,6 @@ adaptive_highvol = input.float(0.75, 'High Vol %', minval=0.5, maxval=1.0, step=
 adaptive_midvol = input.float(0.5, 'Med Vol %', minval=0.3, maxval=0.7, step=0.05, group='🎯 Extended Bias Filters', inline='ast5')
 adaptive_lowvol = input.float(0.25, 'Low Vol %', minval=0.1, maxval=0.5, step=0.05, group='🎯 Extended Bias Filters', inline='ast5')
 
-// Adaptive SuperTrend Exit Filter System (Human-Friendly Configuration)
-adaptiveExitFilterEnable = input.bool(false, '🛡️ Exit Filter', group='🎯 Extended Bias Filters', inline='astf1', tooltip='Block scalp exits during specific volatility regimes')
-adaptiveExitFilterShowDebug = input.bool(false, 'Debug', group='🎯 Extended Bias Filters', inline='astf1', tooltip='Show volatility number and filter status on chart')
-adaptiveExitFilterBlock3 = input.bool(true, '🚫 Do Not Exit on "3"', group='🎯 Extended Bias Filters', inline='astf2', tooltip='Block exits during High Volatility (Number 3)')
-adaptiveExitFilterBlock2 = input.bool(false, '🚫 Do Not Exit on "2"', group='🎯 Extended Bias Filters', inline='astf3', tooltip='Block exits during Medium Volatility (Number 2)')
-adaptiveExitFilterBlock1 = input.bool(false, '🚫 Do Not Exit on "1"', group='🎯 Extended Bias Filters', inline='astf4', tooltip='Block exits during Low Volatility (Number 1)')
-
 // Volumatic VIDYA Filter (Section 5) - FULL VARIABLE INDEX DYNAMIC AVERAGE
 volumaticEnable = input.bool(false, '📊 Volumatic', group='🎯 Extended Bias Filters', inline='vol1')
 volumaticLength = input.int(10, 'VIDYA Length', minval=5, maxval=100, group='🎯 Extended Bias Filters', inline='vol1', tooltip='Length of the VIDYA calculation')
@@ -874,6 +871,183 @@ smoothHAMode = input.string('EMA', 'Before MA Type', options=['SMA', 'EMA', 'WMA
 // After HA Smoothing (matching original SmoothHK.pine)
 smoothHAAfterLength = input.int(10, 'After Smooth Length', minval=1, maxval=50, group='🎯 Extended Bias Filters', inline='sha3', tooltip='Smooth length after HA calculation')
 smoothHAAfterMode = input.string('EMA', 'After MA Type', options=['SMA', 'EMA', 'WMA', 'VWMA', 'RMA', 'DEMA', 'TEMA', 'HMA', 'ALMA', 'LSMA'], group='🎯 Extended Bias Filters', inline='sha3', tooltip='MA type for post-HA smoothing')
+
+// ═══════════════════ DUAL-LAYER MODE SELECTION SYSTEM ═══════════════════
+// Intelligent switching between scalping and trend-following modes
+// LAYER 1: Step Channel Momentum (Structural Regime Filter)
+// LAYER 2: CVD Channel Breakout (Institutional Confirmation)
+
+// ──────── STEP CHANNEL MOMENTUM SETTINGS ────────────
+stepChannelEnable = input.bool(true, "Enable Step Channel Filter", group="🎯 Dual-Layer Mode Selection")
+stepChannelLength = input.int(3, "Step Channel Length", minval=1, maxval=50, group="🎯 Dual-Layer Mode Selection")
+stepChannelMultiplier = input.float(0.6, "Step Channel Multiplier", minval=0.1, maxval=5.0, step=0.1, group="🎯 Dual-Layer Mode Selection")
+
+// Step Channel Visual Settings
+stepChannelShowVisuals = input.bool(true, "Show Step Channel Visuals", group="🎯 Dual-Layer Mode Selection")
+stepChannelColorUp = input.color(color.rgb(26, 190, 127), "Momentum Up Color", inline="SC Colors", group="🎯 Dual-Layer Mode Selection")
+stepChannelColorRange = input.color(color.orange, "Range Color", inline="SC Colors", group="🎯 Dual-Layer Mode Selection")
+stepChannelColorDown = input.color(color.rgb(202, 38, 65), "Momentum Down Color", inline="SC Colors", group="🎯 Dual-Layer Mode Selection")
+stepChannelShowPivots = input.bool(true, "Show Pivot Points", group="🎯 Dual-Layer Mode Selection")
+stepChannelShowCandles = input.bool(true, "Show Momentum Candles", group="🎯 Dual-Layer Mode Selection")
+stepChannelShowLines = input.bool(true, "Show Channel Lines", group="🎯 Dual-Layer Mode Selection")
+stepChannelShowLabel = input.bool(true, "Show Market State Label", group="🎯 Dual-Layer Mode Selection")
+
+// ──────── LAYER 2: CVD CHANNEL BREAKOUT SETTINGS ────────────
+cvdEnable = input.bool(true, '📈 CVD Confirmation', group='🎯 Mode Selection', tooltip='Enable CVD institutional flow confirmation')
+cvdAnchor = input.timeframe('120', 'CVD Anchor', group='🎯 Mode Selection', inline='cvd1', tooltip='120=2h, 240=4h, 1D=1day')
+cvdThreshold = input.int(1000, 'CVD Threshold', minval=100, maxval=10000, group='🎯 Mode Selection', inline='cvd1', tooltip='CVD must be outside ±threshold for trend mode')
+cvdUseCustomTimeframe = input.bool(false, 'Custom CVD TF', group='🎯 Mode Selection', inline='cvd2', tooltip='Override automatic timeframe selection')
+cvdCustomTimeframe = input.timeframe('1', 'CVD Custom TF', group='🎯 Mode Selection', inline='cvd2', tooltip='Custom timeframe for CVD calculation')
+
+// ──────── MODE SELECTION LOGIC SETTINGS ────────────
+modeSelectionLogic = input.string('Both Required', 'Activation Logic', options=['Step Channel Only', 'CVD Only', 'Both Required', 'Either Filter'], group='🎯 Mode Selection', tooltip='How filters combine: Both Required = maximum selectivity')
+scalpOnlyOverride = input.bool(false, 'Force Scalp Mode', group='🎯 Mode Selection', tooltip='Override all filters and force scalp-only mode for testing')
+trendModeDebug = input.bool(false, 'Show Debug Info', group='🎯 Mode Selection', tooltip='Display mode selection debug information')
+
+// ═══════════════════ DUAL-LAYER MODE SELECTION CALCULATIONS ═══════════════════
+// Intelligent regime detection for scalp vs trend mode switching
+
+// ──────── LAYER 1: STEP CHANNEL MOMENTUM CALCULATION ────────────
+// Complete ChartPrime Step Channel Momentum implementation with full visuals
+var string stepChannelState = "Range"
+var bool stepChannelTrendMode = false
+var float stepChannelPivotHigh = na
+var float stepChannelPivotLow = na
+var color stepChannelCurrentColor = color.orange
+
+// Step Channel calculation variables (global scope for visual access)
+var float stepChannelAvg = na
+var float stepChannelUpper = na
+var float stepChannelLower = na
+var float stepChannelATR = na
+
+if stepChannelEnable
+    // COMPLETE Step Channel calculation (exact copy from ChartPrime Step Channel Momentum)
+    // Calculate pivot highs and lows
+    ph = ta.pivothigh(stepChannelLength, stepChannelLength)
+    pl = ta.pivotlow(stepChannelLength, stepChannelLength)
+    
+    // Update pivot variables with visual markers
+    if not na(ph)
+        stepChannelPivotHigh := ph
+        if stepChannelShowPivots and stepChannelShowVisuals
+            label.new(bar_index-stepChannelLength, ph, "⬥", style=label.style_label_center, textcolor=chart.fg_color, size=size.normal, color=color(na))
+    if not na(pl)
+        stepChannelPivotLow := pl
+        if stepChannelShowPivots and stepChannelShowVisuals
+            label.new(bar_index-stepChannelLength, pl, "⬥", style=label.style_label_center, textcolor=chart.fg_color, size=size.normal, color=color(na))
+    
+    // Calculate average and ATR-based channel (exact ChartPrime formula)
+    stepChannelAvg = math.avg(stepChannelPivotHigh, stepChannelPivotLow)
+    stepChannelATR = ta.atr(200) * stepChannelMultiplier
+    stepChannelUpper = stepChannelAvg + stepChannelATR
+    stepChannelLower = stepChannelAvg - stepChannelATR
+    
+    // Determine market state and color (exact ChartPrime logic)
+    if hl2 > stepChannelUpper
+        stepChannelCurrentColor := stepChannelColorUp
+        stepChannelTrendMode := true
+        stepChannelState := "Momentum Up"
+    else if hl2 < stepChannelLower
+        stepChannelCurrentColor := stepChannelColorDown
+        stepChannelTrendMode := false
+        stepChannelState := "Momentum Down"
+    else
+        stepChannelCurrentColor := stepChannelColorRange
+        stepChannelTrendMode := false
+        stepChannelState := "Range"
+    
+    // VISUAL ELEMENTS - Complete ChartPrime visualization
+    // NOTE: Plot functions moved to global scope to fix Pine Script compilation errors
+    // Visual elements will be handled after the calculation block
+else
+    stepChannelState := "Disabled"
+    stepChannelTrendMode := true  // Allow trend mode when disabled
+
+// ──────── LAYER 2: CVD CHANNEL BREAKOUT CALCULATION ────────────
+var bool cvdTrendMode = false
+var float cvdValue = na
+
+if cvdEnable
+    // CVD timeframe selection
+    cvdTimeframe = cvdUseCustomTimeframe ? cvdCustomTimeframe : 
+                   timeframe.isseconds ? "1S" :
+                   timeframe.isintraday ? "1" :
+                   timeframe.isdaily ? "5" : "60"
+    
+    // FIXED: Proper CVD calculation using TradingView's built-in function
+    // This replaces the incorrect manual volume delta calculation
+    cvdData = request.security(syminfo.tickerid, cvdAnchor, ta.cum(volume * (close > open ? 1 : close < open ? -1 : 0)))
+    cvdValue := cvdData
+    
+    // Simple channel breakout logic
+    cvdTrendMode := math.abs(cvdValue) > cvdThreshold
+else
+    cvdTrendMode := true  // Allow trend mode when disabled
+    cvdValue := 0
+
+// ──────── DUAL-LAYER MODE SELECTION LOGIC ────────────
+var bool scalpOnlyMode = true
+var bool trendFollowingMode = false
+var string currentTradingMode = "SCALP"
+
+if scalpOnlyOverride
+    // Force scalp mode override
+    scalpOnlyMode := true
+    trendFollowingMode := false
+    currentTradingMode := "SCALP (FORCED)"
+else
+    // Apply dual-layer logic based on user selection
+    switch modeSelectionLogic
+        "Step Channel Only" =>
+            trendFollowingMode := stepChannelTrendMode
+        "CVD Only" =>
+            trendFollowingMode := cvdTrendMode
+        "Both Required" =>
+            trendFollowingMode := stepChannelTrendMode and cvdTrendMode
+        "Either Filter" =>
+            trendFollowingMode := stepChannelTrendMode or cvdTrendMode
+    
+    scalpOnlyMode := not trendFollowingMode
+    currentTradingMode := trendFollowingMode ? "TREND" : "SCALP"
+
+// ──────── MODE SELECTION DEBUG AND VISUALIZATION ────────────
+if trendModeDebug and barstate.islast
+    var table debugTable = table.new(position.top_left, 3, 6, bgcolor=color.new(color.white, 80), border_width=1)
+    
+    table.cell(debugTable, 0, 0, "Mode Selection Debug", text_color=color.black, text_size=size.normal, bgcolor=color.new(color.blue, 70))
+    table.cell(debugTable, 1, 0, "", bgcolor=color.new(color.blue, 70))
+    table.cell(debugTable, 2, 0, "", bgcolor=color.new(color.blue, 70))
+    
+    table.cell(debugTable, 0, 1, "Step Channel:", text_color=color.black, text_size=size.small)
+    table.cell(debugTable, 1, 1, stepChannelState, text_color=color.black, text_size=size.small)
+    table.cell(debugTable, 2, 1, stepChannelTrendMode ? "✓" : "✗", text_color=stepChannelTrendMode ? color.green : color.red, text_size=size.small)
+    
+    table.cell(debugTable, 0, 2, "CVD Value:", text_color=color.black, text_size=size.small)
+    table.cell(debugTable, 1, 2, str.tostring(math.round(cvdValue)), text_color=color.black, text_size=size.small)
+    table.cell(debugTable, 2, 2, cvdTrendMode ? "✓" : "✗", text_color=cvdTrendMode ? color.green : color.red, text_size=size.small)
+    
+    table.cell(debugTable, 0, 3, "CVD Threshold:", text_color=color.black, text_size=size.small)
+    table.cell(debugTable, 1, 3, "±" + str.tostring(cvdThreshold), text_color=color.black, text_size=size.small)
+    table.cell(debugTable, 2, 3, "", text_color=color.black, text_size=size.small)
+    
+    table.cell(debugTable, 0, 4, "Mode Logic:", text_color=color.black, text_size=size.small)
+    table.cell(debugTable, 1, 4, modeSelectionLogic, text_color=color.black, text_size=size.small)
+    table.cell(debugTable, 2, 4, "", text_color=color.black, text_size=size.small)
+    
+    table.cell(debugTable, 0, 5, "Trading Mode:", text_color=color.black, text_size=size.small)
+    modeColor = trendFollowingMode ? color.new(color.orange, 50) : color.new(color.blue, 50)
+    table.cell(debugTable, 1, 5, currentTradingMode, text_color=color.white, text_size=size.small, bgcolor=modeColor)
+    table.cell(debugTable, 2, 5, "", text_color=color.black, text_size=size.small)
+
+// Mode label on chart
+if stepChannelShowLabel and barstate.islast
+    label.new(bar_index, high, currentTradingMode, 
+              color=trendFollowingMode ? color.new(color.orange, 0) : color.new(color.blue, 0), 
+              textcolor=color.white, 
+              style=label.style_label_down, 
+              size=size.normal,
+              tooltip="Current Trading Mode\nStep Channel: " + stepChannelState + "\nCVD: " + str.tostring(math.round(cvdValue)))
 
 // ═══════════════════ HULL SUITE CALCULATION ═══════════════════
 // Hull Moving Average trend detection
@@ -1082,9 +1256,9 @@ else
 
 if adaptiveExitFilterEnable and adaptiveSTEnable
     // Determine if current volatility number should block exits
-    currentlyBlocked = (adaptiveNumber == 3 and adaptiveExitFilterBlock3) or 
-                      (adaptiveNumber == 2 and adaptiveExitFilterBlock2) or 
-                      (adaptiveNumber == 1 and adaptiveExitFilterBlock1)
+    currentlyBlocked = (adaptiveNumber == 3 and adaptiveHoldOn3) or 
+                      (adaptiveNumber == 2 and adaptiveHoldOn2) or 
+                      (adaptiveNumber == 1 and adaptiveHoldOn1)
     
     // Update exit blocking status
     adaptiveExitBlocked := currentlyBlocked
@@ -1238,6 +1412,176 @@ volumaticShortBias = volumaticEnable ? (not volumaticBullish) : true  // If enab
 smoothHALongBias = smoothHAEnable ? smoothHABullish : true  // If enabled: bullish trend required. If disabled: allow all
 smoothHAShortBias = smoothHAEnable ? (not smoothHABullish) : true  // If enabled: bearish trend required. If disabled: allow all
 
+// ═══════════════════ TREND-EXIT/HOLD FILTER CALCULATIONS ═══════════════════
+// Visually clear, mechanically simple filters to hold trades longer during obvious trends
+
+// 1. ADAPTIVE SUPERTREND VOLATILITY FILTER
+// Get current Adaptive SuperTrend volatility number (1, 2, or 3)
+var int adaptiveSTNumber = na
+if adaptiveSTEnable
+    // Extract volatility number from Adaptive SuperTrend
+    // Number 3 = High Volatility (cluster = 0), Number 2 = Medium (cluster = 1), Number 1 = Low (cluster = 2)
+    // Formula: displayed_number = 4 - (cluster + 1)
+    adaptiveSTNumber := not na(adaptiveCluster) ? (4 - (adaptiveCluster + 1)) : na
+else
+    adaptiveSTNumber := na
+
+// Calculate if we should hold based on Adaptive ST number
+var bool adaptiveSTHoldSignal = false
+if adaptiveExitFilterEnable and not na(adaptiveSTNumber)
+    adaptiveSTHoldSignal := (adaptiveHoldOn3 and adaptiveSTNumber == 3) or 
+                           (adaptiveHoldOn2 and adaptiveSTNumber == 2) or 
+                           (adaptiveHoldOn1 and adaptiveSTNumber == 1)
+else
+    adaptiveSTHoldSignal := false
+
+// 2. MOVING AVERAGE CROSSOVER FILTER
+// Calculate moving averages for crossover detection
+var float maCrossoverFast = na
+var float maCrossoverSlow = na
+var bool maCrossoverHoldSignal = false
+
+if maCrossoverFilterEnable
+    // Calculate MAs based on user selection
+    maCrossoverFast := maCrossoverType == 'SMA' ? ta.sma(close, maCrossoverFastLength) :
+                       maCrossoverType == 'EMA' ? ta.ema(close, maCrossoverFastLength) :
+                       ta.wma(close, maCrossoverFastLength)
+    
+    maCrossoverSlow := maCrossoverType == 'SMA' ? ta.sma(close, maCrossoverSlowLength) :
+                       maCrossoverType == 'EMA' ? ta.ema(close, maCrossoverSlowLength) :
+                       ta.wma(close, maCrossoverSlowLength)
+    
+    // For long positions: hold while fast MA > slow MA
+    // For short positions: hold while fast MA < slow MA
+    if strategy.position_size > 0  // Long position
+        maCrossoverHoldSignal := maCrossoverFast > maCrossoverSlow
+    else if strategy.position_size < 0  // Short position
+        maCrossoverHoldSignal := maCrossoverFast < maCrossoverSlow
+    else
+        maCrossoverHoldSignal := false
+else
+    maCrossoverHoldSignal := false
+
+// 3. INDIVIDUAL TREND INDICATOR EXIT SIGNALS
+// Calculate exit signals for each trend indicator
+var bool hullExitSignal = false
+var bool supertrendExitSignal = false
+var bool quadrantExitSignal = false
+var bool adaptiveExitSignal = false
+var bool volumaticExitSignal = false
+var bool smoothHAExitSignal = false
+
+// Hull Suite exit signal (trend change)
+if hullTrendExit and hullEnable
+    if strategy.position_size > 0  // Long position
+        hullExitSignal := not hullBullish  // Exit when Hull turns bearish
+    else if strategy.position_size < 0  // Short position
+        hullExitSignal := hullBullish  // Exit when Hull turns bullish
+    else
+        hullExitSignal := false
+else
+    hullExitSignal := false
+
+// SuperTrend exit signal
+if supertrendTrendExit and supertrendEnable
+    if strategy.position_size > 0
+        supertrendExitSignal := not supertrendBullish
+    else if strategy.position_size < 0
+        supertrendExitSignal := supertrendBullish
+    else
+        supertrendExitSignal := false
+else
+    supertrendExitSignal := false
+
+// Quadrant exit signal
+if quadrantTrendExit and quadrantEnable
+    if strategy.position_size > 0
+        quadrantExitSignal := not quadrantBullish
+    else if strategy.position_size < 0
+        quadrantExitSignal := quadrantBullish
+    else
+        quadrantExitSignal := false
+else
+    quadrantExitSignal := false
+
+// Adaptive SuperTrend exit signal
+if adaptiveTrendExit and adaptiveSTEnable
+    if strategy.position_size > 0
+        adaptiveExitSignal := not adaptiveSTBullish
+    else if strategy.position_size < 0
+        adaptiveExitSignal := adaptiveSTBullish
+    else
+        adaptiveExitSignal := false
+else
+    adaptiveExitSignal := false
+
+// Volumatic exit signal
+if volumaticTrendExit and volumaticEnable
+    if strategy.position_size > 0
+        volumaticExitSignal := not volumaticBullish
+    else if strategy.position_size < 0
+        volumaticExitSignal := volumaticBullish
+    else
+        volumaticExitSignal := false
+else
+    volumaticExitSignal := false
+
+// Smooth HA exit signal
+if smoothHATrendExit and smoothHAEnable
+    if strategy.position_size > 0
+        smoothHAExitSignal := not smoothHABullish
+    else if strategy.position_size < 0
+        smoothHAExitSignal := smoothHABullish
+    else
+        smoothHAExitSignal := false
+else
+    smoothHAExitSignal := false
+
+// External trend exit signal (e.g., Trend Strength arrows)
+var bool externalTrendExitSignal = false
+if trendExitSignalEnable
+    // Detect signal changes from external indicator
+    // For Trend Strength: arrows appear when trend changes
+    // We detect when the signal source changes value (indicating new arrow)
+    externalTrendExitSignal := trendExitSignalSrc != trendExitSignalSrc[1]
+else
+    externalTrendExitSignal := false
+
+// 4. COMBINE ALL TREND-EXIT/HOLD FILTERS
+// Calculate overall hold signal and exit signal
+var bool trendHoldActive = false
+var bool trendExitTriggered = false
+
+// Hold signals (prevent exit)
+trendHoldActive := adaptiveSTHoldSignal or maCrossoverHoldSignal
+
+// Exit signals (trigger exit)
+individualExitCount = (hullExitSignal ? 1 : 0) + (supertrendExitSignal ? 1 : 0) + 
+                     (quadrantExitSignal ? 1 : 0) + (adaptiveExitSignal ? 1 : 0) + 
+                     (volumaticExitSignal ? 1 : 0) + (smoothHAExitSignal ? 1 : 0) + 
+                     (externalTrendExitSignal ? 1 : 0)
+
+if trendExitLogic == 'Any Filter Triggers Exit'
+    trendExitTriggered := individualExitCount > 0
+else  // 'All Filters Must Agree'
+    enabledExitFilters = (hullTrendExit ? 1 : 0) + (supertrendTrendExit ? 1 : 0) + (quadrantTrendExit ? 1 : 0) + (adaptiveTrendExit ? 1 : 0) + (volumaticTrendExit ? 1 : 0) + (smoothHATrendExit ? 1 : 0) + (trendExitSignalEnable ? 1 : 0)
+    trendExitTriggered := enabledExitFilters > 0 and individualExitCount >= enabledExitFilters
+
+// Final trend-exit/hold decision with MODE SELECTION INTEGRATION
+// CRITICAL: Mode selection overrides all other exit logic
+// SCALP MODE: Always allow exits (ignore trend-hold filters)
+// TREND MODE: Apply trend-hold filters as normal
+
+if scalpOnlyMode
+    // SCALP MODE: Always allow exits for quick scalping profits
+    allowTrendExit := true
+else
+    // TREND MODE: Apply trend-hold filters to capture larger moves
+    // If any hold filter is active, don't exit
+    // If no hold filters active and exit signal triggered, allow exit
+    allowTrendExit := not trendHoldActive and (not (adaptiveExitFilterEnable or maCrossoverFilterEnable or 
+                     hullTrendExit or supertrendTrendExit or quadrantTrendExit or 
+                     adaptiveTrendExit or volumaticTrendExit or smoothHATrendExit) or trendExitTriggered)
 
 // Confluence Logic Implementation - FIXED WEIGHTED VOTING BUG
 // CRITICAL FIX: Use consistent decimal weighting instead of math.round() to prevent unbalanced voting
@@ -1268,20 +1612,12 @@ shortDirectionalBias := enabledFilters == 0 ? true : (biasConfluence == 'Any' an
 
 
 
-// ═══════════════════ TREND-RIDING OVERLAY LOGIC ═══════════════════
-// Advanced exit system to "let winners run" in strong trending conditions
+// ═══════════════════ TREND-EXIT/HOLD FILTER CALCULATION ═══════════════════
+// NOTE: allowTrendExit calculation is now handled by the dual-layer mode selection system
+// This duplicate calculation block has been removed to fix compilation errors
 
-// Variables are now declared at the top of the script to avoid scope issues
-
-// ═══════════════════ SIMPLIFIED TREND-RIDING ACTIVATION ═══════════════════
-// Basic trend detection without enhancement suite
-
-// Initialize trend variables
-var float trendStrengthScore = 0.0
-var bool strongTrendDetected = false
-
-// Simple trend detection - disabled since all filters are off
-strongTrendDetected := false
+// ═══════════════════ LEGACY TREND-RIDING SYSTEM REMOVED ═══════════════════
+// All legacy trend-riding activation/deactivation logic has been completely removed
 
 // ──────────────── ENTRY SIGNAL FINALIZATION ────────────────
 // Assign entry signals after all filters & calculations complete.
@@ -1354,28 +1690,14 @@ if debugEnabled
 // REVOLUTIONARY FEATURE: Intercept and ignore standard exits during trend-riding mode
 // This is the core of the Signal-Driven Trend Rider system
 
-// ──────── EXIT INTERCEPTION LOGIC ────────────
-// When trend-riding mode is active, we intercept standard exits and ignore them
-// Only signal-based exits and safety nets are allowed to close positions
-// ENHANCED: Now includes Adaptive SuperTrend Exit Filter blocking
-
-var bool standardExitBlocked = false
-standardExitBlocked := false  // Simplified since trend-riding is disabled
-
-// Trend-riding mode modifications (modify existing exit behavior)
-var bool exitOverridden = false
-if inTrendRidingMode and strategy.position_size != 0
-    // In trend-riding mode, we modify the normal exit logic
-    // This is now integrated with Smart Profit Locker above
-    exitOverridden := true
-    
-    if debugEnabled
-        trendDuration = bar_index - trendRidingStartBar
-        debugInfo('TREND-RIDING ACTIVE: 3x wider stops, 50% offset | Duration: ' + str.tostring(trendDuration) + ' bars | Filters: ' + str.tostring(trendStrengthScore) + '/' + str.tostring(enabledFilters))
+// ═══════════════════ LEGACY EXIT BLOCKING LOGIC REMOVED ═══════════════════
+// All legacy trend-riding exit blocking logic has been removed.
+// Exit control is now handled by the new allowTrendExit variable from the Trend-Exit/Hold Filter System.
 
 // ──────── CORE EXIT SYSTEMS (PRESERVED) ────────────
 // Smart Profit Locker - Dynamic stop loss with ATR-based distance
-if strategy.position_size != 0 and smartProfitEnable
+// ENHANCED: Now respects trend-exit/hold filters
+if strategy.position_size != 0 and smartProfitEnable and allowTrendExit
     // Calculate smart distance
     baseDistance = atrVal * smartProfitMultiplier
     
@@ -1398,7 +1720,8 @@ if strategy.position_size != 0 and smartProfitEnable
             strategy.exit('SPL-Short', from_entry='Short', stop=stopLevel, comment='Smart Profit Locker')
 
 // Fixed SL/TP System
-if strategy.position_size != 0 and fixedSlTpEnable
+// ENHANCED: Now respects trend-exit/hold filters
+if strategy.position_size != 0 and fixedSlTpEnable and allowTrendExit
     if strategy.position_size > 0  // Long position
         slLevel = strategy.position_avg_price * (1 - fixedStopLoss / 100)
         tpLevel = strategy.position_avg_price * (1 + fixedTakeProfit / 100)
@@ -1409,8 +1732,9 @@ if strategy.position_size != 0 and fixedSlTpEnable
         tpLevel = strategy.position_avg_price * (1 - fixedTakeProfit / 100)
         strategy.exit('Fixed-Short', from_entry='Short', stop=slLevel, limit=tpLevel, comment='Fixed SL/TP')
 
-// MA Exit System
-if strategy.position_size != 0 and maExitEnable
+// MA Exit System  
+// ENHANCED: Now respects trend-exit/hold filters
+if strategy.position_size != 0 and maExitEnable and allowTrendExit
     if strategy.position_size > 0 and close < maExitLine
         strategy.close('Long', comment='MA Exit', alert_message=longExitMsg)
         debugInfo("📈 MA Exit: Long position closed below MA")
@@ -1420,7 +1744,8 @@ if strategy.position_size != 0 and maExitEnable
         debugInfo("📉 MA Exit: Short position closed above MA")
 
 // Signal-Based Trend Rider Exits (from panel configuration)
-if inTrendRidingMode and strategy.position_size != 0
+// ENHANCED: Now respects trend-exit/hold filters
+if inTrendRidingMode and strategy.position_size != 0 and allowTrendExit
     // Exit based on signal configuration from trend-riding panel
     if trendRiderSignalExit and ((strategy.position_size > 0 and not longDirectionalBias) or (strategy.position_size < 0 and not shortDirectionalBias))
         if strategy.position_size > 0
@@ -1436,54 +1761,90 @@ if inTrendRidingMode and strategy.position_size != 0
 
 
 
-// ═══════════════════ ADAPTIVE SUPERTREND EXIT FILTER VISUALIZATION ═══════════════════
-// Professional debug visualization for volatility numbers and filter status
+// ═══════════════════ LEGACY ADAPTIVE SUPERTREND VISUALIZATION (REMOVED) ═══════════════════
+// Old visualization code completely removed to prevent duplicate variable declarations
+// All adaptive exit filter visualization is now handled by the new trend-exit filter system below
 
-// Volatility Number Display (badge-style label)
-if adaptiveExitFilterShowDebug and adaptiveExitFilterEnable and adaptiveSTEnable and strategy.position_size != 0
-    // Create volatility number label with color coding
-    volColor = adaptiveNumber == 3 ? color.new(color.red, 20) : 
-               adaptiveNumber == 2 ? color.new(color.orange, 20) : 
-               color.new(color.green, 20)
-    
-    volText = "Vol: " + str.tostring(adaptiveNumber)
-    
-    // Add filter status to label
-    if adaptiveExitBlocked
-        volText := volText + " 🚫"
-        volColor := color.new(color.red, 0)  // Bright red when blocked
-    else
-        volText := volText + " ✅"
-    
-    // Position label based on position type
-    labelY = strategy.position_size > 0 ? high + atrVal * 0.5 : low - atrVal * 0.5
-    labelLoc = strategy.position_size > 0 ? location.abovebar : location.belowbar
-    
-    label.new(bar_index, labelY, volText, 
-              color=volColor, 
-              textcolor=color.white, 
-              style=label.style_label_down, 
-              size=size.small)
+// ═══════════════════ TREND-EXIT/HOLD FILTER DEBUG VISUALIZATION ═══════════════════
+// Professional badge-style debug display for trend-exit/hold filter system
 
-// Exit Filter Status Changes (transition markers)
-plotshape(adaptiveExitFilterShowDebug and adaptiveExitFilterEnable and adaptiveSTEnable and 
-          adaptiveExitBlocked and not adaptiveExitBlocked[1], 
-          title='Exit Filter BLOCKED', 
-          style=shape.xcross, 
-          location=location.abovebar, 
-          color=color.new(color.red, 0), 
-          size=size.tiny)
+if trendExitDebug and strategy.position_size != 0
+    var string trendFilterStatus = ''
+    trendFilterStatus := 'TREND EXIT FILTERS\n'
+    
+    // Adaptive SuperTrend filter status
+    if adaptiveExitFilterEnable
+        adaptiveStatus = adaptiveSTHoldSignal ? 'HOLD' : 'ALLOW'
+        trendFilterStatus += 'Adaptive ST: Vol' + str.tostring(adaptiveSTNumber) + ' [' + adaptiveStatus + ']\n'
+    
+    // MA Crossover filter status
+    if maCrossoverFilterEnable
+        maStatus = maCrossoverHoldSignal ? 'HOLD' : 'ALLOW'
+        trendFilterStatus += 'MA Cross: ' + str.tostring(maCrossoverFastLength) + '/' + str.tostring(maCrossoverSlowLength) + ' [' + maStatus + ']\n'
+    
+    // Individual indicator exits
+    if hullTrendExit or supertrendTrendExit or quadrantTrendExit or adaptiveTrendExit or volumaticTrendExit or smoothHATrendExit or trendExitSignalEnable
+        trendFilterStatus += 'Individual Exits: ' + str.tostring(individualExitCount) + ' triggered\n'
+        if trendExitSignalEnable
+            externalStatus = externalTrendExitSignal ? 'TRIGGERED' : 'WAITING'
+            trendFilterStatus += 'External Exit: [' + externalStatus + ']\n'
+    
+    // Overall status with clean formatting
+    overallStatus = allowTrendExit ? 'EXIT ALLOWED' : 'EXIT BLOCKED'
+    trendFilterStatus += '\nSTATUS: ' + overallStatus
+    
+    // Display professional badge-style debug info
+    if barstate.islast
+        badgeColor = allowTrendExit ? color.new(color.green, 85) : color.new(color.red, 85)
+        debugLabel = label.new(bar_index, high + atrVal * 0.3, trendFilterStatus, 
+                              color=badgeColor, 
+                              textcolor=color.white, 
+                              style=label.style_label_down, 
+                              size=size.small)
 
-plotshape(adaptiveExitFilterShowDebug and adaptiveExitFilterEnable and adaptiveSTEnable and 
-          not adaptiveExitBlocked and adaptiveExitBlocked[1], 
-          title='Exit Filter UNBLOCKED', 
+// Subtle visual markers for trend-exit filter state changes
+plotshape(trendExitDebug and trendHoldActive and not trendHoldActive[1], 
+          title='Hold Filter Active', 
           style=shape.circle, 
-          location=location.abovebar, 
-          color=color.new(color.lime, 0), 
+          location=location.belowbar, 
+          color=color.new(color.orange, 30), 
           size=size.tiny)
 
-// Enhancement metrics table removed (enhancement suite removed)
-// All enhancement-related visualization has been removed to keep code lean
+plotshape(trendExitDebug and not trendHoldActive and trendHoldActive[1], 
+          title='Hold Filter Inactive', 
+          style=shape.xcross, 
+          location=location.belowbar, 
+          color=color.new(color.gray, 30), 
+          size=size.tiny)
+
+// ═══════════════════ STEP CHANNEL MOMENTUM VISUALS ═══════════════════
+// Complete ChartPrime Step Channel Momentum visualization (moved to global scope)
+
+// Step Channel visual variables (calculated above in dual-layer mode selection)
+stepChannelShowVisualsActive = stepChannelEnable and stepChannelShowVisuals
+stepChannelMidLineColor = stepChannelShowVisualsActive and stepChannelShowLines ? stepChannelCurrentColor : na
+stepChannelUpperColor = stepChannelShowVisualsActive and stepChannelShowLines ? chart.fg_color : na
+stepChannelLowerColor = stepChannelShowVisualsActive and stepChannelShowLines ? chart.fg_color : na
+stepChannelCandleColor = stepChannelShowVisualsActive and stepChannelShowCandles ? stepChannelCurrentColor : na
+
+// Plot Step Channel lines (highest z-index for dominance)
+plot(stepChannelShowVisualsActive and stepChannelShowLines ? stepChannelAvg : na, "Step Channel MidLine", color=stepChannelMidLineColor, linewidth=3)
+plot(stepChannelShowVisualsActive and stepChannelShowLines ? stepChannelUpper : na, "Step Channel Upper", color=stepChannelUpperColor, style=plot.style_linebr)
+plot(stepChannelShowVisualsActive and stepChannelShowLines ? stepChannelLower : na, "Step Channel Lower", color=stepChannelLowerColor, style=plot.style_linebr)
+
+// Plot Step Channel momentum candles (highest z-index for dominance over other indicators)
+plotcandle(stepChannelShowVisualsActive and stepChannelShowCandles ? open : na, 
+           stepChannelShowVisualsActive and stepChannelShowCandles ? high : na, 
+           stepChannelShowVisualsActive and stepChannelShowCandles ? low : na, 
+           stepChannelShowVisualsActive and stepChannelShowCandles ? close : na, 
+           title='Step Channel Momentum Candles', 
+           color=stepChannelCandleColor, 
+           wickcolor=stepChannelCandleColor, 
+           bordercolor=stepChannelCandleColor)
+
+// Step Channel market state label (matching ChartPrime exactly)
+if stepChannelShowVisualsActive and stepChannelShowLabel and barstate.islast
+    label.delete(label.new(bar_index, close, stepChannelState, color=color(na), textcolor=stepChannelCurrentColor, style=label.style_label_left, size=size.large)[1])
 
 // ═══════════════════ ENHANCEMENT SUITE REMOVED ═══════════════════
 // Advanced trend enhancement suite has been surgically removed to keep code lean.

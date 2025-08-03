@@ -1,0 +1,116 @@
+//@version=6
+indicator("CVD Trend Activation", "CVD-TA", format=format.volume, overlay=false)
+
+import TradingView/ta/8
+
+// ═══════════════════ USER INPUTS ═══════════════════
+anchorInput = input.timeframe("120", "CVD Anchor Period", group="📊 CVD Settings", tooltip="120 = 2 hours, 240 = 4 hours, 1D = 1 day")
+lowerTimeframeTooltip = "The indicator scans lower timeframe data to approximate up and down volume used in the delta calculation. By default, the timeframe is chosen automatically. These inputs override this with a custom timeframe.\n\nHigher timeframes provide more historical data, but the data will be less precise."
+useCustomTimeframeInput = input.bool(false, "Use Custom Timeframe", tooltip=lowerTimeframeTooltip, group="📊 CVD Settings")
+lowerTimeframeInput = input.timeframe("1", "Custom Timeframe", group="📊 CVD Settings")
+
+// CVD Channel Settings (SIMPLIFIED)
+cvdThreshold = input.int(1000, "CVD Activation Threshold", minval=100, maxval=10000, group="📊 CVD Channel", tooltip="CVD must be above +threshold or below -threshold to activate trend mode")
+
+// Visual Settings
+showCVDLine = input.bool(true, "Show CVD Line", group="🎨 Display")
+showChannelLines = input.bool(true, "Show Channel Lines", group="🎨 Display")
+showActivationZones = input.bool(true, "Show Trend Activation Zones", group="🎨 Display")
+showActivationLabels = input.bool(true, "Show Activation Labels", group="🎨 Display")
+
+// ═══════════════════ CVD CALCULATION ═══════════════════
+var lowerTimeframe = switch
+    useCustomTimeframeInput => lowerTimeframeInput
+    timeframe.isseconds     => "1S"
+    timeframe.isintraday    => "1"
+    timeframe.isdaily       => "5"
+    => "60"
+
+[openVolume, maxVolume, minVolume, lastVolume] = ta.requestVolumeDelta(lowerTimeframe, anchorInput)
+
+// Error handling for missing volume data
+var cumVol = 0.
+cumVol += nz(volume)
+if barstate.islast and cumVol == 0
+    runtime.error("The data vendor doesn't provide volume data for this symbol.")
+
+// ═══════════════════ CVD CHANNEL LOGIC (SIMPLIFIED & ELEGANT) ═══════════════════
+cvd_value = lastVolume
+
+// Simple channel breakout logic
+cvdTrendActivation = cvd_value > cvdThreshold or cvd_value < -cvdThreshold
+cvdScalpMode = cvd_value >= -cvdThreshold and cvd_value <= cvdThreshold
+
+// Determine trend direction from CVD
+cvdBullishTrend = cvd_value > cvdThreshold     // Above +1000 = Bullish institutional flow
+cvdBearishTrend = cvd_value < -cvdThreshold    // Below -1000 = Bearish institutional flow
+
+// ═══════════════════ TREND ACTIVATION LOGIC ═══════════════════
+// This represents when your dual-layer system would activate trend following
+trendActivationBullish = cvdBullishTrend
+trendActivationBearish = cvdBearishTrend
+anyTrendActivation = cvdTrendActivation
+
+// ═══════════════════ VISUAL PLOTS ═══════════════════
+// Main CVD Line
+cvdColor = cvd_value >= cvd_value[1] ? color.new(color.teal, 0) : color.new(color.red, 0)
+plot(showCVDLine ? cvd_value : na, "CVD", color=cvdColor, linewidth=2)
+
+// Zero line
+hline(0, "Zero Line", color=color.gray, linestyle=hline.style_dashed)
+
+// CVD Channel Lines (Simple & Clear)
+plot(showChannelLines ? cvdThreshold : na, "Upper Channel", color=color.new(color.orange, 0), linewidth=2, style=plot.style_line)
+plot(showChannelLines ? -cvdThreshold : na, "Lower Channel", color=color.new(color.orange, 0), linewidth=2, style=plot.style_line)
+
+// ═══════════════════ TREND ACTIVATION ZONES ═══════════════════
+// Background highlighting for trend activation periods
+bgcolor(showActivationZones and trendActivationBullish ? color.new(color.green, 85) : na, title="Bullish Trend Activation")
+bgcolor(showActivationZones and trendActivationBearish ? color.new(color.red, 85) : na, title="Bearish Trend Activation")
+
+// ═══════════════════ ACTIVATION LABELS ═══════════════════
+if showActivationLabels and trendActivationBullish
+    label.new(bar_index, cvd_value, "🚀 TREND UP", 
+              color=color.new(color.green, 0), 
+              textcolor=color.white, 
+              style=label.style_label_up, 
+              size=size.small,
+              tooltip="CVD Above Threshold\nBullish Institutional Flow\nTrend Following Mode: ACTIVE")
+
+if showActivationLabels and trendActivationBearish
+    label.new(bar_index, cvd_value, "🔻 TREND DOWN", 
+              color=color.new(color.red, 0), 
+              textcolor=color.white, 
+              style=label.style_label_down, 
+              size=size.small,
+              tooltip="CVD Below Threshold\nBearish Institutional Flow\nTrend Following Mode: ACTIVE")
+
+// ═══════════════════ TABLE DISPLAY ═══════════════════
+if barstate.islast
+    var table infoTable = table.new(position.top_right, 2, 6, bgcolor=color.new(color.white, 80), border_width=1)
+    
+    table.cell(infoTable, 0, 0, "CVD Trend Activation", text_color=color.black, text_size=size.normal, bgcolor=color.new(color.blue, 70))
+    table.cell(infoTable, 1, 0, "", bgcolor=color.new(color.blue, 70))
+    
+    table.cell(infoTable, 0, 1, "Current CVD:", text_color=color.black, text_size=size.small)
+    table.cell(infoTable, 1, 1, str.tostring(math.round(cvd_value)), text_color=color.black, text_size=size.small)
+    
+    table.cell(infoTable, 0, 2, "Channel:", text_color=color.black, text_size=size.small)
+    table.cell(infoTable, 1, 2, "+/-" + str.tostring(cvdThreshold), text_color=color.black, text_size=size.small)
+    
+    table.cell(infoTable, 0, 3, "Distance:", text_color=color.black, text_size=size.small)
+    distanceFromChannel = math.min(math.abs(cvd_value - cvdThreshold), math.abs(cvd_value + cvdThreshold))
+    table.cell(infoTable, 1, 3, str.tostring(math.round(distanceFromChannel)), text_color=color.black, text_size=size.small)
+    
+    table.cell(infoTable, 0, 4, "Trend Mode:", text_color=color.black, text_size=size.small)
+    modeText = trendActivationBullish ? "🚀 BULLISH" : trendActivationBearish ? "🔻 BEARISH" : "💤 SCALP"
+    modeColor = trendActivationBullish ? color.new(color.green, 50) : trendActivationBearish ? color.new(color.red, 50) : color.new(color.gray, 50)
+    table.cell(infoTable, 1, 4, modeText, text_color=color.black, text_size=size.small, bgcolor=modeColor)
+    
+    table.cell(infoTable, 0, 5, "Anchor Period:", text_color=color.black, text_size=size.small)
+    table.cell(infoTable, 1, 5, anchorInput, text_color=color.black, text_size=size.small)
+
+// ═══════════════════ ALERTS ═══════════════════
+alertcondition(trendActivationBullish, "CVD Bullish Trend Activation", "CVD above threshold - Bullish trend following mode activated")
+alertcondition(trendActivationBearish, "CVD Bearish Trend Activation", "CVD below threshold - Bearish trend following mode activated")
+alertcondition(anyTrendActivation, "CVD Any Trend Activation", "CVD channel breakout detected - Trend following mode activated")
