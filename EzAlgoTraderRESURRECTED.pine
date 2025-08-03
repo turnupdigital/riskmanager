@@ -1827,20 +1827,32 @@ stepChannelUpperColor = stepChannelShowVisualsActive and stepChannelShowLines ? 
 stepChannelLowerColor = stepChannelShowVisualsActive and stepChannelShowLines ? chart.fg_color : na
 stepChannelCandleColor = stepChannelShowVisualsActive and stepChannelShowCandles ? stepChannelCurrentColor : na
 
-// Plot Step Channel lines (highest z-index for dominance)
-plot(stepChannelShowVisualsActive and stepChannelShowLines ? stepChannelAvg : na, "Step Channel MidLine", color=stepChannelMidLineColor, linewidth=3)
-plot(stepChannelShowVisualsActive and stepChannelShowLines ? stepChannelUpper : na, "Step Channel Upper", color=stepChannelUpperColor, style=plot.style_linebr)
-plot(stepChannelShowVisualsActive and stepChannelShowLines ? stepChannelLower : na, "Step Channel Lower", color=stepChannelLowerColor, style=plot.style_linebr)
+// Step Channel lines (EXACT ChartPrime implementation - 3 lines total)
+// Midline: Colored with momentum state (yellow/green/red) - linewidth=3
+// Upper/Lower: Chart foreground color (white) - style_linebr
+plot(stepChannelEnable and stepChannelShowLines ? stepChannelAvg : na, 
+     "Step Channel MidLine", 
+     color=stepChannelEnable ? stepChannelCurrentColor : na, 
+     linewidth=3)
+plot(stepChannelEnable and stepChannelShowLines ? stepChannelUpper : na, 
+     "Step Channel Upper", 
+     color=stepChannelEnable ? chart.fg_color : na, 
+     style=plot.style_linebr)
+plot(stepChannelEnable and stepChannelShowLines ? stepChannelLower : na, 
+     "Step Channel Lower", 
+     color=stepChannelEnable ? chart.fg_color : na, 
+     style=plot.style_linebr)
 
-// Plot Step Channel momentum candles (highest z-index for dominance over other indicators)
-plotcandle(stepChannelShowVisualsActive and stepChannelShowCandles ? open : na, 
-           stepChannelShowVisualsActive and stepChannelShowCandles ? high : na, 
-           stepChannelShowVisualsActive and stepChannelShowCandles ? low : na, 
-           stepChannelShowVisualsActive and stepChannelShowCandles ? close : na, 
+// Step Channel complete candle coloring (EXACT ChartPrime implementation)
+// plotcandle() colors body, wicks, AND borders - complete yellow/green/red candles
+plotcandle(stepChannelEnable and stepChannelShowCandles ? open : na, 
+           stepChannelEnable and stepChannelShowCandles ? high : na, 
+           stepChannelEnable and stepChannelShowCandles ? low : na, 
+           stepChannelEnable and stepChannelShowCandles ? close : na, 
            title='Step Channel Momentum Candles', 
-           color=stepChannelCandleColor, 
-           wickcolor=stepChannelCandleColor, 
-           bordercolor=stepChannelCandleColor)
+           color=stepChannelEnable ? stepChannelCurrentColor : na, 
+           wickcolor=stepChannelEnable ? stepChannelCurrentColor : na, 
+           bordercolor=stepChannelEnable ? stepChannelCurrentColor : na)
 
 // Step Channel market state label (matching ChartPrime exactly)
 if stepChannelShowVisualsActive and stepChannelShowLabel and barstate.islast
