@@ -17,6 +17,20 @@ visualSwitch = input(true, title = 'Show as a Band?')
 thicknesSwitch = input(1, title = 'Line Thickness')
 transpSwitch = input.int(40, title = 'Band Transparency', step = 5)
 
+// Signal inputs
+enableSignals = input.bool(true, 'Enable Buy/Sell Signals', group = 'Entry Signals')
+showBadges = input.bool(true, 'Show Signal Badges', group = 'Entry Signals')
+badgeStyle = input.string('Diamond', 'Badge Style', options = ['Arrow Up/Down', 'Triangle Up/Down', 'Circle', 'Diamond', 'Flag', 'Square'], group = 'Entry Signals')
+badgeSize = input.string('Normal', 'Badge Size', options = ['Tiny', 'Small', 'Normal', 'Large', 'Huge'], group = 'Entry Signals')
+showLabels = input.bool(true, 'Show Text Labels', group = 'Entry Signals')
+useEmojis = input.bool(true, 'Use Emojis', group = 'Entry Signals')
+
+// Exit signal inputs
+enableExitSignals = input.bool(true, 'Enable Exit Signals', group = 'Exit Signals')
+minTrendCandles = input.int(5, 'Min Trend Candles', minval = 2, maxval = 20, group = 'Exit Signals', tooltip = 'Minimum consecutive trend candles before exit signals activate')
+minTrendATR = input.float(3.0, 'Min Trend Distance (ATR)', minval = 0.5, maxval = 10.0, step = 0.5, group = 'Exit Signals', tooltip = 'Minimum ATR distance from trend start before exit signals activate')
+atrLength = input.int(14, 'ATR Length', minval = 1, maxval = 50, group = 'Exit Signals', tooltip = 'ATR calculation period')
+
 //FUNCTIONS
 //HMA
 HMA(_src, _length) =>
@@ -41,6 +55,58 @@ SHULL = HULL[2]
 //COLOR
 hullColor = switchColor ? HULL > HULL[2] ? #00ff00 : #ff0000 : #ff9800
 
+//SIGNAL DETECTION
+// Trend state detection
+isBullish = HULL > HULL[2]
+isBearish = HULL < HULL[2]
+
+// Buy/Sell signals on color change
+buySignal = enableSignals and not isBullish[1] and isBullish  // Changed from bearish to bullish
+sellSignal = enableSignals and not isBearish[1] and isBearish  // Changed from bullish to bearish
+
+//EXIT SIGNAL DETECTION
+// ATR calculation for distance measurement
+atrValue = ta.atr(atrLength)
+
+// Track consecutive trend candles and trend start
+var int consecutiveBullCandles = 0
+var int consecutiveBearCandles = 0
+var float trendStartPrice = na
+var int trendStartBar = na
+
+// Update consecutive candle counts and trend tracking
+if isBullish
+    consecutiveBullCandles := consecutiveBullCandles + 1
+    consecutiveBearCandles := 0
+    if consecutiveBullCandles == 1  // First bull candle of new trend
+        trendStartPrice := close
+        trendStartBar := bar_index
+else if isBearish
+    consecutiveBearCandles := consecutiveBearCandles + 1
+    consecutiveBullCandles := 0
+    if consecutiveBearCandles == 1  // First bear candle of new trend
+        trendStartPrice := close
+        trendStartBar := bar_index
+else
+    // Neutral - reset counters
+    consecutiveBullCandles := 0
+    consecutiveBearCandles := 0
+    trendStartPrice := na
+    trendStartBar := na
+
+// Calculate trend conditions
+trendCandlesMet = consecutiveBullCandles >= minTrendCandles or consecutiveBearCandles >= minTrendCandles
+trendDistanceMet = not na(trendStartPrice) and not na(atrValue) and math.abs(close - trendStartPrice) >= (minTrendATR * atrValue)
+significantTrend = trendCandlesMet and trendDistanceMet
+
+// Hull ribbon bounds (for exit detection)
+hullUpper = math.max(MHULL, SHULL)
+hullLower = math.min(MHULL, SHULL)
+
+// Exit signal logic: Price goes inside the ribbon after significant trend
+exitLongSignal = enableExitSignals and significantTrend and consecutiveBullCandles >= minTrendCandles and close < hullUpper and close[1] >= hullUpper[1]  // Price enters ribbon from above
+exitShortSignal = enableExitSignals and significantTrend and consecutiveBearCandles >= minTrendCandles and close > hullLower and close[1] <= hullLower[1]  // Price enters ribbon from below
+
 //PLOT
 ///< Frame
 Fi1 = plot(MHULL, title = 'MHULL', color = hullColor, linewidth = math.max(1, thicknesSwitch))
@@ -49,5 +115,60 @@ alertcondition(ta.crossover(MHULL, SHULL), title = 'Hull trending up.', message 
 alertcondition(ta.crossover(SHULL, MHULL), title = 'Hull trending down.', message = 'Hull trending down.')
 ///< Ending Filler
 fill(Fi1, Fi2, title = 'Band Filler', color = hullColor)
+
+//STYLE HELPER FUNCTIONS
+getBadgeStyle(style, isBull) =>
+    switch style
+        'Arrow Up/Down' => isBull ? label.style_arrowup : label.style_arrowdown
+        'Triangle Up/Down' => isBull ? label.style_triangleup : label.style_triangledown
+        'Circle' => label.style_circle
+        'Diamond' => label.style_diamond
+        'Flag' => label.style_flag
+        'Square' => label.style_square
+        => label.style_diamond
+
+getBadgeSize(sizeStr) =>
+    switch sizeStr
+        'Tiny' => size.tiny
+        'Small' => size.small
+        'Normal' => size.normal
+        'Large' => size.large
+        'Huge' => size.huge
+        => size.normal
+
+//SIGNAL BADGES
+if showBadges
+    // Buy Signal Badge
+    if buySignal
+        badgeText = showLabels ? (useEmojis ? "🚀 BUY" : "BUY") : ""
+        label.new(x = bar_index, y = low - (high - low) * 0.1, text = badgeText, style = getBadgeStyle(badgeStyle, true), color = color.new(#00ff88, 0), textcolor = color.white, size = getBadgeSize(badgeSize), tooltip = "Hull Suite Buy Signal\nHull trend changed to Bullish")
+    
+    // Sell Signal Badge  
+    if sellSignal
+        badgeText = showLabels ? (useEmojis ? "🔻 SELL" : "SELL") : ""
+        label.new(x = bar_index, y = high + (high - low) * 0.1, text = badgeText, style = getBadgeStyle(badgeStyle, false), color = color.new(#ff4444, 0), textcolor = color.white, size = getBadgeSize(badgeSize), tooltip = "Hull Suite Sell Signal\nHull trend changed to Bearish")
+    
+    // Exit Long Signal Badge
+    if exitLongSignal
+        exitText = showLabels ? (useEmojis ? "🚪 EXIT LONG" : "EXIT LONG") : ""
+        label.new(x = bar_index, y = high + (high - low) * 0.15, text = exitText, style = getBadgeStyle(badgeStyle, false), color = color.new(#ff8800, 0), textcolor = color.white, size = getBadgeSize(badgeSize), tooltip = "Hull Suite Exit Long\nPrice entered Hull ribbon after significant uptrend")
+    
+    // Exit Short Signal Badge
+    if exitShortSignal
+        exitText = showLabels ? (useEmojis ? "🚪 EXIT SHORT" : "EXIT SHORT") : ""
+        label.new(x = bar_index, y = low - (high - low) * 0.15, text = exitText, style = getBadgeStyle(badgeStyle, true), color = color.new(#ff8800, 0), textcolor = color.white, size = getBadgeSize(badgeSize), tooltip = "Hull Suite Exit Short\nPrice entered Hull ribbon after significant downtrend")
+
+// Alternative: Simple shapes for minimal display (always available)
+plotshape(buySignal and not showBadges, title = 'Buy Signal Backup', location = location.belowbar, color = color.new(color.lime, 0), style = shape.triangleup, size = size.small)
+plotshape(sellSignal and not showBadges, title = 'Sell Signal Backup', location = location.abovebar, color = color.new(color.red, 0), style = shape.triangledown, size = size.small)
+
+// Plot signal values for external connection (these can be connected to strategy inputs)
+plot(buySignal ? 1 : 0, title = 'Buy Signal Plot', color = color.new(color.lime, 100), display = display.data_window)
+plot(sellSignal ? -1 : 0, title = 'Sell Signal Plot', color = color.new(color.red, 100), display = display.data_window)
+
+// Plot exit signal values for external connection
+plot(exitLongSignal ? 1 : 0, title = 'Exit Long Plot', color = color.new(color.orange, 100), display = display.data_window)
+plot(exitShortSignal ? -1 : 0, title = 'Exit Short Plot', color = color.new(color.orange, 100), display = display.data_window)
+
 ///BARCOLOR
 barcolor(color = candleCol ? switchColor ? hullColor : na : na)

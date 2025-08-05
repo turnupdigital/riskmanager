@@ -1,0 +1,148 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © wallneradam
+
+//@version=6
+indicator('Smoothed Heiken Ashi', 'Smooth HK', overlay = true)
+
+import wallneradam/TAExt/8
+
+//
+// User inputs
+//
+ha_smooth_length = input.int(10, 'Smooth Length', minval = 1, group = 'Before HA')
+ha_smooth_ma_type = input.string('EMA', 'MA Type', options = ['SMA', 'EMA', 'WMA', 'VWMA', 'RMA', 'DEMA', 'TEMA', 'ZLEMA', 'HMA', 'ALMA', 'LSMA', 'SWMA', 'SMMA', 'JMA', 'DONCHIAN', 'ATRWSMA', 'ATRWEMA', 'ATRWRMA', 'ATRWWMA'], group = 'Before HA')
+ha_after_smooth_length = input.int(10, 'After Smooth Length', minval = 1, group = 'After HA')
+ha_after_smooth_ma_type = input.string('EMA', 'After MA Type', options = ['SMA', 'EMA', 'WMA', 'VWMA', 'RMA', 'DEMA', 'TEMA', 'ZLEMA', 'HMA', 'ALMA', 'LSMA', 'SWMA', 'SMMA', 'JMA', 'DONCHIAN', 'ATRWSMA', 'ATRWEMA', 'ATRWRMA', 'ATRWWMA'], group = 'After HA')
+
+// Badge styling inputs
+showBadges = input.bool(true, 'Show Signal Badges', group = 'Signal Badges')
+badgeStyle = input.string('Diamond', 'Badge Style', options = ['Arrow Up/Down', 'Triangle Up/Down', 'Circle', 'Diamond', 'Flag', 'Square'], group = 'Signal Badges')
+badgeSize = input.string('Normal', 'Badge Size', options = ['Tiny', 'Small', 'Normal', 'Large', 'Huge'], group = 'Signal Badges')
+showLabels = input.bool(true, 'Show Text Labels', group = 'Signal Badges')
+useEmojis = input.bool(true, 'Use Emojis', group = 'Signal Badges')
+
+// Exit signal inputs
+enableExitSignals = input.bool(true, 'Enable Exit Signals', group = 'Exit Signals')
+minTrendCandles = input.int(5, 'Min Trend Candles', minval = 2, maxval = 20, group = 'Exit Signals', tooltip = 'Minimum consecutive candles in same direction before exit signals activate')
+minTrendATR = input.float(3.0, 'Min Trend Distance (ATR)', minval = 0.5, maxval = 10.0, step = 0.5, group = 'Exit Signals', tooltip = 'Minimum ATR distance from trend start before exit signals activate')
+atrLength = input.int(14, 'ATR Length', minval = 1, maxval = 50, group = 'Exit Signals', tooltip = 'ATR calculation period')
+
+//
+// Calculation
+//
+[o, h, l, c] = TAExt.heiken_ashi(smooth_length = ha_smooth_length, smooth_ma_type = ha_smooth_ma_type, after_smooth_length = ha_after_smooth_length, after_smooth_ma_type = ha_after_smooth_ma_type)
+
+//
+// Signal Detection
+//
+// Determine current trend state
+isBullish = c > o
+isBearish = o > c
+
+// Detect trend changes (signal triggers)
+bullSignal = not isBullish[1] and isBullish  // Changed from bearish to bullish
+bearSignal = not isBearish[1] and isBearish  // Changed from bullish to bearish
+
+//
+// Exit Signal Detection
+//
+// ATR calculation for distance measurement
+atrValue = ta.atr(atrLength)
+
+// Track consecutive candles and trend start
+var int consecutiveBullCandles = 0
+var int consecutiveBearCandles = 0
+var float trendStartPrice = na
+var int trendStartBar = na
+
+// Update consecutive candle counts and trend tracking
+if isBullish
+    consecutiveBullCandles := consecutiveBullCandles + 1
+    consecutiveBearCandles := 0
+    if consecutiveBullCandles == 1  // First bull candle of new trend
+        trendStartPrice := math.min(o, c)  // Start from bottom of first candle
+        trendStartBar := bar_index
+else if isBearish
+    consecutiveBearCandles := consecutiveBearCandles + 1
+    consecutiveBullCandles := 0
+    if consecutiveBearCandles == 1  // First bear candle of new trend
+        trendStartPrice := math.max(o, c)  // Start from top of first candle
+        trendStartBar := bar_index
+else
+    // Neither bullish nor bearish (doji) - reset counters
+    consecutiveBullCandles := 0
+    consecutiveBearCandles := 0
+    trendStartPrice := na
+    trendStartBar := na
+
+// Calculate trend conditions
+trendCandlesMet = consecutiveBullCandles >= minTrendCandles or consecutiveBearCandles >= minTrendCandles
+trendDistanceMet = not na(trendStartPrice) and not na(atrValue) and math.abs(close - trendStartPrice) >= (minTrendATR * atrValue)
+significantTrend = trendCandlesMet and trendDistanceMet
+
+// Exit signal logic: Price touches candle body after significant trend
+bullishExitSignal = enableExitSignals and significantTrend and consecutiveBullCandles >= minTrendCandles and close <= math.max(o, c)  // Price touches top of body from above
+bearishExitSignal = enableExitSignals and significantTrend and consecutiveBearCandles >= minTrendCandles and close >= math.min(o, c)  // Price touches bottom of body from below
+
+//
+// Style Helper Functions (Based on StyleLibrary patterns)
+//
+getBadgeStyle(style, isBull) =>
+    switch style
+        'Arrow Up/Down' => isBull ? label.style_arrowup : label.style_arrowdown
+        'Triangle Up/Down' => isBull ? label.style_triangleup : label.style_triangledown
+        'Circle' => label.style_circle
+        'Diamond' => label.style_diamond
+        'Flag' => label.style_flag
+        'Square' => label.style_square
+        => label.style_diamond
+
+getBadgeSize(sizeStr) =>
+    switch sizeStr
+        'Tiny' => size.tiny
+        'Small' => size.small
+        'Normal' => size.normal
+        'Large' => size.large
+        'Huge' => size.huge
+        => size.normal
+
+//
+// Plotting
+//
+plotcandle(o, h, l, c, title = 'Smoothed Heiken Ashi', color = o > c ? color.new(color.red, 60) : color.new(color.lime, 60), wickcolor = o > c ? color.new(color.red, 20) : color.new(color.lime, 20), bordercolor = o > c ? color.new(color.red, 10) : color.new(color.lime, 10))
+
+//
+// Professional Signal Badges
+//
+if showBadges
+    // Bull Signal Badge
+    if bullSignal
+        badgeText = showLabels ? (useEmojis ? "🚀 BULL" : "BULL") : ""
+        label.new(            x = bar_index,             y = low - (high - low) * 0.1,             text = badgeText,            style = getBadgeStyle(badgeStyle, true),            color = color.new(#00ff88, 0),            textcolor = color.white,            size = getBadgeSize(badgeSize),            tooltip = "Smooth HK Bull Signal\nTrend changed to Bullish"        )
+    
+    // Bear Signal Badge  
+    if bearSignal
+        badgeText = showLabels ? (useEmojis ? "🔻 BEAR" : "BEAR") : ""
+        label.new(            x = bar_index,             y = high + (high - low) * 0.1,             text = badgeText,            style = getBadgeStyle(badgeStyle, false),            color = color.new(#ff4444, 0),            textcolor = color.white,            size = getBadgeSize(badgeSize),            tooltip = "Smooth HK Bear Signal\nTrend changed to Bearish"        )
+    
+    // Bullish Exit Signal Badge
+    if bullishExitSignal
+        exitText = showLabels ? (useEmojis ? "🚪 EXIT" : "EXIT") : ""
+        label.new(            x = bar_index,             y = high + (high - low) * 0.15,             text = exitText,            style = getBadgeStyle(badgeStyle, false),            color = color.new(#ff8800, 0),            textcolor = color.white,            size = getBadgeSize(badgeSize),            tooltip = "Smooth HK Bullish Exit\nPrice touched candle body after significant uptrend"        )
+    
+    // Bearish Exit Signal Badge
+    if bearishExitSignal
+        exitText = showLabels ? (useEmojis ? "🚪 EXIT" : "EXIT") : ""
+        label.new(            x = bar_index,             y = low - (high - low) * 0.15,             text = exitText,            style = getBadgeStyle(badgeStyle, true),            color = color.new(#ff8800, 0),            textcolor = color.white,            size = getBadgeSize(badgeSize),            tooltip = "Smooth HK Bearish Exit\nPrice touched candle body after significant downtrend"        )
+
+// Alternative: Simple shapes for minimal display (always available)
+plotshape(bullSignal and not showBadges, title = 'Bull Signal Backup', location = location.belowbar, color = color.new(color.lime, 0), style = shape.triangleup, size = size.small)
+plotshape(bearSignal and not showBadges, title = 'Bear Signal Backup', location = location.abovebar, color = color.new(color.red, 0), style = shape.triangledown, size = size.small)
+
+// Plot signal values for external connection (these can be connected to strategy inputs)
+plot(bullSignal ? 1 : 0, title = 'Bull Signal Plot', color = color.new(color.lime, 100), display = display.data_window)
+plot(bearSignal ? -1 : 0, title = 'Bear Signal Plot', color = color.new(color.red, 100), display = display.data_window)
+
+// Plot exit signal values for external connection
+plot(bullishExitSignal ? 1 : 0, title = 'Bullish Exit Plot', color = color.new(color.orange, 100), display = display.data_window)
+plot(bearishExitSignal ? -1 : 0, title = 'Bearish Exit Plot', color = color.new(color.orange, 100), display = display.data_window)

@@ -1,0 +1,134 @@
+//@version=6
+indicator("CVD Enhanced - Strategy Compatible", "CVD Enhanced", format=format.volume)
+
+import TradingView/ta/8
+
+// ═══════════════════ CORE CVD SETTINGS ═══════════════════
+anchorInput = input.timeframe("1D", "Anchor Period", tooltip="Timeframe for CVD calculation reset")
+lowerTimeframeTooltip = "The indicator scans lower timeframe data to approximate up and down volume used in the delta calculation. By default, the timeframe is chosen automatically. These inputs override this with a custom timeframe.\n\nHigher timeframes provide more historical data, but the data will be less precise."
+useCustomTimeframeInput = input.bool(false, "Use Custom Timeframe", tooltip = lowerTimeframeTooltip)
+lowerTimeframeInput = input.timeframe("1", "Custom Timeframe")
+
+// ═══════════════════ STRATEGY THRESHOLD SETTINGS ═══════════════════
+showThresholdLines = input.bool(true, "Show Threshold Lines", group="Strategy Integration")
+positiveThreshold = input.int(1000, "Positive Threshold", minval=100, maxval=50000, group="Strategy Integration", tooltip="CVD must be ABOVE this level for bullish trend confirmation")
+negativeThreshold = input.int(-1000, "Negative Threshold", maxval=-100, minval=-50000, group="Strategy Integration", tooltip="CVD must be BELOW this level for bearish trend confirmation")
+thresholdLineStyle = input.string("Solid", "Line Style", options=["Solid", "Dashed", "Dotted"], group="Strategy Integration")
+positiveLineColor = input.color(color.new(color.green, 0), "Positive Line Color", group="Strategy Integration")
+negativeLineColor = input.color(color.new(color.red, 0), "Negative Line Color", group="Strategy Integration")
+lineWidth = input.int(2, "Line Width", minval=1, maxval=5, group="Strategy Integration")
+
+// ═══════════════════ VISUAL ENHANCEMENT SETTINGS ═══════════════════
+showLabels = input.bool(true, "Show Threshold Labels", group="Visual Enhancements")
+showZone = input.bool(true, "Show Neutral Zone", group="Visual Enhancements")
+zoneColor = input.color(color.new(color.gray, 80), "Neutral Zone Color", group="Visual Enhancements")
+bullishCandleColor = input.color(color.new(color.teal, 0), "Bullish CVD Color", group="Visual Enhancements")
+bearishCandleColor = input.color(color.new(color.red, 0), "Bearish CVD Color", group="Visual Enhancements")
+
+// ═══════════════════ CVD CALCULATION ═══════════════════
+var lowerTimeframe = switch
+    useCustomTimeframeInput => lowerTimeframeInput
+    timeframe.isseconds     => "1S"
+    timeframe.isintraday    => "1"
+    timeframe.isdaily       => "5"
+    => "60"
+
+// Get CVD data using TradingView's built-in volume delta function
+[openVolume, maxVolume, minVolume, lastVolume] = ta.requestVolumeDelta(lowerTimeframe, anchorInput)
+
+// ═══════════════════ TREND CONFIRMATION LOGIC ═══════════════════
+// This matches the logic used in the strategy
+isBullishTrend = lastVolume > positiveThreshold
+isBearishTrend = lastVolume < negativeThreshold
+isNeutralZone = lastVolume <= positiveThreshold and lastVolume >= negativeThreshold
+
+// Dynamic color based on trend confirmation
+candleColor = isBullishTrend ? bullishCandleColor : 
+              isBearishTrend ? bearishCandleColor : 
+              color.new(color.gray, 30)
+
+// ═══════════════════ PLOTTING ═══════════════════
+// Zero line
+hline(0, "Zero Line", color=color.new(color.white, 50), linestyle=hline.style_solid)
+
+// CVD Candles
+plotcandle(openVolume, maxVolume, minVolume, lastVolume, "CVD", 
+           color = candleColor, 
+           bordercolor = candleColor, 
+           wickcolor = candleColor)
+
+// ═══════════════════ THRESHOLD LINES & ZONES ═══════════════════
+if showThresholdLines
+    // Convert line style string to Pine Script constant
+    lineStyleConstant = switch thresholdLineStyle
+        "Solid" => line.style_solid
+        "Dashed" => line.style_dashed
+        "Dotted" => line.style_dotted
+        => line.style_solid
+    
+    // Positive threshold line
+    hline(positiveThreshold, "Positive Threshold", 
+          color=positiveLineColor, 
+          linestyle=lineStyleConstant, 
+          linewidth=lineWidth)
+    
+    // Negative threshold line  
+    hline(negativeThreshold, "Negative Threshold", 
+          color=negativeLineColor, 
+          linestyle=lineStyleConstant, 
+          linewidth=lineWidth)
+
+// Neutral zone fill
+if showZone
+    upperBand = plot(positiveThreshold, "Upper Zone", color=color.new(color.na, 100))
+    lowerBand = plot(negativeThreshold, "Lower Zone", color=color.new(color.na, 100))
+    fill(upperBand, lowerBand, color=zoneColor, title="Neutral Zone")
+
+// ═══════════════════ THRESHOLD LABELS ═══════════════════
+if showLabels and barstate.islast
+    // Positive threshold label
+    label.new(bar_index + 5, positiveThreshold, 
+              text="+" + str.tostring(positiveThreshold) + "\nBULL ZONE", 
+              color=color.new(positiveLineColor, 0), 
+              textcolor=color.white, 
+              style=label.style_label_left, 
+              size=size.small,
+              tooltip="CVD must be ABOVE this level for bullish trend confirmation")
+    
+    // Negative threshold label
+    label.new(bar_index + 5, negativeThreshold, 
+              text=str.tostring(negativeThreshold) + "\nBEAR ZONE", 
+              color=color.new(negativeLineColor, 0), 
+              textcolor=color.white, 
+              style=label.style_label_left, 
+              size=size.small,
+              tooltip="CVD must be BELOW this level for bearish trend confirmation")
+    
+    // Current status label
+    statusText = isBullishTrend ? "🟢 BULL CONFIRMED" : 
+                 isBearishTrend ? "🔴 BEAR CONFIRMED" : 
+                 "🟡 NEUTRAL ZONE"
+    statusColor = isBullishTrend ? color.new(color.green, 0) : 
+                  isBearishTrend ? color.new(color.red, 0) : 
+                  color.new(color.orange, 0)
+    
+    label.new(bar_index, lastVolume, 
+              text=statusText + "\nCVD: " + str.tostring(math.round(lastVolume)), 
+              color=statusColor, 
+              textcolor=color.white, 
+              style=label.style_label_center, 
+              size=size.normal,
+              tooltip="Current CVD Status\nValue: " + str.tostring(lastVolume, "#,###"))
+
+// ═══════════════════ PLOT VALUES FOR STRATEGY CONNECTION ═══════════════════
+// These plots can be connected to the strategy for automated threshold checking
+plot(lastVolume, "CVD Value", color=color.new(color.blue, 100), display=display.data_window)
+plot(isBullishTrend ? 1 : 0, "Bull Trend Signal", color=color.new(color.green, 100), display=display.data_window)
+plot(isBearishTrend ? 1 : 0, "Bear Trend Signal", color=color.new(color.red, 100), display=display.data_window)
+plot(isNeutralZone ? 1 : 0, "Neutral Zone Signal", color=color.new(color.gray, 100), display=display.data_window)
+
+// Volume data validation
+var cumVol = 0.
+cumVol += nz(volume)
+if barstate.islast and cumVol == 0
+    runtime.error("The data vendor doesn't provide volume data for this symbol.")

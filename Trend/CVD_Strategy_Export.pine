@@ -1,0 +1,69 @@
+//@version=6
+indicator("CVD - Strategy Export", "CVD Export", format=format.volume)
+
+import TradingView/ta/8
+
+// ═══════════════════ CVD CALCULATION INPUTS ═══════════════════
+anchorInput = input.timeframe("120", "CVD Anchor Period", tooltip="Timeframe for CVD reset (120=2h, 240=4h, 1D=1day)")
+lowerTimeframeTooltip = "The indicator scans lower timeframe data to approximate up and down volume used in the delta calculation. By default, the timeframe is chosen automatically. These inputs override this with a custom timeframe.\n\nHigher timeframes provide more historical data, but the data will be less precise."
+useCustomTimeframeInput = input.bool(false, "Use Custom Timeframe", tooltip = lowerTimeframeTooltip)
+lowerTimeframeInput = input.timeframe("1", "Custom Timeframe")
+
+// Strategy connection settings
+showVisuals = input.bool(true, "Show CVD Visuals", group="Display")
+showThresholdLines = input.bool(true, "Show Threshold Lines", group="Display") 
+thresholdLevel = input.int(1000, "Threshold Level", minval=100, maxval=50000, group="Display", tooltip="Reference threshold for strategy connection")
+
+// ═══════════════════ CVD CALCULATION ═══════════════════
+var lowerTimeframe = switch
+    useCustomTimeframeInput => lowerTimeframeInput
+    timeframe.isseconds     => "1S"
+    timeframe.isintraday    => "1"
+    timeframe.isdaily       => "5"
+    => "60"
+
+// Get CVD data using TradingView's built-in volume delta function
+[openVolume, maxVolume, minVolume, lastVolume] = ta.requestVolumeDelta(lowerTimeframe, anchorInput)
+
+// Volume validation
+var cumVol = 0.
+cumVol += nz(volume)
+if barstate.islast and cumVol == 0
+    runtime.error("The data vendor doesn't provide volume data for this symbol.")
+
+// ═══════════════════ VISUAL DISPLAY & PLOTS ═══════════════════
+// CVD Color Logic
+cvdColor = lastVolume >= openVolume ? color.teal : color.red
+
+// Zero line
+hline(0, "CVD Zero", color=color.new(color.white, 50))
+
+// Threshold lines with conditional visibility
+hline(thresholdLevel, "Positive Threshold", 
+      color=showThresholdLines ? color.new(color.green, 0) : color.new(color.green, 100), 
+      linestyle=hline.style_dashed)
+hline(-thresholdLevel, "Negative Threshold", 
+      color=showThresholdLines ? color.new(color.red, 0) : color.new(color.red, 100), 
+      linestyle=hline.style_dashed)
+
+// CVD Candles with conditional visibility
+plotcandle(openVolume, maxVolume, minVolume, lastVolume, "CVD", 
+           color = showVisuals ? cvdColor : color.new(cvdColor, 100), 
+           bordercolor = showVisuals ? cvdColor : color.new(cvdColor, 100), 
+           wickcolor = showVisuals ? cvdColor : color.new(cvdColor, 100))
+
+// ═══════════════════ CHART SCALING CONTROL ═══════════════════
+// Invisible plots to help control chart scaling around threshold levels
+plot(thresholdLevel * 1.2, "Scale Control High", color=color.new(color.white, 100))
+plot(-thresholdLevel * 1.2, "Scale Control Low", color=color.new(color.white, 100))
+
+// ═══════════════════ STRATEGY EXPORT PLOTS ═══════════════════
+// These plots can be connected to your strategy inputs
+
+// Main CVD value (connect this to strategy)
+plot(lastVolume, "CVD Value", color=color.new(color.blue, 100))
+
+// Threshold signals for easy strategy connection
+plot(lastVolume > thresholdLevel ? 1 : 0, "Bull Threshold Signal", color=color.new(color.green, 100))
+plot(lastVolume < -thresholdLevel ? 1 : 0, "Bear Threshold Signal", color=color.new(color.red, 100))
+plot(math.abs(lastVolume) > thresholdLevel ? 1 : 0, "Trend Mode Signal", color=color.new(color.orange, 100))
