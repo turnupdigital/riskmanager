@@ -55,12 +55,6 @@ We'll implement and test before moving to the next change
 4. Red Flag Warnings
 Tell me to STOP immediately if I ever suggest:
 
-Removing multi-signal processing logic
-Simplifying the exit system architecture
-Modifying strategy.entry() or strategy.exit() calls
-Changing core mathematical formulas (ATR, confluence, filters)
-"Streamlining" the trend-riding overlay system
-
 My Commitment:
 I will treat this code like a precision instrument that's already performing well. Any changes will be made with surgical precision, and I'll always err on the side of preservation over convenience. The goal is enhancement without degradation.
 What specific area would you like to work on first? I'll approach it with this protection-first methodology and present you with minimal, targeted suggestions that preserve all existing functionality.

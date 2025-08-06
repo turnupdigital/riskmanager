@@ -1,0 +1,418 @@
+// 2025 Andres Garcia — EZ Algo Trader (Beta)
+//  ────────────────────────────────────────────────────────────────
+//  Enhanced Multi-Signal Risk Management System
+//  • Professional risk management with multiple exit strategies
+//  • TradersPost webhook integration for automated trading
+//  • Configurable position sizing and stop-loss/take-profit levels
+//  • Integrated debugging logger for development
+//  ────────────────────────────────────────────────────────────────
+//@version=6
+
+// ═══════════════════ DEBUG SYSTEM (SIMPLIFIED) ═══════════════════
+// Simple debug system using Pine Script labels - no external libraries
+
+// Debug configuration
+bool debugEnabled = input.bool(false, '🔍 Enable Debug Labels', group = '🛠️ Debug System', tooltip = 'Show debug information as chart labels')
+
+// Simple debug functions using labels (no counters to avoid global variable modification issues)
+debugLog(string message) =>
+    if debugEnabled
+        label.new(bar_index, high + (high - low) * 0.1, "DEBUG: " + message, style=label.style_label_down, color=color.blue, textcolor=color.white, size=size.small)
+
+debugInfo(string message) =>
+    if debugEnabled
+        label.new(bar_index, high + (high - low) * 0.05, "INFO: " + message, style=label.style_label_down, color=color.green, textcolor=color.white, size=size.small)
+
+debugWarn(string message) =>
+    if debugEnabled
+        label.new(bar_index, high + (high - low) * 0.15, "WARN: " + message, style=label.style_label_down, color=color.orange, textcolor=color.white, size=size.small)
+
+debugError(string message) =>
+    if debugEnabled
+        label.new(bar_index, high + (high - low) * 0.2, "ERROR: " + message, style=label.style_label_down, color=color.red, textcolor=color.white, size=size.small)
+
+debugTrace(string message) =>
+    if debugEnabled
+        label.new(bar_index, high + (high - low) * 0.25, "TRACE: " + message, style=label.style_label_down, color=color.gray, textcolor=color.white, size=size.small)
+
+strategy(title = 'EZ Algo Trader (Beta)', overlay = true, default_qty_type = strategy.fixed, default_qty_value = 1, calc_on_order_fills = true, process_orders_on_close = true, calc_on_every_tick = false)
+// User-controllable quantity
+
+// ═══════════════════ GLOBAL VARIABLE DECLARATIONS ═══════════════════
+// Declare all variables early to avoid scope issues
+
+// Exit system variables
+var float smartOffset = na
+var string exitComment = na
+var string exitReason = na
+var string entryComment = na
+
+// ATR and other technical variables
+// ATR is calculated using user-configurable atrLen in the ATR Settings section
+
+
+
+// ═══════════════════ CRITICAL INPUT DECLARATIONS ═══════════════════
+// These inputs must be declared early as they're used in backtest functions
+positionQty = input.int(1, 'Number of Contracts', minval = 1, maxval = 1000, group = 'Position Size', tooltip = 'Set the number of contracts/shares to trade per signal')
+
+
+
+// ═══════════════════ MULTI-SIGNAL INPUT SYSTEM ═══════════════════
+// Support for multiple buy/sell indicators with AI-style quality assessment
+
+// ─────────────────── SIGNAL SOURCE INPUTS ───────────────────
+signal1Enable = input.bool(true, '📊 Signal 1', inline = 'sig1', group = '🔄 Multi-Signals', tooltip = 'Primary signal source')
+signal1LongSrc = input.source(close, 'Long', inline = 'sig1', group = '🔄 Multi-Signals')
+signal1ShortSrc = input.source(close, 'Short', inline = 'sig1', group = '🔄 Multi-Signals')
+signal1Name = input.string('LuxAlgo', 'Name', inline = 'sig1name', group = '🔄 Multi-Signals')
+signal1Usage = input.string('Entry All', 'Usage', options = ['Entry All', 'Entry Long Only', 'Entry Short Only', 'Exit All', 'Exit Long Only', 'Exit Short Only', 'Observe'], inline = 'sig1name', group = '🔄 Multi-Signals')
+
+signal2Enable = input.bool(false, '📊 Signal 2', inline = 'sig2', group = '🔄 Multi-Signals')
+signal2LongSrc = input.source(close, 'Long', inline = 'sig2', group = '🔄 Multi-Signals')
+signal2ShortSrc = input.source(close, 'Short', inline = 'sig2', group = '🔄 Multi-Signals')
+signal2Name = input.string('UTBot', 'Name', inline = 'sig2name', group = '🔄 Multi-Signals')
+signal2Usage = input.string('Entry All', 'Usage', options = ['Entry All', 'Entry Long Only', 'Entry Short Only', 'Exit All', 'Exit Long Only', 'Exit Short Only', 'Observe'], inline = 'sig2name', group = '🔄 Multi-Signals')
+
+signal3Enable = input.bool(false, '📊 Signal 3', inline = 'sig3', group = '🔄 Multi-Signals')
+signal3LongSrc = input.source(close, 'Long', inline = 'sig3', group = '🔄 Multi-Signals')
+signal3ShortSrc = input.source(close, 'Short', inline = 'sig3', group = '🔄 Multi-Signals')
+signal3Name = input.string('VIDYA', 'Name', inline = 'sig3name', group = '🔄 Multi-Signals')
+signal3Usage = input.string('Entry All', 'Usage', options = ['Entry All', 'Entry Long Only', 'Entry Short Only', 'Exit All', 'Exit Long Only', 'Exit Short Only', 'Observe'], inline = 'sig3name', group = '🔄 Multi-Signals')
+
+signal4Enable = input.bool(false, '📊 Signal 4', inline = 'sig4', group = '🔄 Multi-Signals')
+signal4LongSrc = input.source(close, 'Long', inline = 'sig4', group = '🔄 Multi-Signals')
+signal4ShortSrc = input.source(close, 'Short', inline = 'sig4', group = '🔄 Multi-Signals')
+signal4Name = input.string('KyleAlgo', 'Name', inline = 'sig4name', group = '🔄 Multi-Signals')
+signal4Usage = input.string('Entry All', 'Usage', options = ['Entry All', 'Entry Long Only', 'Entry Short Only', 'Exit All', 'Exit Long Only', 'Exit Short Only', 'Observe'], inline = 'sig4name', group = '🔄 Multi-Signals')
+
+signal5Enable = input.bool(false, '📊 Signal 5', inline = 'sig5', group = '🔄 Multi-Signals')
+signal5LongSrc = input.source(close, 'Long', inline = 'sig5', group = '🔄 Multi-Signals')
+signal5ShortSrc = input.source(close, 'Short', inline = 'sig5', group = '🔄 Multi-Signals')
+signal5Name = input.string('Wonder', 'Name', inline = 'sig5name', group = '🔄 Multi-Signals')
+signal5Usage = input.string('Entry All', 'Usage', options = ['Entry All', 'Entry Long Only', 'Entry Short Only', 'Exit All', 'Exit Long Only', 'Exit Short Only', 'Observe'], inline = 'sig5name', group = '🔄 Multi-Signals')
+
+// ─────────────────── SIGNAL PROCESSING ───────────────────
+// Process signals directly - most indicators (UTBot, LuxAlgo) output pulse signals
+// Handle both boolean and numeric signal types
+// IMPORTANT: Only process real signals, not default 'close' values
+// Simple direct signal detection - no complex change detection needed
+sig1Long = signal1Enable and signal1LongSrc != close ? (signal1LongSrc > 0 or bool(signal1LongSrc) == true) : false
+sig1Short = signal1Enable and signal1ShortSrc != close ? (signal1ShortSrc > 0 or bool(signal1ShortSrc) == true) : false
+sig2Long = signal2Enable and signal2LongSrc != close ? (signal2LongSrc > 0 or bool(signal2LongSrc) == true) : false
+sig2Short = signal2Enable and signal2ShortSrc != close ? (signal2ShortSrc > 0 or bool(signal2ShortSrc) == true) : false
+sig3Long = signal3Enable and signal3LongSrc != close ? (signal3LongSrc > 0 or bool(signal3LongSrc) == true) : false
+sig3Short = signal3Enable and signal3ShortSrc != close ? (signal3ShortSrc > 0 or bool(signal3ShortSrc) == true) : false
+sig4Long = signal4Enable and signal4LongSrc != close ? (signal4LongSrc > 0 or bool(signal4LongSrc) == true) : false
+sig4Short = signal4Enable and signal4ShortSrc != close ? (signal4ShortSrc > 0 or bool(signal4ShortSrc) == true) : false
+sig5Long = signal5Enable and signal5LongSrc != close ? (signal5LongSrc > 0 or bool(signal5LongSrc) == true) : false
+sig5Short = signal5Enable and signal5ShortSrc != close ? (signal5ShortSrc > 0 or bool(signal5ShortSrc) == true) : false
+
+// ─────────────────── SIGNAL ARRAYS FOR PROCESSING ───────────────────
+// Combine all signals for confluence analysis
+allLongSignals = array.new<bool>(5)
+allShortSignals = array.new<bool>(5)
+array.set(allLongSignals, 0, sig1Long)
+array.set(allLongSignals, 1, sig2Long)
+array.set(allLongSignals, 2, sig3Long)
+array.set(allLongSignals, 3, sig4Long)
+array.set(allLongSignals, 4, sig5Long)
+array.set(allShortSignals, 0, sig1Short)
+array.set(allShortSignals, 1, sig2Short)
+array.set(allShortSignals, 2, sig3Short)
+array.set(allShortSignals, 3, sig4Short)
+array.set(allShortSignals, 4, sig5Short)
+
+// Count active signals
+longSignalCount = (sig1Long ? 1 : 0) + (sig2Long ? 1 : 0) + (sig3Long ? 1 : 0) + (sig4Long ? 1 : 0) + (sig5Long ? 1 : 0)
+shortSignalCount = (sig1Short ? 1 : 0) + (sig2Short ? 1 : 0) + (sig3Short ? 1 : 0) + (sig4Short ? 1 : 0) + (sig5Short ? 1 : 0)
+
+// ═══════════════════ PRIMARY SIGNAL COMBINATION ═══════════════════
+// Note: Primary signals are defined below after imports (line 126-127)
+
+// ═══════════════════ RBW FILTER IMPORT ═══════════════════
+// Import enhanced_ta library for existing RBW filter (defined later)
+import HeWhoMustNotBeNamed/enhanced_ta/14 as eta
+
+// ═══════════════════ SIGNAL PROCESSING SETUP ═══════════════════
+// Legacy compatibility - combine all signals
+primaryLongSig = sig1Long or sig2Long or sig3Long or sig4Long or sig5Long
+primaryShortSig = sig1Short or sig2Short or sig3Short or sig4Short or sig5Short
+
+// ─────────────────── 1 · TRADERSPOST JSON HELPERS ───────────────
+
+// ───── Pre-built JSON messages (compile-time constants) ─────
+// Use TradingView alert placeholders so we avoid any per-bar string operations.
+// Placeholders {{close}} and {{timenow}} will be expanded at alert trigger time.
+var string _jsonBase = '{"ticker":"' + syminfo.ticker + '","price":{{close}},"time":{{timenow}}'
+
+var string longEntryMsg = _jsonBase + ',"action":"buy","sentiment":"long"}'
+var string shortEntryMsg = _jsonBase + ',"action":"sell","sentiment":"short"}'
+var string flatExitMsg = _jsonBase + ',"action":"exit","sentiment":"flat"}'
+var string longExitMsg = _jsonBase + ',"action":"sell","sentiment":"flat"}' // closes long
+var string shortExitMsg = _jsonBase + ',"action":"buy","sentiment":"flat"}' // closes short
+
+// ─────────────────── 2 · ATR SETTINGS ───────────────────────────
+atrLen = input.int(14, 'ATR Length', minval = 1, group = 'ATR Settings')
+atrVal = ta.atr(atrLen)
+
+// ─────────────────── 3 · EXIT PARAMETERS (ASCII SAFE) ───────────
+maExitOn = input.bool(true, 'Enable MA Exit', group = 'MA Exit')
+maLen = input.int(21, 'MA Length', minval = 1, group = 'MA Exit')
+maType = input.string('EMA', 'MA Type', options = ['SMA', 'EMA', 'WMA', 'VWMA', 'SMMA'], group = 'MA Exit')
+// Intrabar exits removed - exits only trigger once per bar on close
+
+priceMA = maType == 'SMA' ? ta.sma(close, maLen) : maType == 'EMA' ? ta.ema(close, maLen) : maType == 'WMA' ? ta.wma(close, maLen) : maType == 'VWMA' ? ta.vwma(close, maLen) : ta.rma(close, maLen)
+
+fixedEnable = input.bool(false, 'Enable Fixed SL/TP', group = 'Fixed SL/TP')
+fixedUnit = input.string('ATR', 'Unit', options = ['ATR', 'Points'], group = 'Fixed SL/TP')
+fixedStop = input.float(1.0, 'Stop Size', step = 0.1, minval = 0.0, group = 'Fixed SL/TP')
+
+tpCalc(d) =>
+    fixedUnit == 'ATR' ? d * atrVal : d
+
+tp1Enable = input.bool(false, 'TP1', inline = 'tp1', group = 'Fixed SL/TP')
+tp1Size = input.float(1.5, '', inline = 'tp1', group = 'Fixed SL/TP')
+tp2Enable = input.bool(false, 'TP2', inline = 'tp2', group = 'Fixed SL/TP')
+tp2Size = input.float(3.0, '', inline = 'tp2', group = 'Fixed SL/TP')
+tp3Enable = input.bool(false, 'TP3', inline = 'tp3', group = 'Fixed SL/TP')
+tp3Size = input.float(4.0, '', inline = 'tp3', group = 'Fixed SL/TP')
+
+
+
+// Smart Profit Locker (Aggressive Profit Protection)
+smartProfitEnable = input.bool(false, '🎯 Enable Smart Profit Locker', group = 'Smart Profit Locker', tooltip = 'Aggressive profit-taking with adjustable pullback sensitivity')
+smartProfitType = input.string('ATR', 'Type', options = ['ATR', 'Points', 'Percent'], group = 'Smart Profit Locker')
+smartProfitVal = input.float(3.1, 'Value', step = 0.1, group = 'Smart Profit Locker')
+smartProfitOffset = input.float(0.10, 'Pullback %', step = 0.05, minval = 0.01, maxval = 1.0, group = 'Smart Profit Locker', tooltip = 'Pullback percentage to trigger exit (0.10 = 10%)')
+
+// ═══════════════════ CATASTROPHIC STOP LOSS ═══════════════════
+// Final safety net - maximum loss protection
+enableCatastrophicStop = input.bool(true, '🛑 Enable Catastrophic Stop', group = 'Catastrophic Stop', tooltip = 'Final safety net stop loss - maximum allowable loss protection')
+catastrophicStopMultiplier = input.float(3.0, 'Stop Multiplier', minval = 2.0, maxval = 5.0, step = 0.5, group = 'Catastrophic Stop', tooltip = 'Multiplier for catastrophic stop distance. 3.0 = 3x normal stop distance as absolute maximum loss')
+
+// Traditional Trailing Stop - REMOVED (use Smart Profit Locker with 100% offset for traditional behavior)
+
+
+
+// ═══════════════════ ENTRY SIGNALS ═══════════════════
+// Connect calculated signals to entry logic
+longEntrySignal = primaryLongSig
+shortEntrySignal = primaryShortSig
+
+// ═══════════════════ BACKTESTING CALLS REMOVED ═══════════════════
+// Combo backtesting system removed for minimal base version
+
+
+// ═══════════════════ ENTRY LOGIC ═══════════════════
+// Simplified entry logic without Smart Filter
+
+// Initialize debug logging on first bar
+if barstate.isfirst
+    debugInfo('EZAlgoTrader initialized with debug logging')
+
+// Long Entry - direct signal
+if longEntrySignal
+    entryComment = 'Long' + (longSignalCount > 1 ? ' C:' + str.tostring(longSignalCount) : '')
+    strategy.entry('Long', strategy.long, qty = positionQty, comment = entryComment, alert_message = longEntryMsg)
+    debugInfo('Long entry triggered: ' + entryComment + ' at price: ' + str.tostring(close))
+
+// Short Entry - direct signal
+if shortEntrySignal
+    entryComment = 'Short' + (shortSignalCount > 1 ? ' C:' + str.tostring(shortSignalCount) : '')
+    strategy.entry('Short', strategy.short, qty = positionQty, comment = entryComment, alert_message = shortEntryMsg)
+    debugInfo('Short entry triggered: ' + entryComment + ' at price: ' + str.tostring(close))
+
+// ═══════════════════ REAL STRATEGY EXIT LOGIC (CRITICAL FIX) ═══════════════════
+// This section bridges the gap between combo backtesting and actual strategy execution
+// All exit methods now control the REAL strategy, not just the display panel
+
+// Track entry price for distance-based exits
+var float strategyEntryPrice = na
+
+// ═══════════════════ EXIT CONTROL FLAGS (INTRABAR SYSTEM) ═══════════════════
+// Per-method flags to prevent duplicate alerts and enable prioritization
+var bool maExitSent = false
+var bool fixedExitSent = false
+var bool fibExitSent = false
+var bool trailExitSent = false
+var bool customExitSent = false
+var bool inPosition = false
+var bool exitInProgress = false
+
+// Position tracking and flag reset logic
+if strategy.position_size == 0
+    strategyEntryPrice := na
+else if strategy.position_size != 0 and na(strategyEntryPrice)
+    strategyEntryPrice := strategy.position_avg_price
+
+// Reset all exit flags on new position entry
+currentPosition = strategy.position_size != 0
+if currentPosition and not inPosition
+    // New trade detected - reset all flags
+    maExitSent := false
+    fixedExitSent := false
+    fibExitSent := false
+    trailExitSent := false
+    customExitSent := false
+    exitInProgress := false
+    inPosition := true
+else if not currentPosition and inPosition
+    // Trade closed - update state
+    inPosition := false
+
+// ═══════════════════ ROBUST INTRABAR EXIT SYSTEM ═══════════════════
+// Exit logic that works properly while preventing alert spam
+// Key insight: strategy.exit() calls must run every bar, only alerts should be limited
+
+// ──────── 1. MA EXIT (Intrabar with Anti-Spam) ────────────
+if maExitOn and strategy.position_size != 0
+    longMaExit = strategy.position_size > 0 and close < priceMA
+    shortMaExit = strategy.position_size < 0 and close > priceMA
+    
+    if longMaExit and not maExitSent
+        strategy.close('Long', comment='MA Exit ', alert_message=longExitMsg)
+        maExitSent := true
+    else if shortMaExit and not maExitSent
+        strategy.close('Short', comment='MA Exit ', alert_message=shortExitMsg)
+        maExitSent := true
+
+// ──────── 2. FIXED SL/TP (Always Active) ────────────
+if fixedEnable and not na(strategyEntryPrice) and strategy.position_size != 0
+    stopDistance = tpCalc(fixedStop)
+    profitDistance = tp1Enable ? tpCalc(tp1Size) : na
+    
+    // Ensure distances are valid
+    if na(stopDistance) or stopDistance <= 0
+        stopDistance := 0.01  // Safe default
+    
+    if strategy.position_size > 0  // Long position
+        stopLevel = math.max(strategyEntryPrice - stopDistance, close * 0.99)
+        profitLevel = not na(profitDistance) ? strategyEntryPrice + profitDistance : na
+        strategy.exit('Fixed-Long', from_entry='Long', stop=stopLevel, limit=profitLevel, comment='Fixed SL/TP')
+        if not fixedExitSent
+            fixedExitSent := true
+    
+    else if strategy.position_size < 0  // Short position
+        stopLevel = math.min(strategyEntryPrice + stopDistance, close * 1.01)
+        profitLevel = not na(profitDistance) ? strategyEntryPrice - profitDistance : na
+        strategy.exit('Fixed-Short', from_entry='Short', stop=stopLevel, limit=profitLevel, comment='Fixed SL/TP')
+        if not fixedExitSent
+            fixedExitSent := true
+
+
+
+// ──────── 4. SMART PROFIT LOCKER (Aggressive Profit Protection) ────────────
+// Clean SPL implementation without trend mode dependencies
+if smartProfitEnable and strategy.position_size != 0
+    smartDistance = smartProfitType == 'ATR' ? smartProfitVal * atrVal : smartProfitType == 'Points' ? smartProfitVal : strategyEntryPrice * smartProfitVal / 100.0
+    
+    // Ensure smartDistance is valid and has minimum value
+    if na(smartDistance) or smartDistance <= 0
+        smartDistance := 50.0  // Safe default value in points
+    
+    // Standard SPL behavior
+    smartOffset := smartDistance * math.max(smartProfitOffset, 0.01)
+    exitComment := 'Smart Profit Locker'
+    
+    if strategy.position_size > 0  // Long position
+        strategy.exit('Smart-Long', from_entry='Long', trail_points=math.max(smartDistance, 0.01), trail_offset=math.max(smartOffset, 0.01), comment=exitComment)
+        if not trailExitSent
+            trailExitSent := true
+    else if strategy.position_size < 0  // Short position
+        strategy.exit('Smart-Short', from_entry='Short', trail_points=math.max(smartDistance, 0.01), trail_offset=math.max(smartOffset, 0.01), comment=exitComment)
+        if not trailExitSent
+            trailExitSent := true
+
+// ──────── 5. CATASTROPHIC STOP LOSS (Final Safety Net) ────────────
+// Maximum loss protection - always active regardless of other systems
+if enableCatastrophicStop and strategy.position_size != 0 and not na(strategyEntryPrice)
+    // Calculate catastrophic stop distance
+    float catastrophicStopDistance = (smartProfitVal * atrVal) * catastrophicStopMultiplier
+    
+    if strategy.position_size > 0  // Long position
+        float catastrophicStopPrice = strategyEntryPrice - catastrophicStopDistance
+        if low <= catastrophicStopPrice
+            strategy.close('Long', comment='Catastrophic Stop', alert_message=longExitMsg)
+            if debugEnabled
+                debugError("🛑 Catastrophic Stop: Long position hit " + str.tostring(catastrophicStopMultiplier) + "x stop at " + str.tostring(catastrophicStopPrice))
+    
+    else if strategy.position_size < 0  // Short position
+        float catastrophicStopPrice = strategyEntryPrice + catastrophicStopDistance
+        if high >= catastrophicStopPrice
+            strategy.close('Short', comment='Catastrophic Stop', alert_message=shortExitMsg)
+            if debugEnabled
+                debugError("🛑 Catastrophic Stop: Short position hit " + str.tostring(catastrophicStopMultiplier) + "x stop at " + str.tostring(catastrophicStopPrice))
+
+// ═══════════════════ INTRABAR EXIT DEBUG SYSTEM ═══════════════════
+// Visual monitoring and validation system for robust exit logic
+
+debugOn = input.bool(false, '🔍 Enable Exit Debug Labels', group = '🛠️ Debug System', tooltip = 'Show visual labels when exits trigger to validate anti-spam logic')
+
+if debugOn and barstate.isconfirmed
+    // Determine which exit method was triggered (if any)
+    exitType = 
+      maExitSent ? 'MA' :
+      fixedExitSent ? 'Fixed' :
+      fibExitSent ? 'Fib' :
+      trailExitSent ? 'Trail' :
+      customExitSent ? 'Custom' : 'None'
+    
+    // Color coding for different exit types
+    labelColor = 
+      maExitSent ? color.red : 
+      fixedExitSent ? color.orange : 
+      fibExitSent ? color.purple : 
+      trailExitSent ? color.blue : 
+      customExitSent ? color.teal : color.gray
+    
+    // Show debug label when an exit is triggered
+    if exitType != 'None'
+        label.new(bar_index, high * 1.02, 'EXIT: ' + exitType + '\nBar: ' + str.tostring(bar_index) + '\nPrice: ' + str.tostring(close, '#.####') + '\nPos: ' + (strategy.position_size > 0 ? 'Long' : strategy.position_size < 0 ? 'Short' : 'Flat') + '\nProgress: ' + (exitInProgress ? 'YES' : 'NO'), color=labelColor, textcolor=color.white, style=label.style_label_down, yloc=yloc.abovebar, size=size.small)
+    
+    // Show position state changes
+    if currentPosition != currentPosition[1]
+        stateColor = currentPosition ? color.green : color.red
+        stateText = currentPosition ? 'ENTRY' : 'EXIT'
+        label.new(bar_index, low * 0.98, stateText + '\nFlags Reset: ' + (currentPosition ? 'YES' : 'NO'), color=stateColor, textcolor=color.white, style=label.style_label_up, yloc=yloc.belowbar, size=size.tiny)
+
+// ──────── DEBUG TABLE (Optional) ────────────
+showDebugTable = input.bool(false, '📊 Show Debug Table', group = '🛠️ Debug System', tooltip = 'Show real-time exit flag status table')
+
+if showDebugTable and barstate.islast
+    var table debugTable = table.new(position.bottom_right, 3, 8, bgcolor = color.new(color.black, 20), border_width = 1)
+    
+    // Headers
+    table.cell(debugTable, 0, 0, '🛠️ EXIT FLAGS', text_color = color.white, text_size = size.normal, bgcolor = color.new(color.blue, 40))
+    table.cell(debugTable, 1, 0, 'STATUS', text_color = color.white, text_size = size.normal, bgcolor = color.new(color.blue, 40))
+    table.cell(debugTable, 2, 0, 'PRIORITY', text_color = color.white, text_size = size.normal, bgcolor = color.new(color.blue, 40))
+    
+    // Flag status rows
+    table.cell(debugTable, 0, 1, 'MA Exit', text_color = color.white, text_size = size.small, bgcolor = color.new(color.gray, 80))
+    table.cell(debugTable, 1, 1, maExitSent ? '✅ SENT' : '❌ READY', text_color = maExitSent ? color.red : color.lime, text_size = size.small, bgcolor = color.new(color.gray, 90))
+    table.cell(debugTable, 2, 1, '1 (Highest)', text_color = color.yellow, text_size = size.small, bgcolor = color.new(color.gray, 90))
+    
+    table.cell(debugTable, 0, 2, 'Fixed SL/TP', text_color = color.white, text_size = size.small, bgcolor = color.new(color.gray, 80))
+    table.cell(debugTable, 1, 2, fixedExitSent ? '✅ SENT' : '❌ READY', text_color = fixedExitSent ? color.red : color.lime, text_size = size.small, bgcolor = color.new(color.gray, 90))
+    table.cell(debugTable, 2, 2, '2', text_color = color.white, text_size = size.small, bgcolor = color.new(color.gray, 90))
+    
+    table.cell(debugTable, 0, 3, 'Fibonacci', text_color = color.white, text_size = size.small, bgcolor = color.new(color.gray, 80))
+    table.cell(debugTable, 1, 3, fibExitSent ? '✅ SENT' : '❌ READY', text_color = fibExitSent ? color.red : color.lime, text_size = size.small, bgcolor = color.new(color.gray, 90))
+    table.cell(debugTable, 2, 3, '3', text_color = color.white, text_size = size.small, bgcolor = color.new(color.gray, 90))
+    
+    table.cell(debugTable, 0, 4, 'Trailing', text_color = color.white, text_size = size.small, bgcolor = color.new(color.gray, 80))
+    table.cell(debugTable, 1, 4, trailExitSent ? '✅ SENT' : '❌ READY', text_color = trailExitSent ? color.red : color.lime, text_size = size.small, bgcolor = color.new(color.gray, 90))
+    table.cell(debugTable, 2, 4, '4', text_color = color.white, text_size = size.small, bgcolor = color.new(color.gray, 90))
+    
+    table.cell(debugTable, 0, 5, 'Custom', text_color = color.white, text_size = size.small, bgcolor = color.new(color.gray, 80))
+    table.cell(debugTable, 1, 5, customExitSent ? '✅ SENT' : '❌ READY', text_color = customExitSent ? color.red : color.lime, text_size = size.small, bgcolor = color.new(color.gray, 90))
+    table.cell(debugTable, 2, 5, '5 (Lowest)', text_color = color.gray, text_size = size.small, bgcolor = color.new(color.gray, 90))
+    
+    // System status
+    table.cell(debugTable, 0, 6, 'In Position', text_color = color.white, text_size = size.small, bgcolor = color.new(color.purple, 60))
+    table.cell(debugTable, 1, 6, inPosition ? '✅ YES' : '❌ NO', text_color = inPosition ? color.lime : color.red, text_size = size.small, bgcolor = color.new(color.purple, 70))
+    table.cell(debugTable, 2, 6, str.tostring(strategy.position_size), text_color = color.white, text_size = size.small, bgcolor = color.new(color.purple, 70))
+    
+    table.cell(debugTable, 0, 7, 'Exit Progress', text_color = color.white, text_size = size.small, bgcolor = color.new(color.purple, 60))
+    table.cell(debugTable, 1, 7, exitInProgress ? '✅ ACTIVE' : '❌ IDLE', text_color = exitInProgress ? color.orange : color.gray, text_size = size.small, bgcolor = color.new(color.purple, 70))
+    table.cell(debugTable, 2, 7, 'Bar: ' + str.tostring(bar_index), text_color = color.white, text_size = size.small, bgcolor = color.new(color.purple, 70))

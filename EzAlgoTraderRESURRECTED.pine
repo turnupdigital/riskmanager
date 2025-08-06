@@ -381,6 +381,17 @@ var bool customExitSent = false      // Anti-spam flag for custom exits
 var bool exitInProgress = false      // Tracks if an exit is currently in progress
 var bool allowTrendExit = false      // Controls trend-based exit permissions
 
+// --- Opposite Signal Exit Variables ---
+var int oppositeSignalsCount = 0     // Counter for opposite signals detected
+var bool signalBasedExitTriggered = false  // Flag for opposite signal exit trigger
+
+// --- Mode Transition Variables ---
+var string previousTradeMode = "SCALP"  // Tracks previous mode for transition detection
+var bool modeChanged = false            // Flag indicating mode change occurred
+
+// --- Candle Trailing Stop Variables ---
+var float candleTrailingStop = na       // Current trailing stop level (updates every bar)
+
 // --- Message Variables ---
 // flatExitMsg will be built later with _jsonBase for proper format
 
@@ -447,18 +458,8 @@ var float continuationStartPrice = na  // The price when the continuation was in
 // --------------------------------------------------------------------------------------------------
 // This implements the proper exit hierarchy with state tracking to prevent conflicts
 
-// 1. Smart Profit Locker (Primary for Scalp Mode)
-if smartProfitEnable and strategy.position_size != 0 and not trailExitSent and tradeMode != "TREND"
-    if strategy.position_size > 0
-        strategy.exit("SPL-Long", "Long", trail_points=smartDistance, trail_offset=smartOffset)
-        trailExitSent := true
-        if debugEnabled
-            debugMessage("INFO", "🎯 SPL-Long activated - Distance: " + str.tostring(smartDistance, "#.##"), color.green, color.white, 0.05)
-    else if strategy.position_size < 0
-        strategy.exit("SPL-Short", "Short", trail_points=smartDistance, trail_offset=smartOffset)
-        trailExitSent := true
-        if debugEnabled
-            debugMessage("INFO", "🎯 SPL-Short activated - Distance: " + str.tostring(smartDistance, "#.##"), color.green, color.white, 0.05)
+// REMOVED: Premature SPL execution block (was causing ghost exits with undefined variables)
+// The proper SPL execution happens after calculations around line 1247
 
 // Exit systems code moved to proper location after variable declarations
 
@@ -514,6 +515,35 @@ quadrantBiasEnable = input.bool(false, '🎯 Quadrant NW', group='7️⃣ Direct
 adaptiveBiasEnable = input.bool(false, '🤖 Adaptive ST', group='7️⃣ Directional Bias', inline='db2', tooltip='Enable Adaptive SuperTrend for directional bias calculation')
 volumaticBiasEnable = input.bool(false, '📊 Volumatic', group='7️⃣ Directional Bias', inline='db3', tooltip='Enable Volumatic VIDYA for directional bias calculation')
 smoothHABiasEnable = input.bool(false, '🕯️ Smooth HA', group='7️⃣ Directional Bias', inline='db3', tooltip='Enable Smooth Heiken Ashi for directional bias calculation')
+
+// ──────── OPPOSITE SIGNAL EXIT CONVERSION ────────────
+oppositeSignalExitEnable = input.bool(true, '🔄 Enable Opposite Signal Exits', group='8️⃣ Signal Exit Conversion', tooltip='Convert blocked opposite signals into exits when directional bias is active')
+useExitSignal1 = input.bool(true, 'Signal 1 → Exit', group='8️⃣ Signal Exit Conversion', inline='se1', tooltip='Convert opposite Signal 1 signals to exits')
+useExitSignal2 = input.bool(false, 'Signal 2 → Exit', group='8️⃣ Signal Exit Conversion', inline='se1', tooltip='Convert opposite Signal 2 signals to exits')
+useExitSignal3 = input.bool(false, 'Signal 3 → Exit', group='8️⃣ Signal Exit Conversion', inline='se2', tooltip='Convert opposite Signal 3 signals to exits')
+useExitSignal4 = input.bool(false, 'Signal 4 → Exit', group='8️⃣ Signal Exit Conversion', inline='se2', tooltip='Convert opposite Signal 4 signals to exits')
+useExitSignal5 = input.bool(false, 'Signal 5 → Exit', group='8️⃣ Signal Exit Conversion', inline='se3', tooltip='Convert opposite Signal 5 signals to exits')
+useExitSignal6 = input.bool(false, 'Signal 6 → Exit', group='8️⃣ Signal Exit Conversion', inline='se3', tooltip='Convert opposite Signal 6 signals to exits')
+useExitSignal7 = input.bool(false, 'Signal 7 → Exit', group='8️⃣ Signal Exit Conversion', inline='se4', tooltip='Convert opposite Signal 7 signals to exits')
+useExitSignal8 = input.bool(false, 'Signal 8 → Exit', group='8️⃣ Signal Exit Conversion', inline='se4', tooltip='Convert opposite Signal 8 signals to exits')
+useExitSignal9 = input.bool(false, 'Signal 9 → Exit', group='8️⃣ Signal Exit Conversion', inline='se5', tooltip='Convert opposite Signal 9 signals to exits')
+useExitSignal10 = input.bool(false, 'Signal 10 → Exit', group='8️⃣ Signal Exit Conversion', inline='se5', tooltip='Convert opposite Signal 10 signals to exits')
+minOppositeSignals = input.int(1, 'Min Signals for Exit', minval=1, maxval=10, group='8️⃣ Signal Exit Conversion', tooltip='Minimum opposite signals required to trigger exit (1 = immediate exit)')
+
+// ──────── MODE TRANSITION TESTING CONTROLS ────────────
+modeTransitionEnable = input.bool(true, '🔄 Enable Mode Transition Detection', group='🔄 Mode Transition Controls', tooltip='Detect when trade mode changes during active position and adapt exit systems accordingly')
+transitionBehavior = input.string('Reset Exit Flags', 'On Mode Change',     options=['Reset Exit Flags', 'Add Stop Loss', 'Hybrid Protection', 'Block Transition'],     group='🔄 Mode Transition Controls',     tooltip='Reset Flags: Allow exits to re-activate | Add Stop: Immediate downside protection | Hybrid: Both | Block: Prevent mode changes during position')
+splTransitionMode = input.string('Standard Offset', 'SPL on Transition',     options=['Standard Offset', 'Zero Offset', 'Disabled'],     group='🔄 Mode Transition Controls',     tooltip='Standard: Use normal 10-point offset | Zero: Immediate trailing | Disabled: No SPL on transition')
+emergencyStopEnable = input.bool(true, 'Emergency Stop on SCALP Switch', group='🔄 Mode Transition Controls', inline='es1', tooltip='Add immediate stop loss when switching to SCALP mode')
+emergencyStopMultiplier = input.float(2.0, 'Stop Distance (x SPL)', minval=1.0, maxval=5.0, step=0.5, group='🔄 Mode Transition Controls', inline='es1', tooltip='Stop loss distance as multiple of SPL distance')
+transitionDebug = input.bool(false, 'Show Transition Debug', group='🔄 Mode Transition Controls', tooltip='Display mode transition events and decisions')
+
+// ──────── DYNAMIC CANDLE TRAILING STOP ────────────
+candleTrailEnable = input.bool(false, '🕯️ Enable Candle Trailing Stop', group='🕯️ Dynamic Candle Stop', tooltip='Trail stop loss at low/high of recent candles - updates every bar')
+candleTrailBars = input.int(3, 'Candle Lookback', minval=1, maxval=10, group='🕯️ Dynamic Candle Stop', tooltip='Number of previous candles to check for low/high (1 = previous candle only)')
+candleTrailOffset = input.float(0.0, 'Offset (Points)', step=0.1, group='🕯️ Dynamic Candle Stop', tooltip='Additional buffer below low/above high in points')
+candleTrailMode = input.string('Always Active', 'Usage Mode',     options=['Always Active', 'Trend Mode Only', 'Mode Transition Only'],     group='🕯️ Dynamic Candle Stop',     tooltip='Always: Active in all modes | Trend Only: TREND mode only | Transition: Only when switching to TREND')
+candleTrailDebug = input.bool(false, 'Show Debug Info', group='🕯️ Dynamic Candle Stop', tooltip='Display candle trailing stop level changes and exits')
 
 // --------------------------------------------------------------------------------------------------
 // SECTION: MULTI-SIGNAL INPUT SYSTEM
@@ -1127,6 +1157,7 @@ var string shortEntryMsg = _jsonBase + ',"action":"sell","sentiment":"short"}'
 var string flatExitMsg = _jsonBase + ',"action":"exit","sentiment":"flat"}'
 var string longExitMsg = _jsonBase + ',"action":"sell","sentiment":"flat"}' // closes long
 var string shortExitMsg = _jsonBase + ',"action":"buy","sentiment":"flat"}' // closes short
+var string exitComment = na  // Stores the comment for exit messages
 
 // ───── Volatility Ratio (global) for adaptive stop & debug ─────
 // Re-computed every bar (not a "var") so downstream logic can read it.
@@ -1194,15 +1225,15 @@ if (tradeMode == "SCALP" or tradeMode == "HYBRID") and smartProfitEnable and str
 // ═══════════════════ COORDINATED EXIT SYSTEM (FROM BackTester.pine) ═══════════════════
 // This implements the proper exit hierarchy with state tracking to prevent conflicts
 
-// 1. Smart Profit Locker (Primary for Scalp Mode)
-if smartProfitEnable and strategy.position_size != 0 and not trailExitSent and tradeMode != "TREND"
+// 1. Smart Profit Locker (Primary for Scalp Mode) - FIXED VERSION
+if smartProfitEnable and strategy.position_size != 0 and tradeMode != "TREND" and not trailExitSent
     if strategy.position_size > 0
-        strategy.exit("SPL-Long", "Long", trail_points=smartDistance, trail_offset=smartOffset)
+        strategy.exit("SPL-Long", "Long", trail_points=math.max(smartDistance, 0.01), trail_offset=math.max(smartOffset, 0.01))
         trailExitSent := true
         if debugEnabled
             debugMessage("SPL", "🎯 SPL-Long activated - Distance: " + str.tostring(smartDistance, "#.##"), color.green, color.white, 0.1)
     else if strategy.position_size < 0
-        strategy.exit("SPL-Short", "Short", trail_points=smartDistance, trail_offset=smartOffset)
+        strategy.exit("SPL-Short", "Short", trail_points=math.max(smartDistance, 0.01), trail_offset=math.max(smartOffset, 0.01))
         trailExitSent := true
         if debugEnabled
             debugMessage("SPL", "🎯 SPL-Short activated - Distance: " + str.tostring(smartDistance, "#.##"), color.red, color.white, 0.1)
@@ -1493,6 +1524,65 @@ else
     
     // Connect to SPL system tradeMode variable
     tradeMode := currentTradingMode
+
+// ═══════════════════ MODE TRANSITION DETECTION SYSTEM ═══════════════════
+// KEYWORDS: Mode Transition, Exit Flag Reset, Dynamic Adaptation
+// This system detects when the trading mode changes during an active position and adapts
+// exit systems accordingly to prevent the stuck trade scenario
+
+// Detect mode changes during active position
+modeChanged := modeTransitionEnable and (tradeMode != previousTradeMode) and strategy.position_size != 0
+
+// Process mode transition behavior
+if modeChanged
+    if transitionDebug
+        debugMessage("MODE TRANSITION", "🔄 Mode changed from " + previousTradeMode + " to " + tradeMode + " during active position", color.yellow, color.black, 0.1)
+    
+    // Apply selected transition behavior
+    if transitionBehavior == 'Reset Exit Flags'
+        // Reset all exit flags to allow systems to re-activate
+        trailExitSent := false
+        maExitSent := false
+        fixedExitSent := false
+        if transitionDebug
+            debugMessage("TRANSITION", "🔄 Exit flags reset - systems can re-activate", color.green, color.white, 0.1)
+    
+    else if transitionBehavior == 'Add Stop Loss'
+        // Add emergency stop loss protection
+        if emergencyStopEnable and tradeMode == "SCALP"
+            emergencyStopDistance = (smartProfitVal * atrVal) * emergencyStopMultiplier
+            emergencyStopLevel = strategy.position_size > 0 ? strategy.position_avg_price - emergencyStopDistance : strategy.position_avg_price + emergencyStopDistance
+            
+            strategy.exit("Emergency-Stop", stop=emergencyStopLevel, comment="Mode Transition Emergency Stop")
+            if transitionDebug
+                debugMessage("EMERGENCY STOP", "🛑 Emergency stop set at " + str.tostring(emergencyStopLevel, "#.##"), color.red, color.white, 0.1)
+    
+    else if transitionBehavior == 'Hybrid Protection'
+        // Combine both approaches
+        trailExitSent := false
+        maExitSent := false
+        fixedExitSent := false
+        
+        if emergencyStopEnable and tradeMode == "SCALP"
+            emergencyStopDistance = (smartProfitVal * atrVal) * emergencyStopMultiplier
+            emergencyStopLevel = strategy.position_size > 0 ? strategy.position_avg_price - emergencyStopDistance : strategy.position_avg_price + emergencyStopDistance
+            
+            strategy.exit("Hybrid-Protection", 
+                         stop=emergencyStopLevel,
+                         trail_points=(smartProfitVal * atrVal),
+                         trail_offset=splTransitionMode == 'Zero Offset' ? 0 : (smartProfitVal * atrVal) * smartProfitOffset)
+        if transitionDebug
+            debugMessage("HYBRID PROTECTION", "🔄 Flags reset + emergency stop + trailing protection active", color.blue, color.white, 0.1)
+    
+    else if transitionBehavior == 'Block Transition'
+        // Prevent mode changes during active position
+        tradeMode := previousTradeMode
+        if transitionDebug
+            debugMessage("BLOCKED TRANSITION", "🚫 Mode change blocked - keeping " + previousTradeMode + " mode", color.orange, color.white, 0.1)
+
+// Update previous mode for next comparison (only if transition wasn't blocked)
+if transitionBehavior != 'Block Transition'
+    previousTradeMode := tradeMode
 
 // ──────── MODE SELECTION DEBUG AND VISUALIZATION ────────────
 // This section handles the optional visual elements for the mode selection system, providing real-time
@@ -2035,6 +2125,46 @@ if trendBreakEnable and trendExitTriggered and strategy.position_size != 0 and t
         exitIndicators = (hullExitSignal ? "Hull " : "") + (trendStrengthExitSignal ? "SuperTrend " : "") + (quadrantExitSignal ? "Quadrant " : "") + (adaptiveExitSignal ? "Adaptive " : "") + (volumaticExitSignal ? "Volumatic " : "") + (smoothHAExitSignal ? "SmoothHA " : "") + (externalTrendExitSignal ? "External " : "")
         debugMessage("TREND BREAK EXIT", "📉 Trend break triggered exit - Indicators: " + exitIndicators, color.red, color.white, 0.1)
 
+// ═══════════════════ OPPOSITE SIGNAL EXIT EXECUTION ═══════════════════
+// CRITICAL RESTORATION: Execute exits based on opposite signals when directional bias is active
+// This is the missing system that converts blocked opposite signals into profitable exits
+if oppositeSignalExitEnable and signalBasedExitTriggered and strategy.position_size != 0
+    exitComment = "Opposite Signal Exit (" + str.tostring(oppositeSignalsCount) + " signals)"
+    strategy.close_all(comment=exitComment)
+    
+    // Extract debug variables for consistency
+    positionType = strategy.position_size > 0 ? "Long" : "Short"
+    if debugEnabled
+        debugMessage("SIGNAL EXIT", "🔄 " + positionType + " position closed by " + str.tostring(oppositeSignalsCount) + " opposite signals", color.orange, color.white, 0.1)
+
+// ═══════════════════ CANDLE TRAILING STOP EXECUTION ═══════════════════
+// CRITICAL: Execute exit when price breaks through the trailing stop level
+// This provides immediate protection when price action breaks recent support/resistance
+
+if candleTrailEnable and not na(candleTrailingStop) and strategy.position_size != 0
+    exitTriggered = false
+    
+    if strategy.position_size > 0  // Long position
+        // Exit if current low breaks below trailing stop
+        if low <= candleTrailingStop
+            exitTriggered := true
+            exitComment = "Candle Trail Stop (Low: " + str.tostring(low, "#.##") + " ≤ Stop: " + str.tostring(candleTrailingStop, "#.##") + ")"
+    
+    else if strategy.position_size < 0  // Short position  
+        // Exit if current high breaks above trailing stop
+        if high >= candleTrailingStop
+            exitTriggered := true
+            exitComment = "Candle Trail Stop (High: " + str.tostring(high, "#.##") + " ≥ Stop: " + str.tostring(candleTrailingStop, "#.##") + ")"
+    
+    // Execute the exit
+    if exitTriggered
+        strategy.close_all(comment=exitComment)
+        candleTrailingStop := na  // Reset stop level
+        
+        if candleTrailDebug
+            positionType = strategy.position_size > 0 ? "Long" : "Short"
+            debugMessage("CANDLE TRAIL EXIT", "🕯️ " + positionType + " position closed - " + exitComment, color.orange, color.white, 0.1)
+
 // ═══════════════════ DIRECTIONAL BIAS CALCULATION ═══════════════════
 // KEYWORDS: Directional Bias, Confluence, Voting System, Trade Filter
 // This is the core logic where all individual trend filter votes are combined to produce a
@@ -2079,13 +2209,142 @@ baseShortWithBias := primaryShortSig and shortDirectionalBias and allowShorts
 
 // Set final entry signals for strategy execution - WITH CONTINUATION INTEGRATION
 // CRITICAL FIX: Now properly integrates continuation system
-longEntrySignal := continuationEnable ? 
-    (longContinuationActive and high >= longContinuationLevel and baseLongWithBias) : 
-    baseLongWithBias
+longEntrySignal := continuationEnable ? (longContinuationActive and high >= longContinuationLevel and baseLongWithBias) : baseLongWithBias
 
-shortEntrySignal := continuationEnable ? 
-    (shortContinuationActive and low <= shortContinuationLevel and baseShortWithBias) : 
-    baseShortWithBias
+shortEntrySignal := continuationEnable ? (shortContinuationActive and low <= shortContinuationLevel and baseShortWithBias) : baseShortWithBias
+
+// ═══════════════════ DYNAMIC CANDLE TRAILING STOP CALCULATION ═══════════════════
+// KEYWORDS: Candle Trailing, Dynamic Stop, Market-Based Exit, Intraday Protection
+// This system calculates a trailing stop based on recent candle lows/highs, updating every bar
+// for optimal trend-following protection that adapts to actual price action.
+
+// Determine if candle trailing should be active based on mode and settings
+candleTrailActive = candleTrailEnable and strategy.position_size != 0 and (candleTrailMode == 'Always Active' or (candleTrailMode == 'Trend Mode Only' and tradeMode == "TREND") or (candleTrailMode == 'Mode Transition Only' and modeChanged and tradeMode == "TREND"))
+
+if candleTrailActive
+    if strategy.position_size > 0  // LONG POSITION LOGIC
+        // Find the highest low of the last X candles (support level)
+        recentLow = ta.lowest(low, candleTrailBars)
+        newStopLevel = recentLow - candleTrailOffset
+        
+        // CRITICAL: Stop can only move UP (favorable direction), never down
+        if na(candleTrailingStop)
+            // First activation - set initial stop level
+            candleTrailingStop := newStopLevel
+            if candleTrailDebug
+                debugMessage("CANDLE TRAIL", "🕯️ Long trailing stop initialized at " + str.tostring(newStopLevel, "#.##") + " (Low of " + str.tostring(candleTrailBars) + " candles)", color.blue, color.white, 0.1)
+        else
+            // Update existing stop - only move up
+            if newStopLevel > candleTrailingStop
+                candleTrailingStop := newStopLevel
+                if candleTrailDebug
+                    debugMessage("CANDLE TRAIL", "🕯️ Long trailing stop moved UP to " + str.tostring(newStopLevel, "#.##"), color.green, color.white, 0.1)
+    
+    else if strategy.position_size < 0  // SHORT POSITION LOGIC
+        // Find the lowest high of the last X candles (resistance level)
+        recentHigh = ta.highest(high, candleTrailBars)
+        newStopLevel = recentHigh + candleTrailOffset
+        
+        // CRITICAL: Stop can only move DOWN (favorable direction), never up
+        if na(candleTrailingStop)
+            // First activation - set initial stop level
+            candleTrailingStop := newStopLevel
+            if candleTrailDebug
+                debugMessage("CANDLE TRAIL", "🕯️ Short trailing stop initialized at " + str.tostring(newStopLevel, "#.##") + " (High of " + str.tostring(candleTrailBars) + " candles)", color.blue, color.white, 0.1)
+        else
+            // Update existing stop - only move down
+            if newStopLevel < candleTrailingStop
+                candleTrailingStop := newStopLevel
+                if candleTrailDebug
+                    debugMessage("CANDLE TRAIL", "🕯️ Short trailing stop moved DOWN to " + str.tostring(newStopLevel, "#.##"), color.red, color.white, 0.1)
+else
+    // Reset stop when not active or no position
+    candleTrailingStop := na
+
+// Integration with mode transition system
+if modeChanged and candleTrailMode == 'Mode Transition Only' and tradeMode == "TREND" and strategy.position_size != 0
+    // Initialize candle trailing stop when switching to TREND mode
+    if strategy.position_size > 0
+        candleTrailingStop := ta.lowest(low, candleTrailBars) - candleTrailOffset
+    else
+        candleTrailingStop := ta.highest(high, candleTrailBars) + candleTrailOffset
+    
+    if candleTrailDebug
+        debugMessage("MODE TRANSITION", "🔄 Candle trailing stop activated on TREND mode switch at " + str.tostring(candleTrailingStop, "#.##"), color.yellow, color.black, 0.1)
+
+// ═══════════════════ OPPOSITE SIGNAL EXIT DETECTION ═══════════════════
+// KEYWORDS: Signal Conversion, Exit Detection, Directional Bias Integration
+// This system converts blocked opposite signals into profitable exits when directional bias is active
+
+if oppositeSignalExitEnable and directionalBiasEnable and strategy.position_size != 0
+    oppositeSignalsCount := 0
+    
+    // Process each signal for opposite direction detection
+    if useExitSignal1 and signal1Enable
+        signal1Opposite = (strategy.position_size > 0 and signal1Usage != 'Long Only' and signal1ShortSrc > 0 and signal1ShortSrc != signal1ShortSrc[1]) or 
+                         (strategy.position_size < 0 and signal1Usage != 'Short Only' and signal1LongSrc > 0 and signal1LongSrc != signal1LongSrc[1])
+        if signal1Opposite
+            oppositeSignalsCount := oppositeSignalsCount + 1
+    
+    if useExitSignal2 and signal2Enable
+        signal2Opposite = (strategy.position_size > 0 and signal2Usage != 'Long Only' and signal2ShortSrc > 0 and signal2ShortSrc != signal2ShortSrc[1]) or 
+                         (strategy.position_size < 0 and signal2Usage != 'Short Only' and signal2LongSrc > 0 and signal2LongSrc != signal2LongSrc[1])
+        if signal2Opposite
+            oppositeSignalsCount := oppositeSignalsCount + 1
+    
+    if useExitSignal3 and signal3Enable
+        signal3Opposite = (strategy.position_size > 0 and signal3Usage != 'Long Only' and signal3ShortSrc > 0 and signal3ShortSrc != signal3ShortSrc[1]) or 
+                         (strategy.position_size < 0 and signal3Usage != 'Short Only' and signal3LongSrc > 0 and signal3LongSrc != signal3LongSrc[1])
+        if signal3Opposite
+            oppositeSignalsCount := oppositeSignalsCount + 1
+    
+    if useExitSignal4 and signal4Enable
+        signal4Opposite = (strategy.position_size > 0 and signal4Usage != 'Long Only' and signal4ShortSrc > 0 and signal4ShortSrc != signal4ShortSrc[1]) or 
+                         (strategy.position_size < 0 and signal4Usage != 'Short Only' and signal4LongSrc > 0 and signal4LongSrc != signal4LongSrc[1])
+        if signal4Opposite
+            oppositeSignalsCount := oppositeSignalsCount + 1
+    
+    if useExitSignal5 and signal5Enable
+        signal5Opposite = (strategy.position_size > 0 and signal5Usage != 'Long Only' and signal5ShortSrc > 0 and signal5ShortSrc != signal5ShortSrc[1]) or 
+                         (strategy.position_size < 0 and signal5Usage != 'Short Only' and signal5LongSrc > 0 and signal5LongSrc != signal5LongSrc[1])
+        if signal5Opposite
+            oppositeSignalsCount := oppositeSignalsCount + 1
+    
+    if useExitSignal6 and signal6Enable
+        signal6Opposite = (strategy.position_size > 0 and signal6Usage != 'Long Only' and signal6ShortSrc > 0 and signal6ShortSrc != signal6ShortSrc[1]) or 
+                         (strategy.position_size < 0 and signal6Usage != 'Short Only' and signal6LongSrc > 0 and signal6LongSrc != signal6LongSrc[1])
+        if signal6Opposite
+            oppositeSignalsCount := oppositeSignalsCount + 1
+    
+    if useExitSignal7 and signal7Enable
+        signal7Opposite = (strategy.position_size > 0 and signal7Usage != 'Long Only' and signal7ShortSrc > 0 and signal7ShortSrc != signal7ShortSrc[1]) or 
+                         (strategy.position_size < 0 and signal7Usage != 'Short Only' and signal7LongSrc > 0 and signal7LongSrc != signal7LongSrc[1])
+        if signal7Opposite
+            oppositeSignalsCount := oppositeSignalsCount + 1
+    
+    if useExitSignal8 and signal8Enable
+        signal8Opposite = (strategy.position_size > 0 and signal8Usage != 'Long Only' and signal8ShortSrc > 0 and signal8ShortSrc != signal8ShortSrc[1]) or 
+                         (strategy.position_size < 0 and signal8Usage != 'Short Only' and signal8LongSrc > 0 and signal8LongSrc != signal8LongSrc[1])
+        if signal8Opposite
+            oppositeSignalsCount := oppositeSignalsCount + 1
+    
+    if useExitSignal9 and signal9Enable
+        signal9Opposite = (strategy.position_size > 0 and signal9Usage != 'Long Only' and signal9ShortSrc > 0 and signal9ShortSrc != signal9ShortSrc[1]) or 
+                         (strategy.position_size < 0 and signal9Usage != 'Short Only' and signal9LongSrc > 0 and signal9LongSrc != signal9LongSrc[1])
+        if signal9Opposite
+            oppositeSignalsCount := oppositeSignalsCount + 1
+    
+    if useExitSignal10 and signal10Enable
+        signal10Opposite = (strategy.position_size > 0 and signal10Usage != 'Long Only' and signal10ShortSrc > 0 and signal10ShortSrc != signal10ShortSrc[1]) or 
+                          (strategy.position_size < 0 and signal10Usage != 'Short Only' and signal10LongSrc > 0 and signal10LongSrc != signal10LongSrc[1])
+        if signal10Opposite
+            oppositeSignalsCount := oppositeSignalsCount + 1
+    
+    // Determine if exit should be triggered
+    signalBasedExitTriggered := oppositeSignalsCount >= minOppositeSignals
+else
+    oppositeSignalsCount := 0
+    signalBasedExitTriggered := false
 
 // Enhanced debug logging for all directional bias filters and systems
 // KEYWORDS: Debug, Logging, Filter Status, Confluence
@@ -2445,6 +2704,7 @@ if barstate.islast
     
     else
         label.delete(blockingLabel)
+        blockingLabel := na
 
 // ═══════════════════ PRODUCTION SAFETY CHECKS ═══════════════════
 // Critical safety validations for production deployment
