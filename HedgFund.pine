@@ -50,6 +50,18 @@ var string entryComment = na
 // ATR and other technical variables
 // ATR is calculated using user-configurable atrLen in the ATR Settings section
 
+// Trend indicator signal variables
+var bool trend1Long = false
+var bool trend1Short = false
+var bool trend2Long = false
+var bool trend2Short = false
+var bool trend3Long = false
+var bool trend3Short = false
+
+// Directional bias variables
+var bool biasAllowsLong = true
+var bool biasAllowsShort = true
+
 
 
 // ═══════════════════ CRITICAL INPUT DECLARATIONS ═══════════════════
@@ -193,12 +205,67 @@ catastrophicStopMultiplier = input.float(3.0, 'Stop Multiplier', minval = 2.0, m
 
 // Traditional Trailing Stop - REMOVED (use Smart Profit Locker with 100% offset for traditional behavior)
 
+// ═══════════════════ TREND INDICATORS ═══════════════════
+// Directional bias and trend-based exit system
 
+// Master Controls
+useTrendExits = input.bool(false, '🚪 Use Trend Exits', group = '🧭 Trend Indicators', tooltip = 'Enable trend-based exit signals (future feature)')
+useDirectionalBias = input.bool(true, '🔄 Use Directional Bias', group = '🧭 Trend Indicators', tooltip = 'Filter entries based on trend direction - only take trades aligned with trend')
+
+// Trend Indicator 1
+trend1Enable = input.bool(true, '📊 Trend 1', inline = 'trend1', group = '🧭 Trend Indicators', tooltip = 'Primary trend indicator')
+trend1Name = input.string('Hull Suite', 'Name', inline = 'trend1', group = '🧭 Trend Indicators')
+trend1LongSrc = input.source(close, 'Long', inline = 'trend1src', group = '🧭 Trend Indicators', tooltip = 'Connect to trend UP/LONG signal (1 = uptrend, 0 = not uptrend)')
+trend1ShortSrc = input.source(close, 'Short', inline = 'trend1src', group = '🧭 Trend Indicators', tooltip = 'Connect to trend DOWN/SHORT signal (1 = downtrend, 0 = not downtrend)')
+trend1ExitLongSrc = input.source(close, 'Exit Long', inline = 'trend1exit', group = '🧭 Trend Indicators', tooltip = 'Connect to exit long signal (future feature)')
+trend1ExitShortSrc = input.source(close, 'Exit Short', inline = 'trend1exit', group = '🧭 Trend Indicators', tooltip = 'Connect to exit short signal (future feature)')
+
+// Trend Indicator 2
+trend2Enable = input.bool(false, '📊 Trend 2', inline = 'trend2', group = '🧭 Trend Indicators', tooltip = 'Secondary trend indicator')
+trend2Name = input.string('Quadrant', 'Name', inline = 'trend2', group = '🧭 Trend Indicators')
+trend2LongSrc = input.source(close, 'Long', inline = 'trend2src', group = '🧭 Trend Indicators', tooltip = 'Connect to trend UP/LONG signal (1 = uptrend, 0 = not uptrend)')
+trend2ShortSrc = input.source(close, 'Short', inline = 'trend2src', group = '🧭 Trend Indicators', tooltip = 'Connect to trend DOWN/SHORT signal (1 = downtrend, 0 = not downtrend)')
+trend2ExitLongSrc = input.source(close, 'Exit Long', inline = 'trend2exit', group = '🧭 Trend Indicators', tooltip = 'Connect to exit long signal (future feature)')
+trend2ExitShortSrc = input.source(close, 'Exit Short', inline = 'trend2exit', group = '🧭 Trend Indicators', tooltip = 'Connect to exit short signal (future feature)')
+
+// Trend Indicator 3
+trend3Enable = input.bool(false, '📊 Trend 3', inline = 'trend3', group = '🧭 Trend Indicators', tooltip = 'Third trend indicator')
+trend3Name = input.string('Adaptive ST', 'Name', inline = 'trend3', group = '🧭 Trend Indicators')
+trend3LongSrc = input.source(close, 'Long', inline = 'trend3src', group = '🧭 Trend Indicators', tooltip = 'Connect to trend UP/LONG signal (1 = uptrend, 0 = not uptrend)')
+trend3ShortSrc = input.source(close, 'Short', inline = 'trend3src', group = '🧭 Trend Indicators', tooltip = 'Connect to trend DOWN/SHORT signal (1 = downtrend, 0 = not downtrend)')
+trend3ExitLongSrc = input.source(close, 'Exit Long', inline = 'trend3exit', group = '🧭 Trend Indicators', tooltip = 'Connect to exit long signal (future feature)')
+trend3ExitShortSrc = input.source(close, 'Exit Short', inline = 'trend3exit', group = '🧭 Trend Indicators', tooltip = 'Connect to exit short signal (future feature)')
+
+// ═══════════════════ DIRECTIONAL BIAS CALCULATION ═══════════════════
+// Read trend indicator signals (must be AFTER input declarations)
+trend1Long := trend1Enable and trend1LongSrc != close ? (trend1LongSrc > 0 or bool(trend1LongSrc) == true) : false
+trend1Short := trend1Enable and trend1ShortSrc != close ? (trend1ShortSrc > 0 or bool(trend1ShortSrc) == true) : false
+trend2Long := trend2Enable and trend2LongSrc != close ? (trend2LongSrc > 0 or bool(trend2LongSrc) == true) : false
+trend2Short := trend2Enable and trend2ShortSrc != close ? (trend2ShortSrc > 0 or bool(trend2ShortSrc) == true) : false
+trend3Long := trend3Enable and trend3LongSrc != close ? (trend3LongSrc > 0 or bool(trend3LongSrc) == true) : false
+trend3Short := trend3Enable and trend3ShortSrc != close ? (trend3ShortSrc > 0 or bool(trend3ShortSrc) == true) : false
+
+// Count enabled trend indicators
+enabledTrendCount = (trend1Enable ? 1 : 0) + (trend2Enable ? 1 : 0) + (trend3Enable ? 1 : 0)
+
+// Count trend votes for each direction
+trendLongVotes = (trend1Long ? 1 : 0) + (trend2Long ? 1 : 0) + (trend3Long ? 1 : 0)
+trendShortVotes = (trend1Short ? 1 : 0) + (trend2Short ? 1 : 0) + (trend3Short ? 1 : 0)
+
+// Calculate directional bias (simple majority rule)
+// If no trend indicators enabled, allow both directions
+biasAllowsLong := not useDirectionalBias or enabledTrendCount == 0 or trendLongVotes > trendShortVotes
+biasAllowsShort := not useDirectionalBias or enabledTrendCount == 0 or trendShortVotes > trendLongVotes
+
+// Debug bias information
+if useDirectionalBias and enabledTrendCount > 0
+    biasDirection = trendLongVotes > trendShortVotes ? "LONG BIAS" : trendShortVotes > trendLongVotes ? "SHORT BIAS" : "NEUTRAL"
+    debugInfo("Directional Bias: " + biasDirection + " (L:" + str.tostring(trendLongVotes) + " S:" + str.tostring(trendShortVotes) + ")")
 
 // ═══════════════════ ENTRY SIGNALS ═══════════════════
-// Connect calculated signals to entry logic
-longEntrySignal = primaryLongSig
-shortEntrySignal = primaryShortSig
+// Connect calculated signals to entry logic with directional bias filter
+longEntrySignal = primaryLongSig and biasAllowsLong
+shortEntrySignal = primaryShortSig and biasAllowsShort
 
 // ═══════════════════ BACKTESTING CALLS REMOVED ═══════════════════
 // Combo backtesting system removed for minimal base version
@@ -211,17 +278,24 @@ shortEntrySignal = primaryShortSig
 if barstate.isfirst
     debugInfo('EZAlgoTrader initialized with debug logging')
 
-// Long Entry - direct signal
+// Long Entry - direct signal with bias filter
 if longEntrySignal
     entryComment = 'Long' + (longSignalCount > 1 ? ' C:' + str.tostring(longSignalCount) : '')
     strategy.entry('Long', strategy.long, qty = positionQty, comment = entryComment, alert_message = longEntryMsg)
     debugInfo('Long entry triggered: ' + entryComment + ' at price: ' + str.tostring(close))
 
-// Short Entry - direct signal
+// Short Entry - direct signal with bias filter
 if shortEntrySignal
     entryComment = 'Short' + (shortSignalCount > 1 ? ' C:' + str.tostring(shortSignalCount) : '')
     strategy.entry('Short', strategy.short, qty = positionQty, comment = entryComment, alert_message = shortEntryMsg)
     debugInfo('Short entry triggered: ' + entryComment + ' at price: ' + str.tostring(close))
+
+// Debug blocked signals due to directional bias
+if useDirectionalBias and enabledTrendCount > 0
+    if primaryLongSig and not biasAllowsLong
+        debugWarn('Long signal BLOCKED by directional bias (trend favors SHORT)')
+    if primaryShortSig and not biasAllowsShort
+        debugWarn('Short signal BLOCKED by directional bias (trend favors LONG)')
 
 // ═══════════════════ REAL STRATEGY EXIT LOGIC (CRITICAL FIX) ═══════════════════
 // This section bridges the gap between combo backtesting and actual strategy execution
@@ -375,6 +449,21 @@ if debugOn and barstate.isconfirmed
         stateColor = currentPosition ? color.green : color.red
         stateText = currentPosition ? 'ENTRY' : 'EXIT'
         label.new(bar_index, low * 0.98, stateText + '\nFlags Reset: ' + (currentPosition ? 'YES' : 'NO'), color=stateColor, textcolor=color.white, style=label.style_label_up, yloc=yloc.belowbar, size=size.tiny)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 // ──────── DEBUG TABLE (Optional) ────────────
 showDebugTable = input.bool(false, '📊 Show Debug Table', group = '🛠️ Debug System', tooltip = 'Show real-time exit flag status table')
